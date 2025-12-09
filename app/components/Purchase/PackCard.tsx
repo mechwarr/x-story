@@ -14,15 +14,22 @@ type Props = {
   onPress?: (p: PackItem) => void;
   rightColor?: string;        // 右側色塊底色
   style?: ViewStyle;
+  disabled?: boolean;          // 是否禁用
 };
 
-export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style }: Props) {
+export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style, disabled = false }: Props) {
   const { title, coins, bonus, priceUsd } = data;
 
   return (
     <Pressable
-      onPress={() => onPress?.(data)}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed, style]}
+      onPress={() => !disabled && onPress?.(data)}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.card,
+        pressed && !disabled && styles.pressed,
+        disabled && styles.disabled,
+        style
+      ]}
     >
       {/* 左：內容 */}
       <View style={styles.left}>
@@ -63,6 +70,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F4E6D6',          // 卡片底（左半）
   },
   pressed: { transform: [{ scale: 0.995 }] },
+  disabled: { opacity: 0.5 },
 
   // 左半
   left: {

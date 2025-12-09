@@ -2,7 +2,7 @@
 import { RestfulApi } from "./api";
 
 export const devBaseUrl = "http://220.133.50.218:6001/";
-export const prodBaseUrl = "http://220.133.50.218:6001/";
+export const prodBaseUrl = "http://20.198.216.126:3001";
 //https://xstoryline.com/
 const authApi = new RestfulApi({
   devBaseUrl,
