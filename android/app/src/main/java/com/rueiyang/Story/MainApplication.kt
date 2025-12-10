@@ -49,21 +49,31 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
 
-    val appId = getString(R.string.facebook_app_id)
-    val clientToken = getString(R.string.facebook_client_token)
-    Log.e("tag", "appId: $appId")
-    Log.e("tag", "clientToken: $clientToken")
+    try {
+      val appId = getString(R.string.facebook_app_id)
+      val clientToken = getString(R.string.facebook_client_token)
+      Log.e("tag", "appId: $appId")
+      Log.e("tag", "clientToken: $clientToken")
 
-    FacebookSdk.setApplicationId(appId)
-    FacebookSdk.setClientToken(clientToken)
-    FacebookSdk.sdkInitialize(applicationContext)
-    AppEventsLogger.activateApp(this)
-
-    SoLoader.init(this, OpenSourceMergedSoMapping)
-    if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
-      load()
+      FacebookSdk.setApplicationId(appId)
+      FacebookSdk.setClientToken(clientToken)
+      FacebookSdk.sdkInitialize(applicationContext)
+      AppEventsLogger.activateApp(this)
+    } catch (e: Exception) {
+      Log.e("MainApplication", "Error initializing Facebook SDK: ${e.message}", e)
+      // 繼續執行，不讓 Facebook SDK 初始化失敗阻止應用啟動
     }
-    ApplicationLifecycleDispatcher.onApplicationCreate(this)
+
+    try {
+      SoLoader.init(this, OpenSourceMergedSoMapping)
+      if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
+        load()
+      }
+      ApplicationLifecycleDispatcher.onApplicationCreate(this)
+    } catch (e: Exception) {
+      Log.e("MainApplication", "Error initializing SoLoader or New Architecture: ${e.message}", e)
+      // 記錄錯誤但不阻止應用啟動
+    }
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {
