@@ -2,8 +2,8 @@
 import { RestfulApi } from "./api";
 
 export const devBaseUrl = "http://api.xstudio-mclub.url.tw/";
-export const prodBaseUrl = "http://20.198.216.126:3001";
-//https://xstoryline.com/
+export const prodBaseUrl = "https://xstoryline.com/";
+export const portURL = "http://20.198.216.126:3001/";
 const api = new RestfulApi({
   devBaseUrl,
   prodBaseUrl,

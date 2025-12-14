@@ -1,5 +1,13 @@
 // shopApiClient.ts
-import api from "./apiClient";
+import { RestfulApi } from "./api";
+import { portURL, devBaseUrl } from "./apiClient";
+
+// 創建使用 portURL 的 API 實例（用於商城相關 API）
+const shopApi = new RestfulApi({
+  devBaseUrl,
+  prodBaseUrl: portURL,
+  isDev: __DEV__,
+});
 
 //=======================================================
 //============== 商城相關 API ==============
@@ -13,6 +21,7 @@ export interface CoinPack {
   name: string;
   price: number;
   platform: "GOOGLE" | "APPLE";
+  productId: string; // IAP 商品 ID（用於 Google Play / App Store）
 }
 
 /**
@@ -29,27 +38,79 @@ export interface GetCoinPacksResponse {
  */
 export async function getCoinPacks(): Promise<CoinPack[]> {
   const endpoint = "api/coin-packs";
-  console.log("[shopApiClient] 開始請求金幣包列表，endpoint:", endpoint);
+  const baseUrl = shopApi.currentBaseUrl();
+  const fullUrl = baseUrl + endpoint;
+  
+  console.log("[shopApiClient] ========== 開始請求金幣包列表 ==========");
+  console.log("[shopApiClient] 基礎 URL:", baseUrl);
+  console.log("[shopApiClient] Endpoint:", endpoint);
+  console.log("[shopApiClient] 完整 URL:", fullUrl);
   
   try {
-    const res = await api.get<GetCoinPacksResponse>(endpoint);
+    const res = await shopApi.get<GetCoinPacksResponse>(endpoint);
     console.log("[shopApiClient] API 響應:", JSON.stringify(res, null, 2));
 
     if (res && res.success) {
       const packs = res.data || [];
-      console.log("[shopApiClient] 成功獲取金幣包列表，數量:", packs.length);
+      console.log("[shopApiClient] ✓ 成功獲取金幣包列表，數量:", packs.length);
       console.log("[shopApiClient] 金幣包資料:", JSON.stringify(packs, null, 2));
       return packs;
     } else {
-      console.warn("[shopApiClient] 獲取金幣包列表失敗，響應:", res);
+      console.warn("[shopApiClient] ✗ 獲取金幣包列表失敗，響應:", res);
       return [];
     }
   } catch (error) {
-    console.error("[shopApiClient] 獲取金幣包列表時發生錯誤:", error);
+    console.error("[shopApiClient] ========== 獲取金幣包列表時發生錯誤 ==========");
+    console.error("[shopApiClient] 錯誤類型:", error?.constructor?.name || typeof error);
+    console.error("[shopApiClient] 完整 URL:", fullUrl);
+    
     if (error instanceof Error) {
       console.error("[shopApiClient] 錯誤訊息:", error.message);
       console.error("[shopApiClient] 錯誤堆疊:", error.stack);
+      
+      // 分析錯誤類型
+      if (error.message.includes("Network request failed")) {
+        console.error("[shopApiClient] ========== 網絡錯誤診斷 ==========");
+        console.error("[shopApiClient] 錯誤類型: Network request failed");
+        console.error("[shopApiClient]");
+        console.error("[shopApiClient] 可能的原因：");
+        console.error("[shopApiClient] 1. ❌ API 服務器無法訪問");
+        console.error("[shopApiClient]    → 請確認服務器是否運行: " + fullUrl);
+        console.error("[shopApiClient]    → 可以在瀏覽器中測試訪問該 URL");
+        console.error("[shopApiClient]");
+        console.error("[shopApiClient] 2. ❌ 域名解析失敗");
+        console.error("[shopApiClient]    → 域名可能無法解析: " + baseUrl);
+        console.error("[shopApiClient]    → 請確認域名是否正確");
+        console.error("[shopApiClient]");
+        console.error("[shopApiClient] 3. ❌ 網絡連接問題");
+        console.error("[shopApiClient]    → 設備可能沒有網絡連接");
+        console.error("[shopApiClient]    → 請檢查 Wi-Fi 或行動網絡");
+        console.error("[shopApiClient]");
+        console.error("[shopApiClient] 4. ❌ 模擬器網絡問題");
+        console.error("[shopApiClient]    → 如果使用模擬器，可能需要特殊網絡配置");
+        console.error("[shopApiClient]    → 建議在真實設備上測試");
+        console.error("[shopApiClient]");
+        console.error("[shopApiClient] 5. ❌ Android 網絡安全配置");
+        console.error("[shopApiClient]    → 雖然已設置 usesCleartextTraffic=true");
+        console.error("[shopApiClient]    → 但某些 Android 版本可能仍有問題");
+        console.error("[shopApiClient]");
+        console.error("[shopApiClient] 6. ❌ 防火牆或代理阻擋");
+        console.error("[shopApiClient]    → 公司網絡或防火牆可能阻擋請求");
+        console.error("[shopApiClient]    → 請嘗試使用不同的網絡");
+        console.error("[shopApiClient] ========================================");
+      } else if (error.message.includes("timeout") || error.message.includes("TIMEOUT")) {
+        console.error("[shopApiClient] 錯誤類型: 請求超時");
+        console.error("[shopApiClient] → 服務器響應時間過長");
+        console.error("[shopApiClient] → 可能是服務器負載過高或網絡延遲");
+      } else if (error.message.includes("Failed to fetch")) {
+        console.error("[shopApiClient] 錯誤類型: 獲取失敗");
+        console.error("[shopApiClient] → 無法建立連接");
+        console.error("[shopApiClient] → 請檢查服務器狀態和網絡連接");
+      }
+    } else {
+      console.error("[shopApiClient] 錯誤物件:", JSON.stringify(error, null, 2));
     }
+    
     return [];
   }
 }
@@ -108,7 +169,7 @@ export async function getProducts(
       }
     }
 
-    const res = await api.get<GetProductsResponse>(endpoint);
+    const res = await shopApi.get<GetProductsResponse>(endpoint);
 
     if (res && res.success) {
       return res.products || [];
@@ -142,7 +203,7 @@ export interface GetBalanceResponse {
  */
 export async function getUserBalance(): Promise<number> {
   try {
-    const res = await api.get<GetBalanceResponse>("api/v1/shop/balance");
+    const res = await shopApi.get<GetBalanceResponse>("api/v1/shop/balance");
 
     if (res && res.success) {
       return res.balance || 0;
@@ -192,7 +253,7 @@ export async function purchaseProduct(
   payload: PurchaseProductRequest
 ): Promise<PurchaseProductResponse | null> {
   try {
-    const res = await api.post<PurchaseProductResponse>(
+    const res = await shopApi.post<PurchaseProductResponse>(
       "api/v1/shop/purchase",
       payload
     );
@@ -242,7 +303,7 @@ export async function verifyPurchase(
   payload: VerifyPurchaseRequest
 ): Promise<boolean> {
   try {
-    const res = await api.post<VerifyPurchaseResponse>(
+    const res = await shopApi.post<VerifyPurchaseResponse>(
       "api/v1/shop/verify-purchase",
       payload
     );
@@ -325,7 +386,7 @@ export async function getPurchaseHistory(
       }
     }
 
-    const res = await api.get<GetPurchaseHistoryResponse>(endpoint);
+    const res = await shopApi.get<GetPurchaseHistoryResponse>(endpoint);
 
     if (res && res.success) {
       return res.purchases || [];
@@ -414,7 +475,7 @@ export async function getCoinHistory(
       }
     }
 
-    const res = await api.get<GetCoinHistoryResponse>(endpoint);
+    const res = await shopApi.get<GetCoinHistoryResponse>(endpoint);
 
     if (res && res.success) {
       return res.logs || [];
@@ -447,7 +508,7 @@ function extractErrorMessage(err: unknown): string {
           return parsed.message;
         }
       }
-    } catch (_) {
+    } catch {
       // 忽略 JSON parse 失敗
     }
     // 否則回傳原本的簡訊息

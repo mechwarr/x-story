@@ -8,7 +8,13 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "build:google-play": "./scripts/build-google-play.sh",
+    "build:google-play:skip": "./scripts/build-google-play.sh skip",
+    "build:emulator": "./scripts/build-emulator-apk.sh debug",
+    "build:emulator:release": "./scripts/build-emulator-apk.sh release",
+    "build:emulator:clean": "./scripts/build-emulator-apk.sh debug clean",
+    "version:bump": "node scripts/bump-version.js"
   },
   "dependencies": {
     "@expo/metro-config": "^0.20.17",

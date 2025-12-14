@@ -81,6 +81,80 @@ def enableProguardInReleaseBuilds = (findProperty('android.enableProguardInRelea
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// 保存 mapping 文件的輔助函數
+def saveMappingFile(variant) {
+    def mappingFile = file("${projectDir}/build/outputs/mapping/${variant.name}/mapping.txt")
+    if (mappingFile.exists()) {
+        def mappingDir = file("${projectDir}/mapping")
+        mappingDir.mkdirs()
+        def targetMappingFile = file("${mappingDir}/mapping-${variant.versionName}-${variant.versionCode}.txt")
+        copy {
+            from mappingFile
+            into mappingDir
+            rename { "mapping-${variant.versionName}-${variant.versionCode}.txt" }
+        }
+        println "✅ Mapping file saved to: ${targetMappingFile.absolutePath}"
+        println "📦 Upload this file to Google Play Console when uploading the AAB/APK"
+    } else {
+        println "⚠️  Mapping file not found at: ${mappingFile.absolutePath}"
+        println "   This is normal if ProGuard/R8 is not enabled or minifyEnabled is false"
+    }
+}
+
+// 獲取 SHA-1 憑證指紋的輔助任務（用於 Google Sign-In 配置）
+task getDebugSha1 {
+    group = 'signing'
+    description = 'Get SHA-1 fingerprint for debug keystore (for Google Sign-In)'
+    doLast {
+        def keystoreFile = file('debug.keystore')
+        if (!keystoreFile.exists()) {
+            println "❌ Debug keystore not found at: ${keystoreFile.absolutePath}"
+            return
+        }
+        println "🔑 Getting SHA-1 for Debug keystore..."
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        exec {
+            commandLine 'keytool', '-list', '-v',
+                '-keystore', keystoreFile,
+                '-alias', 'androiddebugkey',
+                '-storepass', 'android',
+                '-keypass', 'android'
+        }
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        println "✅ 請複製上面的 SHA1 值到 Google Cloud Console"
+        println "📍 前往: https://console.cloud.google.com/apis/credentials"
+    }
+}
+
+task getReleaseSha1 {
+    group = 'signing'
+    description = 'Get SHA-1 fingerprint for release keystore (for Google Sign-In)'
+    doLast {
+        if (!project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+            println "❌ Release keystore not configured in gradle.properties"
+            println "   請在 gradle.properties 中設定 MYAPP_UPLOAD_STORE_FILE 等屬性"
+            return
+        }
+        def keystoreFile = file(MYAPP_UPLOAD_STORE_FILE)
+        if (!keystoreFile.exists()) {
+            println "❌ Release keystore not found at: ${keystoreFile.absolutePath}"
+            return
+        }
+        println "🔑 Getting SHA-1 for Release keystore..."
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        exec {
+            commandLine 'keytool', '-list', '-v',
+                '-keystore', keystoreFile,
+                '-alias', MYAPP_UPLOAD_KEY_ALIAS,
+                '-storepass', MYAPP_UPLOAD_STORE_PASSWORD,
+                '-keypass', MYAPP_UPLOAD_KEY_PASSWORD
+        }
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        println "✅ 請複製上面的 SHA1 值到 Google Cloud Console"
+        println "📍 前往: https://console.cloud.google.com/apis/credentials"
+    }
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -92,8 +166,8 @@ android {
         applicationId 'com.rueiyang.story'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.0.0"
+        versionCode 5
+        versionName "1.0.3"
     }
     signingConfigs {
         debug {
@@ -122,6 +196,24 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
             crunchPngs (findProperty('android.enablePngCrunchInReleaseBuilds')?.toBoolean() ?: true)
             debuggable false
+        }
+    }
+    
+    // 自動保存 mapping.txt 到固定位置，方便上傳到 Google Play Console
+    applicationVariants.all { variant ->
+        if (variant.buildType.name == "release") {
+            // 處理 APK 構建
+            variant.assembleProvider.get().doLast {
+                saveMappingFile(variant)
+            }
+            
+            // 處理 AAB 構建 - 使用任務名稱
+            def bundleTask = tasks.findByName("bundle${variant.name.capitalize()}")
+            if (bundleTask != null) {
+                bundleTask.doLast {
+                    saveMappingFile(variant)
+                }
+            }
         }
     }
     packagingOptions {

@@ -1,73 +1,42 @@
 // app/screens/ShopScreen.tsx
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
-  SafeAreaView, View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator, Platform,
+  SafeAreaView, View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import PackCard, { PackItem } from '../components/Purchase/PackCard';
 import { useIAP } from '../hook/useIAP';
-import { PRODUCT_IDS, type ProductId } from '../services/iapService';
-import { getCoinPacks, type CoinPack } from '../config/shopApiClient';
+import { type ProductId, PRODUCT_MAP } from '../services/iapService';
 
 const RIGHT_COLORS = ['#F2D4AE', '#F4B86F', '#F3A55D', '#F18F52', '#EF7D47', '#EA6A3E'];
 
 export default function ShopScreen() {
   const navigation = useNavigation();
   const { products, isLoading: isIAPLoading, isPurchasing, purchaseProduct } = useIAP();
-  const [coinPacks, setCoinPacks] = useState<CoinPack[]>([]);
-  const [isLoadingPacks, setIsLoadingPacks] = useState(true);
 
-  // 從後端 API 獲取金幣包列表
-  useEffect(() => {
-    const fetchCoinPacks = async () => {
-      try {
-        setIsLoadingPacks(true);
-        const packs = await getCoinPacks();
-        setCoinPacks(packs);
-      } catch (error) {
-        console.error('獲取金幣包列表失敗:', error);
-      } finally {
-        setIsLoadingPacks(false);
-      }
-    };
-
-    fetchCoinPacks();
-  }, []);
-
-  // 將後端 API 的金幣包轉換為 PackItem 格式
+  // 將 IAP 商品轉換為 PackItem 格式（使用 PRODUCT_MAP 獲取金幣數量等資訊）
   const packsWithPrice = useMemo(() => {
-    const currentPlatform = Platform.OS === 'ios' ? 'APPLE' : 'GOOGLE';
-    
-    // 過濾出當前平台的金幣包
-    const filteredPacks = coinPacks.filter(pack => pack.platform === currentPlatform);
-    
-    return filteredPacks.map((pack, index) => {
-      // 嘗試從 IAP 商品中找到對應的商品（如果有的話）
-      // 這裡可以根據實際需求調整匹配邏輯
-      const productId = Object.values(PRODUCT_IDS)[index] as ProductId | undefined;
-      const product = productId ? products.find((p: any) => p.productId === productId) : undefined;
+    return products.map((product) => {
+      // 從 PRODUCT_MAP 獲取商品資訊（金幣數量、bonus 等）
+      const productInfo = PRODUCT_MAP[product.id as ProductId];
       
-      // 解析金幣數量（從 name 中提取，例如 "100 Coins" -> 100）
-      const coinsMatch = pack.name.match(/(\d+)\s*Coins?/i);
-      const coins = coinsMatch ? parseInt(coinsMatch[1], 10) : 0;
-      
-      // 如果有從商店獲取的價格，使用商店價格；否則使用 API 返回的價格
-      const price = product && (product as any).localizedPrice 
-        ? parseFloat((product as any).localizedPrice.replace(/[^0-9.]/g, ''))
-        : pack.price;
+      // 使用 IAP 的價格（優先使用 displayPrice，否則使用 price）
+      const price = product.displayPrice
+        ? parseFloat(product.displayPrice.replace(/[^0-9.]/g, ''))
+        : (product.price || 0);
 
       return {
-        id: `pack-${pack.id}`,
-        title: pack.name,
-        coins: coins,
-        bonus: 0, // 可以根據實際需求調整
-        priceUsd: price,
-        productId,
-        isAvailable: !!product || true, // 如果沒有 IAP 商品，仍然顯示
+        id: `iap-${product.id}`,
+        title: product.title, // 使用 IAP 商品的標題
+        coins: productInfo?.coins || 0, // 從 PRODUCT_MAP 獲取金幣數量
+        bonus: productInfo?.bonus || 0, // 從 PRODUCT_MAP 獲取 bonus
+        priceUsd: price, // 使用 IAP 的價格
+        productId: product.id as ProductId,
+        isAvailable: true, // IAP 商品已載入，標記為可用
       } as PackItem & { productId?: ProductId; isAvailable?: boolean };
     });
-  }, [coinPacks, products]);
+  }, [products]);
 
   const handlePressPack = async (p: PackItem & { productId?: ProductId; isAvailable?: boolean }) => {
     if (!p.productId) {
@@ -117,7 +86,7 @@ export default function ShopScreen() {
         </View>
       </View>
 
-      {isLoadingPacks || isIAPLoading ? (
+      {isIAPLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#f0ad57" />
           <Text style={styles.loadingText}>載入商品中...</Text>
@@ -125,9 +94,17 @@ export default function ShopScreen() {
       ) : packsWithPrice.length === 0 ? (
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>暫無可用商品</Text>
+          {isIAPLoading && (
+            <Text style={styles.loadingHint}>正在初始化商店服務...</Text>
+          )}
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+          {isIAPLoading && (
+            <View style={styles.iapLoadingHint}>
+              <Text style={styles.iapLoadingText}>正在載入商店價格資訊...</Text>
+            </View>
+          )}
           {packsWithPrice.map((p, i) => (
             <PackCard
               key={p.id}
@@ -184,5 +161,22 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#e7eef6',
     fontSize: 16,
+  },
+  loadingHint: {
+    color: '#a0a0a0',
+    fontSize: 14,
+    marginTop: 8,
+  },
+  iapLoadingHint: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    backgroundColor: 'rgba(240, 173, 87, 0.1)',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  iapLoadingText: {
+    color: '#f0ad57',
+    fontSize: 12,
   },
 });

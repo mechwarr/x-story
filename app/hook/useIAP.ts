@@ -4,9 +4,10 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Platform, Alert } from 'react-native';
+import { Alert } from 'react-native';
 import { iapService, PRODUCT_IDS, PRODUCT_MAP, type ProductId } from '../services/iapService';
-import type { Product, Purchase } from 'react-native-iap';
+import { getCoinPacks } from '../config/shopApiClient';
+import type { Product, Purchase, PurchaseError } from 'react-native-iap';
 
 interface UseIAPReturn {
   products: Product[];
@@ -30,30 +31,52 @@ export function useIAP(): UseIAPReturn {
       setIsLoading(true);
       setError(null);
 
-      console.log('[useIAP] 開始載入商品...');
+      console.log('[useIAP] ========== 開始載入商品 ==========');
 
-      // 初始化 IAP 連線
-      console.log('[useIAP] 初始化 IAP 連線...');
+      // 步驟 1: 從後端 API 獲取金幣包列表（僅用於打印 log）
+      try {
+        console.log('[useIAP] 步驟 1: 從後端 API 獲取金幣包列表（僅用於 log）...');
+        const coinPacks = await getCoinPacks();
+        console.log('[useIAP] ========== /api/coin-packs Response Data ==========');
+        console.log('[useIAP] 獲取到金幣包數量:', coinPacks.length);
+        console.log('[useIAP] 金幣包資料:', JSON.stringify(coinPacks, null, 2));
+        console.log('[useIAP] ================================================');
+      } catch (apiError) {
+        console.warn('[useIAP] 獲取後端 API 資料失敗（僅用於 log，不影響 IAP 載入）:', apiError);
+      }
+
+      // 步驟 2: 使用 PRODUCT_IDS 來初始化 IAP
+      const productIds = Object.values(PRODUCT_IDS);
+      console.log('[useIAP] 步驟 2: 使用 PRODUCT_IDS 初始化 IAP');
+      console.log('[useIAP] 商品 ID 列表:', productIds);
+
+      // 步驟 3: 初始化 IAP 連線
+      console.log('[useIAP] 步驟 3: 初始化 IAP 連線...');
       const initialized = await iapService.initialize();
       if (!initialized) {
         const errorMsg = '無法初始化內購服務。可能原因：1) 在模擬器上運行 2) 設備沒有 Google Play 服務 3) 應用未正確配置';
         console.warn('[useIAP]', errorMsg);
-        // 不拋出錯誤，讓應用可以繼續運行（顯示後端 API 的商品）
         setError(new Error(errorMsg));
-        setProducts([]); // 設置為空陣列，讓 UI 可以顯示後端 API 的商品
+        setProducts([]);
         return;
       }
 
-      console.log('[useIAP] IAP 初始化成功，獲取商品列表...');
-      // 獲取商品列表
-      const productList = await iapService.getProductList();
-      console.log('[useIAP] 獲取到商品數量:', productList.length);
+      // 步驟 4: 使用 PRODUCT_IDS 獲取 IAP 商品列表
+      console.log('[useIAP] 步驟 4: 使用 PRODUCT_IDS 獲取 IAP 商品列表...');
+      const productList = await iapService.getProductList(productIds);
+      console.log('[useIAP] ✓ 成功獲取 IAP 商品數量:', productList.length);
+      console.log('[useIAP] IAP 商品列表:', productList.map(p => ({ 
+        id: p.id, 
+        title: p.title, 
+        price: p.displayPrice || p.price 
+      })));
+      
       setProducts(productList);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('載入商品失敗');
       setError(error);
-      console.error('[useIAP] 載入商品失敗:', error);
-      // 即使失敗也設置為空陣列，讓 UI 可以顯示後端 API 的商品
+      console.error('[useIAP] ========== 載入商品失敗 ==========');
+      console.error('[useIAP] 錯誤:', error);
       setProducts([]);
     } finally {
       setIsLoading(false);
@@ -73,11 +96,40 @@ export function useIAP(): UseIAPReturn {
         // 這裡可以調用後端 API 來驗證收據並更新用戶餘額
         // await verifyPurchaseWithBackend(purchase);
         
+        // 從當前的 products 狀態中獲取商品名稱（從 Google Play 返回的 Product 物件）
+        // 使用 purchase.productId 來匹配商品
+        const purchasedProduct = products.find((p: any) => 
+          (p as any).productId === purchase.productId || 
+          p.id === purchase.productId ||
+          (p as any).productId === productId || 
+          p.id === productId
+        );
+        
+        // 商品名稱來源：Google Play 返回的 Product.title
+        const productTitle = purchasedProduct?.title || purchase.productId || productId;
+        
+        // 從 PRODUCT_MAP 獲取商品資訊（金幣數量、bonus）
         const productInfo = PRODUCT_MAP[productId];
+        
+        console.log('[useIAP] 購買成功 - 商品資訊:', {
+          productId,
+          productTitle,
+          source: purchasedProduct ? 'Google Play Product.title' : 'fallback to productId',
+          coins: productInfo?.coins || 0,
+          bonus: productInfo?.bonus || 0,
+        });
+        
         if (productInfo) {
           Alert.alert(
             '購買成功',
-            `您已成功購買 ${productInfo.title}，獲得 ${productInfo.coins + (productInfo.bonus || 0)} 金幣！`,
+            `您已成功購買 ${productTitle}，獲得 ${productInfo.coins + (productInfo.bonus || 0)} 金幣！`,
+            [{ text: '確定' }]
+          );
+        } else {
+          // 如果商品不在 PRODUCT_MAP 中，使用通用成功訊息
+          Alert.alert(
+            '購買成功',
+            `您已成功購買 ${productTitle}！`,
             [{ text: '確定' }]
           );
         }
@@ -86,14 +138,16 @@ export function useIAP(): UseIAPReturn {
       };
 
       // 設定購買錯誤回調
-      iapService.onPurchaseError = (err: Error) => {
+      iapService.onPurchaseError = (err: Error | PurchaseError) => {
         console.error('購買錯誤:', err);
-        setError(err);
+        const error = err instanceof Error ? err : new Error(err.message || '購買失敗');
+        setError(error);
         setIsPurchasing(false);
         
         // 不顯示取消購買的錯誤
-        if (err.message && !err.message.includes('cancel')) {
-          Alert.alert('購買失敗', err.message || '購買過程中發生錯誤，請稍後再試');
+        const errorMessage = err instanceof Error ? err.message : err.message || '';
+        if (errorMessage && !errorMessage.includes('cancel')) {
+          Alert.alert('購買失敗', errorMessage || '購買過程中發生錯誤，請稍後再試');
         }
       };
 
@@ -105,7 +159,7 @@ export function useIAP(): UseIAPReturn {
       setIsPurchasing(false);
       Alert.alert('購買失敗', error.message);
     }
-  }, []);
+  }, [products]);
 
   // 恢復購買
   const restorePurchases = useCallback(async () => {

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    網絡安全配置 - 允許 HTTP (cleartext) 流量
+    用於支持使用 HTTP 的 API 端點
+-->
+<network-security-config>
+    <!-- 全域配置：允許所有 HTTP 流量 -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    
+    <!-- 特定域名配置：明確允許的域名 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- 開發環境 API 域名 -->
+        <domain includeSubdomains="true">api.xstudio-mclub.url.tw</domain>
+        <!-- 生產環境 IP -->
+        <domain includeSubdomains="true">20.198.216.126</domain>
+    </domain-config>
+</network-security-config>
+
