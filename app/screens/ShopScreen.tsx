@@ -7,7 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import PackCard, { PackItem } from '../components/Purchase/PackCard';
 import { useIAP } from '../hook/useIAP';
-import { type ProductId, PRODUCT_MAP } from '../services/iapService';
+import { type ProductId } from '../services/iapService';
 
 const RIGHT_COLORS = ['#F2D4AE', '#F4B86F', '#F3A55D', '#F18F52', '#EF7D47', '#EA6A3E'];
 
@@ -15,12 +15,10 @@ export default function ShopScreen() {
   const navigation = useNavigation();
   const { products, isLoading: isIAPLoading, isPurchasing, purchaseProduct } = useIAP();
 
-  // 將 IAP 商品轉換為 PackItem 格式（使用 PRODUCT_MAP 獲取金幣數量等資訊）
+  // 將 IAP 商品轉換為 PackItem 格式
+  // 注意：coins 和 bonus 資訊應從後端 API 獲取，目前暫時設為 0
   const packsWithPrice = useMemo(() => {
     return products.map((product) => {
-      // 從 PRODUCT_MAP 獲取商品資訊（金幣數量、bonus 等）
-      const productInfo = PRODUCT_MAP[product.id as ProductId];
-      
       // 使用 IAP 的價格（優先使用 displayPrice，否則使用 price）
       const price = product.displayPrice
         ? parseFloat(product.displayPrice.replace(/[^0-9.]/g, ''))
@@ -29,8 +27,8 @@ export default function ShopScreen() {
       return {
         id: `iap-${product.id}`,
         title: product.title, // 使用 IAP 商品的標題
-        coins: productInfo?.coins || 0, // 從 PRODUCT_MAP 獲取金幣數量
-        bonus: productInfo?.bonus || 0, // 從 PRODUCT_MAP 獲取 bonus
+        coins: 0, // TODO: 從後端 API 獲取（CoinPack 接口需要擴展）
+        bonus: 0, // TODO: 從後端 API 獲取（CoinPack 接口需要擴展）
         priceUsd: price, // 使用 IAP 的價格
         productId: product.id as ProductId,
         isAvailable: true, // IAP 商品已載入，標記為可用

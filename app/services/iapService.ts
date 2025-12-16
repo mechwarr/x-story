@@ -18,29 +18,10 @@ import {
   type Purchase,
   type PurchaseError,
 } from 'react-native-iap';
+import tokenStorage from '../auth/Storage';
 
-// 商品 ID 配置（需要在 App Store Connect 和 Google Play Console 中設定）
-export const PRODUCT_IDS = {
-  PACK_1: 'item_001', // 入門基本包
-  PACK_2: 'item_002', // 熱門推薦包
-  PACK_3: 'item_003', // 高效閱讀包
-  PACK_4: 'item_004', // 文青超值包
-  PACK_5: 'item_005', // VIP獨享包
-  PACK_6: 'item_006', // 尊爵贊助包
-} as const;
-
-export type ProductId = typeof PRODUCT_IDS[keyof typeof PRODUCT_IDS];
-
-// 商品資訊映射（只包含應用內邏輯需要的資訊：金幣數量和 bonus）
-// 注意：商品名稱和價格應從 Google Play/App Store 返回的 Product 物件中獲取
-export const PRODUCT_MAP: Record<string, { coins: number; bonus: number }> = {
-  [PRODUCT_IDS.PACK_1]: { coins: 90, bonus: 5 },
-  [PRODUCT_IDS.PACK_2]: { coins: 150, bonus: 20 },
-  [PRODUCT_IDS.PACK_3]: { coins: 300, bonus: 55 },
-  [PRODUCT_IDS.PACK_4]: { coins: 590, bonus: 120 },
-  [PRODUCT_IDS.PACK_5]: { coins: 1190, bonus: 280 },
-  [PRODUCT_IDS.PACK_6]: { coins: 1790, bonus: 460 },
-};
+// 商品 ID 類型（現在從伺服器動態獲取，不再硬編碼）
+export type ProductId = string;
 
 class IAPService {
   private purchaseUpdateSubscription: any = null;
@@ -288,21 +269,38 @@ class IAPService {
             }
           }
           
-          // 驗證收據（可選，建議在後端驗證）
-          // TODO: 在這裡調用後端 API 驗證購買
-          // const receipt = await this.validateReceiptWithBackend(purchase);
+          // 驗證收據（調用後端 API）
+          console.log('[iapService] 開始驗證收據...');
+          const verificationResult = await this.verifyReceipt(purchase);
           
-          // 完成交易（標記為已處理）
-          // 重要：必須調用 finishTransaction，否則 Google Play 會認為交易未完成
-          console.log('[iapService] 完成交易（finishTransaction）...');
-          await finishTransaction({ purchase, isConsumable: true });
-          console.log('[iapService] ✓ 交易已完成');
-          
-          // 觸發購買成功回調
-          console.log('[iapService] 觸發購買成功回調...');
-          this.onPurchaseSuccess?.(purchase);
-          
-          console.log('[iapService] ========== 購買處理完成 ==========');
+          // 只有驗證成功時才完成交易並觸發成功回調
+          if (verificationResult.success) {
+            // 完成交易（標記為已處理）
+            // 重要：必須調用 finishTransaction，否則 Google Play 會認為交易未完成
+            console.log('[iapService] 完成交易（finishTransaction）...');
+            await finishTransaction({ purchase, isConsumable: true });
+            console.log('[iapService] ✓ 交易已完成');
+            
+            // 獲取商品名稱（用於顯示）
+            const productId = purchase.productId || (purchase as any).productId;
+            const productName = this.cachedProducts.find(
+              (p: any) => (p as any).productId === productId || p.id === productId
+            )?.title || productId || '商品';
+            
+            // 觸發購買成功回調（傳遞驗證結果和商品名稱）
+            console.log('[iapService] 觸發購買成功回調...');
+            this.onPurchaseSuccess?.(purchase, {
+              productName,
+              coinsAdded: verificationResult.coinsAdded || 0,
+              message: verificationResult.message,
+            });
+            
+            console.log('[iapService] ========== 購買處理完成 ==========');
+          } else {
+            // 驗證失敗，記錄錯誤但不完成交易（讓用戶可以重試）
+            console.error('[iapService] ❌ 收據驗證失敗:', verificationResult.message);
+            throw new Error(verificationResult.message || '收據驗證失敗');
+          }
         } catch (error) {
           console.error('[iapService] ========== 處理購買時發生錯誤 ==========');
           console.error('[iapService] 錯誤:', error);
@@ -379,6 +377,135 @@ class IAPService {
   }
 
   /**
+   * 從 token 中解析用戶 ID（如果是 JWT）
+   * 如果無法解析，則返回 token 本身作為備選方案
+   */
+  private async getUserId(): Promise<string> {
+    try {
+      const token = await tokenStorage.getToken();
+      if (!token) {
+        console.warn('[iapService] ⚠️ 無法獲取 token，使用預設 userId');
+        return 'unknown_user';
+      }
+
+      // 嘗試解析 JWT token
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+          // 嘗試從 payload 中獲取 userId、id、sub 等常見字段
+          const userId = payload.userId || payload.id || payload.sub || payload.user_id;
+          if (userId) {
+            console.log('[iapService] ✓ 從 token 中解析到 userId:', userId);
+            return String(userId);
+          }
+        }
+      } catch {
+        // 如果不是 JWT 格式，忽略錯誤
+        console.log('[iapService] token 不是 JWT 格式，使用 token 作為 userId');
+      }
+
+      // 如果無法解析，使用 token 的前 20 個字符作為 userId（避免過長）
+      return token.substring(0, 20);
+    } catch (error) {
+      console.error('[iapService] 獲取 userId 失敗:', error);
+      return 'unknown_user';
+    }
+  }
+
+  /**
+   * 驗證收據（調用後端 API）
+   * @param purchase - 購買物件
+   * @param productName - 商品名稱（用於顯示）
+   * @returns Promise<{ success: boolean; coinsAdded?: number; message?: string }>
+   */
+  private async verifyReceipt(
+    purchase: Purchase,
+    productName?: string
+  ): Promise<{ success: boolean; coinsAdded?: number; message?: string }> {
+    try {
+      console.log('[iapService] ========== 開始驗證收據 ==========');
+      
+      // 獲取購買資訊
+      const purchaseInfo = this.extractPurchaseInfo(purchase);
+      const platform = Platform.OS === 'android' ? 'GOOGLE' : 'APPLE';
+      
+      // 獲取 userId
+      const userId = await this.getUserId();
+      
+      // 準備請求資料
+      // 對於 Google Play，使用 purchaseToken 作為 receipt
+      const receipt = purchaseInfo.purchaseToken !== 'N/A' 
+        ? purchaseInfo.purchaseToken 
+        : purchaseInfo.transactionReceipt;
+      
+      const requestData = {
+        platform,
+        receipt,
+        userId,
+      };
+      
+      console.log('[iapService] 驗證請求資料:', JSON.stringify({
+        ...requestData,
+        receipt: receipt.substring(0, 50) + '...', // 只顯示前 50 個字符
+      }, null, 2));
+      
+      // 調用驗證 API
+      const apiUrl = 'http://20.198.216.126:3001/api/iap/verify';
+      console.log('[iapService] API URL:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[iapService] ❌ API 響應錯誤:', response.status, errorText);
+        throw new Error(`驗證收據失敗: HTTP ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('[iapService] ✓ 驗證 API 響應:', JSON.stringify(result, null, 2));
+      
+      if (result.success) {
+        console.log('[iapService] ✓ 收據驗證成功');
+        console.log('[iapService]   獲取金幣:', result.coinsAdded || 0);
+        console.log('[iapService]   訊息:', result.message);
+        
+        return {
+          success: true,
+          coinsAdded: result.coinsAdded,
+          message: result.message,
+        };
+      } else {
+        console.warn('[iapService] ⚠️ 收據驗證失敗:', result.message);
+        return {
+          success: false,
+          message: result.message || '收據驗證失敗',
+        };
+      }
+    } catch (error) {
+      console.error('[iapService] ========== 驗證收據時發生錯誤 ==========');
+      console.error('[iapService] 錯誤:', error);
+      if (error instanceof Error) {
+        console.error('[iapService] 錯誤訊息:', error.message);
+        console.error('[iapService] 錯誤堆疊:', error.stack);
+      }
+      console.error('[iapService] ===========================================');
+      
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : '驗證收據時發生未知錯誤',
+      };
+    }
+  }
+
+  /**
    * 記錄購買資訊（包含收據號碼）
    */
   private logPurchaseInfo(info: ReturnType<typeof this.extractPurchaseInfo>): void {
@@ -403,18 +530,21 @@ class IAPService {
 
   /**
    * 獲取商品列表
-   * @param productIds - 可選的商品 ID 列表，如果不提供則使用預設的 PRODUCT_IDS
+   * @param productIds - 商品 ID 列表（必須提供，從伺服器獲取）
    */
-  async getProductList(productIds?: string[]): Promise<Product[]> {
+  async getProductList(productIds: string[]): Promise<Product[]> {
     try {
       if (!this.isInitialized) {
         await this.initialize();
       }
 
-      // 如果提供了商品 ID 列表，使用提供的；否則使用預設的
-      const skus = productIds && productIds.length > 0 
-        ? productIds 
-        : Object.values(PRODUCT_IDS);
+      // 必須提供商品 ID 列表
+      if (!productIds || productIds.length === 0) {
+        console.warn('[iapService] ⚠️ 未提供商品 ID 列表，無法獲取商品');
+        return [];
+      }
+
+      const skus = productIds;
       
       console.log('[iapService] ========== 開始獲取商品列表 ==========');
       console.log('[iapService] 使用的商品 ID 列表:', JSON.stringify(skus, null, 2));
@@ -615,6 +745,7 @@ class IAPService {
 
   /**
    * 購買商品
+   * @param productId - 商品 ID（從伺服器獲取）
    */
   async purchaseProduct(productId: ProductId): Promise<void> {
     try {
@@ -926,7 +1057,14 @@ class IAPService {
   }
 
   // 回調函數
-  onPurchaseSuccess?: (purchase: Purchase) => void;
+  onPurchaseSuccess?: (
+    purchase: Purchase,
+    verificationResult?: {
+      productName: string;
+      coinsAdded: number;
+      message?: string;
+    }
+  ) => void;
   onPurchaseError?: (error: Error | PurchaseError) => void;
 }
 
