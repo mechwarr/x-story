@@ -155,6 +155,178 @@ task getReleaseSha1 {
     }
 }
 
+// 獲取 MD5 簽名（用於 WeChat SDK 配置）
+// 使用 openssl 從證書中提取 MD5（因為新版本 keytool 不再顯示 MD5）
+def getMD5FromKeystore(keystoreFile, alias, storePass, keyPass) {
+    def tempCert = File.createTempFile("cert", ".pem")
+    try {
+        // 導出證書
+        exec {
+            commandLine 'keytool', '-exportcert', '-alias', alias,
+                '-keystore', keystoreFile,
+                '-storepass', storePass,
+                '-file', tempCert.absolutePath
+            ignoreExitValue = true
+        }
+        // 使用 openssl 獲取 MD5
+        def result = new ByteArrayOutputStream()
+        exec {
+            commandLine 'openssl', 'x509', '-fingerprint', '-md5', '-noout', '-in', tempCert.absolutePath
+            standardOutput = result
+            errorOutput = result
+            ignoreExitValue = true
+        }
+        def output = result.toString().trim()
+        def md5Match = output =~ /MD5 Fingerprint=([A-F0-9:]+)/
+        if (md5Match) {
+            return md5Match[0][1].replaceAll(':', '')
+        }
+        return null
+    } catch (Exception e) {
+        return null
+    } finally {
+        tempCert.delete()
+    }
+}
+
+task getDebugMD5 {
+    group = 'signing'
+    description = 'Get MD5 fingerprint for debug keystore (for WeChat SDK)'
+    doLast {
+        def keystoreFile = file('debug.keystore')
+        if (!keystoreFile.exists()) {
+            println "❌ Debug keystore not found at: ${keystoreFile.absolutePath}"
+            return
+        }
+        println "🔑 獲取 Debug keystore 的 MD5 簽名（用於 WeChat SDK）..."
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        def md5 = getMD5FromKeystore(keystoreFile, 'androiddebugkey', 'android', 'android')
+        if (md5) {
+            println "✅ Debug MD5 簽名: ${md5}"
+            println "📍 請將此值添加到微信開放平台的「應用簽名」中"
+        } else {
+            println "❌ 無法獲取 MD5 簽名，請確認已安裝 openssl"
+        }
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    }
+}
+
+task getReleaseMD5 {
+    group = 'signing'
+    description = 'Get MD5 fingerprint for release keystore (for WeChat SDK)'
+    doLast {
+        if (!project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+            println "❌ Release keystore not configured in gradle.properties"
+            println "   請在 gradle.properties 中設定 MYAPP_UPLOAD_STORE_FILE 等屬性"
+            return
+        }
+        def keystoreFile = file(MYAPP_UPLOAD_STORE_FILE)
+        if (!keystoreFile.exists()) {
+            println "❌ Release keystore not found at: ${keystoreFile.absolutePath}"
+            return
+        }
+        println "🔑 獲取 Release keystore 的 MD5 簽名（用於 WeChat SDK）..."
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        def md5 = getMD5FromKeystore(keystoreFile, MYAPP_UPLOAD_KEY_ALIAS, 
+            MYAPP_UPLOAD_STORE_PASSWORD, MYAPP_UPLOAD_KEY_PASSWORD)
+        if (md5) {
+            println "✅ Release MD5 簽名: ${md5}"
+            println "📍 請將此值添加到微信開放平台的「應用簽名」中"
+            println "⚠️  正式版必須使用此簽名！"
+        } else {
+            println "❌ 無法獲取 MD5 簽名，請確認已安裝 openssl"
+        }
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    }
+}
+
+// 一次性獲取所有簽名信息（方便查看）
+task getAllSignatures {
+    group = 'signing'
+    description = 'Get all signature fingerprints (SHA-1 and MD5) for both debug and release keystores'
+    doLast {
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        println "📋 獲取所有簽名信息"
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        
+        // Debug 簽名
+        println "🔵 DEBUG 簽名（用於開發測試）"
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        def debugKeystore = file('debug.keystore')
+        if (debugKeystore.exists()) {
+            def debugResult = new ByteArrayOutputStream()
+            exec {
+                commandLine 'keytool', '-list', '-v',
+                    '-keystore', debugKeystore,
+                    '-alias', 'androiddebugkey',
+                    '-storepass', 'android',
+                    '-keypass', 'android'
+                standardOutput = debugResult
+            }
+            def debugOutput = debugResult.toString()
+            def debugSha1Match = debugOutput =~ /SHA1:\s*([A-F0-9:]+)/
+            def debugMd5 = getMD5FromKeystore(debugKeystore, 'androiddebugkey', 'android', 'android')
+            
+            if (debugMd5) {
+                println "   MD5:  ${debugMd5}"
+            } else {
+                println "   MD5:  ❌ 無法獲取（需要 openssl）"
+            }
+            if (debugSha1Match) {
+                def debugSha1 = debugSha1Match[0][1].replaceAll(':', '')
+                println "   SHA1: ${debugSha1}"
+            }
+        } else {
+            println "   ❌ Debug keystore 不存在"
+        }
+        println ""
+        
+        // Release 簽名
+        println "🟢 RELEASE 簽名（用於正式版）"
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+            def releaseKeystore = file(MYAPP_UPLOAD_STORE_FILE)
+            if (releaseKeystore.exists()) {
+                def releaseResult = new ByteArrayOutputStream()
+                exec {
+                    commandLine 'keytool', '-list', '-v',
+                        '-keystore', releaseKeystore,
+                        '-alias', MYAPP_UPLOAD_KEY_ALIAS,
+                        '-storepass', MYAPP_UPLOAD_STORE_PASSWORD,
+                        '-keypass', MYAPP_UPLOAD_KEY_PASSWORD
+                    standardOutput = releaseResult
+                }
+                def releaseOutput = releaseResult.toString()
+                def releaseSha1Match = releaseOutput =~ /SHA1:\s*([A-F0-9:]+)/
+                def releaseMd5 = getMD5FromKeystore(releaseKeystore, MYAPP_UPLOAD_KEY_ALIAS,
+                    MYAPP_UPLOAD_STORE_PASSWORD, MYAPP_UPLOAD_KEY_PASSWORD)
+                
+                if (releaseMd5) {
+                    println "   MD5:  ${releaseMd5}"
+                } else {
+                    println "   MD5:  ❌ 無法獲取（需要 openssl）"
+                }
+                if (releaseSha1Match) {
+                    def releaseSha1 = releaseSha1Match[0][1].replaceAll(':', '')
+                    println "   SHA1: ${releaseSha1}"
+                }
+            } else {
+                println "   ❌ Release keystore 不存在: ${MYAPP_UPLOAD_STORE_FILE}"
+            }
+        } else {
+            println "   ❌ Release keystore 未配置"
+        }
+        println ""
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        println "💡 提示："
+        println "   • WeChat SDK 需要 MD5 簽名"
+        println "   • 正式版必須使用 RELEASE 簽名"
+        println "   • 測試時可以使用 DEBUG 簽名"
+        println "   • 建議在微信後台同時添加兩個簽名"
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    }
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -166,8 +338,8 @@ android {
         applicationId 'com.rueiyang.story'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
-        versionName "1.0.4"
+        versionCode 7
+        versionName "1.0.5"
     }
     signingConfigs {
         debug {
@@ -251,7 +423,17 @@ dependencies {
     implementation("com.facebook.react:react-android")
     implementation 'com.facebook.android:facebook-android-sdk:latest.release' 
     implementation "io.github.hyochan.openiap:openiap-google:1.2.6"
-    implementation project(':react-native-wechat-lib')   
+    // 微信官方 SDK
+    // ⚠️ 重要：微信 SDK 無法從 Maven 倉庫直接獲取，需要手動下載 AAR 文件
+    // 
+    // 設置步驟：
+    // 1. 前往 https://developers.weixin.qq.com/doc/oplatform/Downloads/Android_Resource.html 下載最新版本
+    // 2. 將下載的 AAR 文件（如 wechat-sdk-android-without-mta-6.8.24.aar）放到 android/app/libs/ 目錄
+    // 3. 取消下面的 implementation files 註釋，並確保文件名與下載的文件一致
+    // 4. 詳細說明請查看 android/app/WECHAT_SDK_SETUP.md
+    //
+    // 微信 SDK - 使用本地 AAR 文件
+    implementation files('libs/wechat-sdk-android-without-mta-6.8.0.aar')   
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";

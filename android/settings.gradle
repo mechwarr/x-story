@@ -47,10 +47,4 @@ expoAutolinking.useExpoVersionCatalog()
 include ':app'
 includeBuild(expoAutolinking.reactNativeGradlePlugin)
 
-/**
- * ===== WeChat modules (include if present) =====
- * 只裝其中一個套件；若兩個都裝，可能衝突。
- */
-include ':react-native-wechat-lib'
-project(':react-native-wechat-lib').projectDir = file('../node_modules/react-native-wechat-lib/android')
 

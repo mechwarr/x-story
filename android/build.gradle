@@ -28,6 +28,8 @@ allprojects {
     google()
     mavenCentral()
     maven { url "https://www.jitpack.io" }
+    // 添加微信 SDK 可能的 Maven 倉庫
+    maven { url "https://repo1.maven.org/maven2/" }
   }
 }
 

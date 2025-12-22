@@ -213,10 +213,15 @@ class IAPService {
         console.error('[iapService]');
         console.error('[iapService] 3. ❌ 應用未在 Google Play Console 中正確配置');
         console.error('[iapService]    → 商品未建立或應用未發布到測試軌道');
+        console.error('[iapService]    → ⚠️ 重要：IAP 與 Google Sign-In 使用不同的驗證機制！');
+        console.error('[iapService]    → Google Sign-In 使用 Google Cloud Console 的 SHA-1 配置');
+        console.error('[iapService]    → IAP 使用 Google Play Console 的應用簽名驗證');
         console.error('[iapService]    → 解決方案：');
-        console.error('[iapService]      a. 在 Google Play Console 中建立商品（item_001, item_002 等）');
-        console.error('[iapService]      b. 將應用發布到 Alpha/Beta/Internal Testing');
-        console.error('[iapService]      c. 將測試帳號加入測試人員名單');
+        console.error('[iapService]      a. 確認應用已發布到測試軌道（狀態為「已發布」，不是「草稿」）');
+        console.error('[iapService]      b. 確認使用 Google Play 應用簽署時，使用「應用簽名證書」的 SHA-1');
+        console.error('[iapService]      c. 在 Google Play Console 中建立商品（item_001, item_002 等）');
+        console.error('[iapService]      d. 將測試帳號加入測試人員名單');
+        console.error('[iapService]      e. 等待 30-60 分鐘讓 Google Play 同步配置');
         console.error('[iapService]');
         console.error('[iapService] 4. ❌ 網絡連接問題');
         console.error('[iapService]    → 無法連接到 Google Play 服務器');

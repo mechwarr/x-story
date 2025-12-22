@@ -42,9 +42,11 @@
 -keep class com.facebook.** { *; }
 -dontwarn com.facebook.**
 
-# WeChat SDK
--keep class com.thewechat.** { *; }
--dontwarn com.thewechat.**
+# WeChat SDK (react-native-wechat-lib)
+-keep class com.wechatlib.** { *; }
+-dontwarn com.wechatlib.**
+-keep class com.tencent.mm.opensdk.** { *; }
+-dontwarn com.tencent.mm.opensdk.**
 
 # IAP (openiap)
 -keep class io.github.hyochan.openiap.** { *; }

@@ -20,8 +20,8 @@ import com.facebook.appevents.AppEventsLogger
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
-// ✅ 來自 react-native-wechat-lib
-import com.wechatlib.WeChatLibPackage
+// ✅ 使用自定義的微信原生模組
+import com.rueiyang.story.WeChatPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -32,7 +32,15 @@ class MainApplication : Application(), ReactApplication {
       // 等同 Java 的 protected List<ReactPackage> getPackages()
       override fun getPackages(): List<ReactPackage> {
         val packages = PackageList(this).packages.toMutableList()
-        packages.add(WeChatLibPackage())   // ← 關鍵：手動加入 wechat-lib
+        // ✅ 安全地添加微信原生模組
+        try {
+          packages.add(WeChatPackage())
+          Log.d("MainApplication", "✅ WeChatPackage 已成功添加")
+        } catch (e: Exception) {
+          Log.e("MainApplication", "❌ 添加 WeChatPackage 失敗: ${e.message}", e)
+          e.printStackTrace()
+          // 繼續執行，不讓微信模組初始化失敗阻止應用啟動
+        }
         return packages
       }
 

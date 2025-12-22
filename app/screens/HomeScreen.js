@@ -1,12 +1,11 @@
 import { useIsFocused } from '@react-navigation/native';
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
-import { FlatList, Platform, Pressable, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import Content from './Content';
 import Screen from './Screen';
 
 import AppHeader from '../components/AppHeader';
-import AppText from '../components/AppText';
 import Books from '../components/Book/Books';
 import storage from '../storage/storage';
 import apiclient  from '../config/apiClient';
@@ -88,34 +87,11 @@ function HomeScreen() {
 
   return (
     <Screen style={{ backgroundColor: storyInfo.config?.[0]?.view_color }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'flex-start',
-          alignItems: 'center',
-          // paddingTop: wp('5%'),
-          // width:200
-        }}
-      >
-        <AppHeader />
-        <Pressable onPress={() => storage.deleteAllStorage()}>
-          <AppText
-            style={{
-              flex: 1,
-              flexWrap: 'wrap',
-              color: storyInfo.config?.[0]?.news_color ?? '#fff',
-              marginLeft: 20,
-              fontSize: storyInfo.config?.[0]?.news_font_size ?? 20,
-              ...(storyInfo.config?.[0]?.news_weight === '粗' && {
-                fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-              }),
-            }}
-            // numberOfLines={1}
-          >
-            {storyInfo.news}
-          </AppText>
-        </Pressable>
-      </View>
+      <AppHeader 
+        news={storyInfo.news}
+        config={storyInfo.config}
+        onNewsPress={() => storage.deleteAllStorage()}
+      />
       <Content>
         <FlatList
           data={storyInfo.type}
