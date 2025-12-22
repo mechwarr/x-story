@@ -240,6 +240,199 @@ task getReleaseMD5 {
     }
 }
 
+// 獲取 Facebook KeyHash（用於 Facebook SDK 配置）
+// Facebook KeyHash 是 SHA-1 指紋的 Base64 編碼
+def getFacebookKeyHash(keystoreFile, alias, storePass, keyPass) {
+    try {
+        def result = new ByteArrayOutputStream()
+        exec {
+            commandLine 'keytool', '-exportcert', '-alias', alias,
+                '-keystore', keystoreFile,
+                '-storepass', storePass,
+                '-keypass', keyPass
+            standardOutput = result
+            errorOutput = new ByteArrayOutputStream()
+            ignoreExitValue = true
+        }
+        // 使用 openssl 計算 SHA-1 並轉換為 Base64
+        def base64Result = new ByteArrayOutputStream()
+        exec {
+            commandLine 'sh', '-c', "echo '${result.toString()}' | openssl sha1 -binary | openssl base64"
+            standardOutput = base64Result
+            errorOutput = new ByteArrayOutputStream()
+            ignoreExitValue = true
+        }
+        def keyHash = base64Result.toString().trim()
+        return keyHash ?: null
+    } catch (Exception e) {
+        return null
+    }
+}
+
+task getDebugFacebookKeyHash {
+    group = 'signing'
+    description = 'Get Facebook KeyHash for debug keystore'
+    doLast {
+        def keystoreFile = file('debug.keystore')
+        if (!keystoreFile.exists()) {
+            println "❌ Debug keystore not found at: ${keystoreFile.absolutePath}"
+            return
+        }
+        println "🔑 獲取 Debug keystore 的 Facebook KeyHash..."
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        def keyHash = getFacebookKeyHash(keystoreFile, 'androiddebugkey', 'android', 'android')
+        if (keyHash) {
+            println "✅ Debug Facebook KeyHash: ${keyHash}"
+            println "📍 請將此值添加到 Facebook 開發者後台的「Key Hashes」中"
+        } else {
+            println "❌ 無法獲取 Facebook KeyHash，請確認已安裝 openssl"
+        }
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    }
+}
+
+task getReleaseFacebookKeyHash {
+    group = 'signing'
+    description = 'Get Facebook KeyHash for release keystore (上傳金鑰)'
+    doLast {
+        if (!project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+            println "❌ Release keystore not configured in gradle.properties"
+            println "   請在 gradle.properties 中設定 MYAPP_UPLOAD_STORE_FILE 等屬性"
+            return
+        }
+        def keystoreFile = file(MYAPP_UPLOAD_STORE_FILE)
+        if (!keystoreFile.exists()) {
+            println "❌ Release keystore not found at: ${keystoreFile.absolutePath}"
+            return
+        }
+        println "🔑 獲取 Release keystore 的 Facebook KeyHash（上傳金鑰）..."
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        println "⚠️  注意：如果已啟用 Google Play App Signing，此 KeyHash 不會生效！"
+        println "   請使用 getGooglePlayFacebookKeyHash task 獲取正確的 KeyHash"
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        // 直接使用命令獲取（更可靠）
+        def result = new ByteArrayOutputStream()
+        exec {
+            commandLine 'keytool', '-exportcert', '-alias', MYAPP_UPLOAD_KEY_ALIAS,
+                '-keystore', keystoreFile.absolutePath,
+                '-storepass', MYAPP_UPLOAD_STORE_PASSWORD,
+                '-keypass', MYAPP_UPLOAD_KEY_PASSWORD
+            standardOutput = result
+            errorOutput = new ByteArrayOutputStream()
+        }
+        def base64Result = new ByteArrayOutputStream()
+        exec {
+            commandLine 'openssl', 'sha1', '-binary'
+            standardInput = new ByteArrayInputStream(result.toByteArray())
+            standardOutput = base64Result
+            errorOutput = new ByteArrayOutputStream()
+        }
+        def finalResult = new ByteArrayOutputStream()
+        exec {
+            commandLine 'openssl', 'base64'
+            standardInput = new ByteArrayInputStream(base64Result.toByteArray())
+            standardOutput = finalResult
+            errorOutput = new ByteArrayOutputStream()
+        }
+        def keyHash = finalResult.toString().trim()
+        if (keyHash) {
+            println "✅ Release Facebook KeyHash (上傳金鑰): ${keyHash}"
+            println "📍 請將此值添加到 Facebook 開發者後台的「Key Hashes」中"
+            println "⚠️  僅在未啟用 Google Play App Signing 時有效！"
+        } else {
+            println "❌ 無法獲取 Facebook KeyHash，請確認已安裝 openssl"
+        }
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    }
+}
+
+// 從 Google Play 下載的應用簽名證書生成 Facebook KeyHash
+task getGooglePlayFacebookKeyHash {
+    group = 'signing'
+    description = 'Get Facebook KeyHash from Google Play App Signing certificate'
+    doLast {
+        // 尋找可能的證書檔案名稱
+        def possibleCertFiles = [
+            'deployment_cert.der',
+            'deployment_cert.pem',
+            'google_play_cert.der',
+            'google_play_cert.pem',
+            'app_signing_cert.der',
+            'app_signing_cert.pem'
+        ]
+        
+        def certFile = null
+        for (def fileName : possibleCertFiles) {
+            def file = file(fileName)
+            if (file.exists()) {
+                certFile = file
+                break
+            }
+        }
+        
+        if (certFile == null) {
+            println "❌ 找不到 Google Play 應用簽名證書"
+            println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            println "📥 請先從 Google Play Console 下載應用簽名證書："
+            println "   1. 前往 Google Play Console → 您的應用"
+            println "   2. 進入「發布」→「設定」→「應用程式簽署」"
+            println "   3. 在「應用程式簽署金鑰憑證」區塊中，點擊「下載憑證」"
+            println "   4. 將下載的證書檔案（通常是 deployment_cert.der）放到："
+            println "      ${projectDir.absolutePath}/"
+            println "   5. 然後重新執行此 task"
+            println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            return
+        }
+        
+        println "🔑 從 Google Play 應用簽名證書生成 Facebook KeyHash..."
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        println "📄 使用證書檔案: ${certFile.name}"
+        
+        try {
+            // 導出證書為 DER 格式（統一處理）
+            def exportResult = new ByteArrayOutputStream()
+            def certFormat = certFile.name.endsWith('.der') ? 'DER' : 'PEM'
+            exec {
+                commandLine 'openssl', 'x509', '-inform', certFormat,
+                    '-in', certFile.absolutePath, '-outform', 'DER'
+                standardOutput = exportResult
+                errorOutput = new ByteArrayOutputStream()
+            }
+            
+            // 計算 SHA-1 並轉換為 Base64
+            def hashResult = new ByteArrayOutputStream()
+            exec {
+                commandLine 'openssl', 'sha1', '-binary'
+                standardInput = new ByteArrayInputStream(exportResult.toByteArray())
+                standardOutput = hashResult
+                errorOutput = new ByteArrayOutputStream()
+            }
+            
+            def base64Result = new ByteArrayOutputStream()
+            exec {
+                commandLine 'openssl', 'base64'
+                standardInput = new ByteArrayInputStream(hashResult.toByteArray())
+                standardOutput = base64Result
+                errorOutput = new ByteArrayOutputStream()
+            }
+            
+            def keyHash = base64Result.toString().trim()
+            if (keyHash) {
+                println "✅ Google Play Facebook KeyHash: ${keyHash}"
+                println "📍 請將此值添加到 Facebook 開發者後台的「Key Hashes」中"
+                println "⚠️  這是正式版必須使用的 KeyHash！"
+            } else {
+                println "❌ 無法從證書生成 KeyHash"
+            }
+        } catch (Exception e) {
+            println "❌ 處理證書時發生錯誤: ${e.message}"
+            println "   請確認證書檔案格式正確且已安裝 openssl"
+        }
+        
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    }
+}
+
 // 一次性獲取所有簽名信息（方便查看）
 task getAllSignatures {
     group = 'signing'
@@ -338,8 +531,8 @@ android {
         applicationId 'com.rueiyang.story'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 7
-        versionName "1.0.5"
+        versionCode 10
+        versionName "1.0.8"
     }
     signingConfigs {
         debug {
