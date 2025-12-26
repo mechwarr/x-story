@@ -3,9 +3,11 @@ import { View, StyleSheet, Image, Pressable, Text, Platform } from 'react-native
 import { useNavigation, DrawerActions } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import AppText from './AppText';
+import { useCoins } from '../store/coinContext';
 
 function AppHeader({ news, config, onNewsPress }) {
   const navigation = useNavigation();
+  const { coins } = useCoins();
 
   return (
     <View style={styles.container}>
@@ -51,7 +53,7 @@ function AppHeader({ news, config, onNewsPress }) {
         <Image style={styles.profileIcon} source={require('../../assets/profile.png')} />
         <View style={styles.coinRow}>
           <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
-          <Text style={styles.coinText}>999</Text>
+          <Text style={styles.coinText}>{coins}</Text>
         </View>
       </Pressable>
     </View>

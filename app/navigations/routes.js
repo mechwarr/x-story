@@ -13,7 +13,7 @@ export default Object.freeze({
   STORY: "Story",
   IMAGE: "Image",
   PROFILE: 'PROFILE',
-  PURCHASE: 'PURCHASE', 
+  PURCHASE: "代幣商城", 
   HISTORY: 'HISTORY',
 });
 

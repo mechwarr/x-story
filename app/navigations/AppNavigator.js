@@ -13,6 +13,7 @@ import routes from "./routes";
 import colors from "../config/colors";
 import VersionScreen from "../screens/VersionScreen";
 import {ResetScreen} from "../screens/ResetScreen";
+import ShopScreen from "../screens/ShopScreen";
 
 const Drawer = createDrawerNavigator();
 
@@ -75,6 +76,7 @@ export default function AppNavigator() {
         <Drawer.Screen name={routes.CONTINUE} component={ContinueScreen} />
         <Drawer.Screen name={routes.REVIEW} component={ReviewScreen} />
         <Drawer.Screen name={routes.VERSION} component={VersionScreen} />
+        <Drawer.Screen name={routes.PURCHASE} component={ShopScreen} />
         <Drawer.Screen name={routes.RESET} component={ResetScreen} />
       </Drawer.Navigator>
     </StoryContext.Provider>

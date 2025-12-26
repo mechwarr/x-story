@@ -12,6 +12,7 @@ import { VerifyMail } from './config/authApiClient';
 import tokenStorage from './auth/Storage';
 import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
 import { AuthProvider } from "./auth/AuthContext";
+import { CoinProvider } from './store/coinContext';
 
 
 export default function RootLayout() {
@@ -109,7 +110,8 @@ export default function RootLayout() {
   return (
     <LoadingProvider>
       <AuthProvider value={{ isLoggedIn, setIsLoggedIn, logout }}>
-        <SafeAreaWrapper style={{ flex: 1 }}>
+        <CoinProvider>
+          <SafeAreaWrapper style={{ flex: 1 }}>
           {isLoggedIn ? (
             // ✅ 已登入：進入主導覽
             <AppNavigator />
@@ -127,7 +129,8 @@ export default function RootLayout() {
 
           {/* 全域載入覆蓋層 */}
           <LoadingOverlay />
-        </SafeAreaWrapper>
+          </SafeAreaWrapper>
+        </CoinProvider>
       </AuthProvider>
     </LoadingProvider>
   );

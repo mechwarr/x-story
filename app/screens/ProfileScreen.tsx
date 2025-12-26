@@ -14,6 +14,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import routes from '../navigations/routes';
+import { useCoins } from '../store/coinContext';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
@@ -21,6 +22,7 @@ import { Picker } from '@react-native-picker/picker';
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { coins } = useCoins();
 
   // ---- 狀態 ----
   const [name, setName] = useState<string>('Monica');
@@ -64,7 +66,7 @@ export default function ProfileScreen() {
 
           <View style={styles.balanceBox}>
             <Image style={styles.coin} source={require('../../assets/coin.png')} />
-            <Text style={styles.balanceText}>50</Text>
+            <Text style={styles.balanceText}>{coins}</Text>
           </View>
 
           <View style={[styles.walletRow, styles.walletRowRight]}>

@@ -6,7 +6,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Alert, Platform } from 'react-native';
 import { iapService, type ProductId } from '../services/iapService';
-import { getCoinPacks, type CoinPack } from '../config/shopApiClient';
 import type { Product, Purchase, PurchaseError } from 'react-native-iap';
 
 interface UseIAPReturn {
@@ -33,49 +32,33 @@ export function useIAP(): UseIAPReturn {
 
       console.log('[useIAP] ========== 開始載入商品 ==========');
 
-      // 步驟 1: 從後端 API 獲取金幣包列表
-      console.log('[useIAP] 步驟 1: 從後端 API 獲取金幣包列表...');
-      let coinPacks: CoinPack[] = [];
-      try {
-        coinPacks = await getCoinPacks();
-        console.log('[useIAP] ========== /api/coin-packs Response Data ==========');
-        console.log('[useIAP] 獲取到金幣包數量:', coinPacks.length);
-        console.log('[useIAP] 金幣包資料:', JSON.stringify(coinPacks, null, 2));
-        console.log('[useIAP] ================================================');
-      } catch (apiError) {
-        console.error('[useIAP] ❌ 獲取後端 API 資料失敗:', apiError);
-        const error = apiError instanceof Error ? apiError : new Error('無法從伺服器獲取商品列表');
-        setError(error);
-        setProducts([]);
-        return;
-      }
-
-      // 如果沒有獲取到商品，直接返回
-      if (coinPacks.length === 0) {
-        console.warn('[useIAP] ⚠️ 伺服器返回的商品列表為空');
-        setProducts([]);
-        return;
-      }
-
-      // 步驟 2: 根據當前平台過濾商品 ID
-      const currentPlatform = Platform.OS === 'ios' ? 'APPLE' : 'GOOGLE';
-      const productIds = coinPacks
-        .filter(pack => pack.platform === currentPlatform)
-        .map(pack => pack.productId);
+      // 步驟 1: 使用硬編碼的商品 ID 列表（item_001 到 item_006）
+      // 這些是 Google Play Console 中配置的商品 ID
+      const productIds = [
+        'item_001',
+        'item_002',
+        'item_003',
+        'item_004',
+        'item_005',
+        'item_006',
+      ];
       
-      console.log('[useIAP] 步驟 2: 根據平台過濾商品 ID');
-      console.log('[useIAP] 當前平台:', Platform.OS, '→', currentPlatform);
-      console.log('[useIAP] 過濾後的商品 ID 列表:', productIds);
+      console.log('[useIAP] 步驟 1: 使用硬編碼的商品 ID 列表');
+      console.log('[useIAP] 當前平台:', Platform.OS);
+      console.log('[useIAP] 商品 ID 列表:', productIds);
       console.log('[useIAP] 商品 ID 數量:', productIds.length);
-
-      if (productIds.length === 0) {
-        console.warn('[useIAP] ⚠️ 當前平台沒有可用的商品');
+      
+      // 驗證商品 ID 都是有效的字串
+      const invalidIds = productIds.filter(id => !id || typeof id !== 'string' || id.trim().length === 0);
+      if (invalidIds.length > 0) {
+        console.error('[useIAP] ❌ 發現無效的商品 ID:', invalidIds);
+        setError(new Error('商品 ID 配置錯誤，包含無效值'));
         setProducts([]);
         return;
       }
 
-      // 步驟 3: 初始化 IAP 連線
-      console.log('[useIAP] 步驟 3: 初始化 IAP 連線...');
+      // 步驟 2: 初始化 IAP 連線
+      console.log('[useIAP] 步驟 2: 初始化 IAP 連線...');
       const initialized = await iapService.initialize();
       if (!initialized) {
         const errorMsg = '無法初始化內購服務。可能原因：1) 在模擬器上運行 2) 設備沒有 Google Play 服務 3) 應用未正確配置';
@@ -85,8 +68,8 @@ export function useIAP(): UseIAPReturn {
         return;
       }
 
-      // 步驟 4: 使用從伺服器獲取的 productId 列表獲取 IAP 商品詳情
-      console.log('[useIAP] 步驟 4: 使用伺服器返回的商品 ID 獲取 IAP 商品詳情...');
+      // 步驟 3: 使用硬編碼的商品 ID 列表獲取 IAP 商品詳情
+      console.log('[useIAP] 步驟 3: 使用商品 ID 列表獲取 IAP 商品詳情...');
       const productList = await iapService.getProductList(productIds);
       console.log('[useIAP] ✓ 成功獲取 IAP 商品數量:', productList.length);
       console.log('[useIAP] IAP 商品列表:', productList.map(p => ({ 

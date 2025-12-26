@@ -8,12 +8,14 @@ import routes from '../navigations/routes';
 import PackCard, { PackItem } from '../components/Purchase/PackCard';
 import { useIAP } from '../hook/useIAP';
 import { type ProductId } from '../services/iapService';
+import { useCoins } from '../store/coinContext';
 
 const RIGHT_COLORS = ['#F2D4AE', '#F4B86F', '#F3A55D', '#F18F52', '#EF7D47', '#EA6A3E'];
 
 export default function ShopScreen() {
   const navigation = useNavigation();
   const { products, isLoading: isIAPLoading, isPurchasing, purchaseProduct, error } = useIAP();
+  const { coins } = useCoins();
 
   // 將 IAP 商品轉換為 PackItem 格式
   // 注意：coins 和 bonus 資訊應從後端 API 獲取，目前暫時設為 0
@@ -80,7 +82,7 @@ export default function ShopScreen() {
         <Text style={styles.title}>商城</Text>
         <View style={styles.balanceBox}>
           <Image style={styles.coin} source={require('../../assets/coin.png')} />
-          <Text style={styles.balanceText}>50</Text>
+          <Text style={styles.balanceText}>{coins}</Text>
         </View>
       </View>
 
