@@ -1,4 +1,4 @@
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 interface ApiConfig {
     devBaseUrl: string;
@@ -89,6 +89,15 @@ export class RestfulApi {
     // DELETE 請求
     public delete<T>(endpoint: string, headers?: Record<string, string>): Promise<T> {
         return this.request<T>("DELETE", endpoint, undefined, headers);
+    }
+
+    // PATCH 請求
+    public patch<T>(
+        endpoint: string,
+        body: any,
+        headers?: Record<string, string>
+    ): Promise<T> {
+        return this.request<T>("PATCH", endpoint, body, headers);
     }
 
     public currentBaseUrl(): string {

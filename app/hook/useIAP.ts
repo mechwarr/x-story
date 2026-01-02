@@ -149,15 +149,27 @@ export function useIAP(): UseIAPReturn {
       // 設定購買錯誤回調
       iapService.onPurchaseError = (err: Error | PurchaseError) => {
         console.error('購買錯誤:', err);
-        const error = err instanceof Error ? err : new Error(err.message || '購買失敗');
-        setError(error);
         setIsPurchasing(false);
         
-        // 不顯示取消購買的錯誤
+        // 判斷是否為用戶取消購買
         const errorMessage = err instanceof Error ? err.message : err.message || '';
-        if (errorMessage && !errorMessage.includes('cancel')) {
-          Alert.alert('購買失敗', errorMessage || '購買過程中發生錯誤，請稍後再試');
+        const errorCode = (err as any)?.code?.toString() || '';
+        const isUserCancel = 
+          errorMessage.toLowerCase().includes('cancel') ||
+          errorMessage.toLowerCase().includes('cancelled') ||
+          errorCode.includes('CANCELLED') ||
+          errorCode.includes('USER_CANCEL');
+        
+        // 如果是用戶取消，不設置錯誤狀態，也不顯示錯誤訊息
+        if (isUserCancel) {
+          console.log('[useIAP] ℹ️ 用戶取消了購買，不設置錯誤狀態');
+          return;
         }
+        
+        // 其他錯誤才設置錯誤狀態並顯示訊息
+        const error = err instanceof Error ? err : new Error(err.message || '購買失敗');
+        setError(error);
+        Alert.alert('購買失敗', errorMessage || '購買過程中發生錯誤，請稍後再試');
       };
 
       // 執行購買

@@ -2,7 +2,7 @@
   "expo": {
     "name": "xStory",
     "slug": "xStory",
-    "version": "1.0.12",
+    "version": "1.0.19",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {

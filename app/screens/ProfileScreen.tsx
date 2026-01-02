@@ -10,18 +10,19 @@ import {
   Pressable,
   Platform,
   Dimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import routes from '../navigations/routes';
 import { useCoins } from '../store/coinContext';
+import { updateUserProfile } from '../config/userApiClient';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
   const { coins } = useCoins();
 
   // ---- 狀態 ----
@@ -29,6 +30,7 @@ export default function ProfileScreen() {
   const [birthday, setBirthday] = useState<Date>(new Date(1995, 7, 5));
   const [gender, setGender] = useState<'female' | 'male' | 'other'>('female');
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const { width: screenWidth } = Dimensions.get('window');
   const avatarSize = Math.round(screenWidth / 4);
 
@@ -39,6 +41,29 @@ export default function ProfileScreen() {
   };
 
   const birthdayText = `${birthday.getFullYear()}/${birthday.getMonth() + 1}/${birthday.getDate()}`;
+
+  // ---- 事件：提交表單 ----
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
+
+    try {
+      setIsSubmitting(true);
+      const result = await updateUserProfile({ name });
+      
+      if (result.success !== false) {
+        Alert.alert('成功', '個人資料已更新！', [
+          { text: '確定', onPress: () => {} }
+        ]);
+      } else {
+        Alert.alert('錯誤', result.message || '更新失敗，請稍後再試');
+      }
+    } catch (error: any) {
+      console.error('更新用戶資料錯誤:', error);
+      Alert.alert('錯誤', error?.message || '更新失敗，請稍後再試');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -121,10 +146,20 @@ export default function ProfileScreen() {
         </View>
 
         {/* CTA */}
-        <Pressable style={styles.submitBtn} onPress={() => { }}>
+        <Pressable 
+          style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]} 
+          onPress={handleSubmit}
+          disabled={isSubmitting}
+        >
           <View style={styles.btnRow}>
-            <Text style={styles.submitText}>完成並領取 50 金幣 </Text>
-            <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
+            {isSubmitting ? (
+              <ActivityIndicator color="#eafff9" size="small" />
+            ) : (
+              <>
+                <Text style={styles.submitText}>完成並領取 50 金幣 </Text>
+                <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
+              </>
+            )}
           </View>
         </Pressable>
       </View>
@@ -254,6 +289,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
+  },
+  submitBtnDisabled: {
+    opacity: 0.6,
   },
   // 按鈕內橫向排列容器（文字 + 圖示）
   btnRow: {

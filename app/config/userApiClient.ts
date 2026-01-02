@@ -69,7 +69,41 @@ export async function getBookstoreList(): Promise<BookstoreItem[]> {
 //============== 用戶資料相關 API ==============
 //=======================================================
 
-// TODO: 待實作用戶更新資料相關 API
+/**
+ * 更新用戶資料 Request
+ */
+export interface UpdateUserProfileRequest {
+  name?: string;
+}
+
+/**
+ * 更新用戶資料 Response
+ */
+export interface UpdateUserProfileResponse {
+  success?: boolean;
+  message?: string;
+  data?: any;
+}
+
+/**
+ * 更新當前登入使用者的個人資訊
+ * @param payload 要更新的資料（例如使用者名稱）
+ * @returns Promise<UpdateUserProfileResponse> 更新結果
+ */
+export async function updateUserProfile(
+  payload: UpdateUserProfileRequest
+): Promise<UpdateUserProfileResponse> {
+  try {
+    const endpoint = "api/users/me";
+    const res = await userApi.patch<UpdateUserProfileResponse>(endpoint, payload);
+
+    console.log("[userApiClient] ✓ 成功更新用戶資料:", res);
+    return res;
+  } catch (error) {
+    console.error("[userApiClient] 更新用戶資料時發生錯誤:", error);
+    throw error;
+  }
+}
 
 //=======================================================
 //============== 金幣相關 API ==============

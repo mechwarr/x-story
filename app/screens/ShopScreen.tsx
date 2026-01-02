@@ -12,9 +12,26 @@ import { useCoins } from '../store/coinContext';
 
 const RIGHT_COLORS = ['#F2D4AE', '#F4B86F', '#F3A55D', '#F18F52', '#EF7D47', '#EA6A3E'];
 
+// 從 title 中提取純名稱（去掉括號和描述）
+function extractProductName(title: string): string {
+  if (!title) return '';
+  // 去掉所有括號及其內容（包括中文括號和英文括號）
+  // 例如 "尊爵贊助包 (Premium Support Pack)" -> "尊爵贊助包"
+  // 例如 "尊爵贊助包（Premium Support Pack）" -> "尊爵贊助包"
+  let name = title
+    .replace(/\([^)]*\)/g, '')  // 去掉英文括號及其內容
+    .replace(/（[^）]*）/g, '')  // 去掉中文括號及其內容
+    .replace(/[()（）]/g, '')   // 去掉所有殘留的括號字符
+    .trim();
+  // 去掉可能的其他描述文字（如果還有其他格式）
+  // 例如 "尊爵贊助包 - Description" -> "尊爵贊助包"
+  name = name.split(' - ')[0].split(' – ')[0].split(' — ')[0].trim();
+  return name;
+}
+
 export default function ShopScreen() {
   const navigation = useNavigation();
-  const { products, isLoading: isIAPLoading, isPurchasing, purchaseProduct, error } = useIAP();
+  const { products, isLoading: isIAPLoading, isPurchasing, purchaseProduct, error, refreshProducts } = useIAP();
   const { coins } = useCoins();
 
   // 將 IAP 商品轉換為 PackItem 格式
@@ -28,7 +45,8 @@ export default function ShopScreen() {
 
       return {
         id: `iap-${product.id}`,
-        title: product.title, // 使用 IAP 商品的標題
+        title: product.title, // 保留原始標題（向後兼容）
+        name: extractProductName(product.title), // 提取純名稱（不含括號和描述）
         coins: 0, // TODO: 從後端 API 獲取（CoinPack 接口需要擴展）
         bonus: 0, // TODO: 從後端 API 獲取（CoinPack 接口需要擴展）
         priceUsd: price, // 使用 IAP 的價格
@@ -104,6 +122,12 @@ export default function ShopScreen() {
               ? '請檢查網絡連接和 API 服務器狀態'
               : '請查看控制台日誌獲取詳細錯誤資訊'}
           </Text>
+          <Pressable
+            onPress={refreshProducts}
+            style={styles.retryButton}
+          >
+            <Text style={styles.retryButtonText}>重新載入</Text>
+          </Pressable>
           <Text style={styles.errorDebug}>
             詳細錯誤請查看控制台日誌（搜尋 [useIAP] 或 [iapService]）
           </Text>
@@ -239,5 +263,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 16,
     fontStyle: 'italic',
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: '#f0ad57',
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
