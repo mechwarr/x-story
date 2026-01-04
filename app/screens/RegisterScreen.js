@@ -120,11 +120,13 @@ export default function RegisterScreen(props) {
         {Platform.OS === "ios" && (
           <View
             style={[
-              { opacity: agreeChecked ? 1 : 0.5 },
-              { width: buttonWidth, alignSelf: "center" },
-              { backgroundColor: agreeChecked ? "transparent" : "#000000"}
+              { 
+                width: buttonWidth, 
+                alignSelf: "center",
+                marginTop: 10,
+                marginBottom: 15,
+              }
             ]}
-            pointerEvents={"auto"} 
           >
             <AppleButton
               buttonType={AppleButton.Type.SIGN_UP}
@@ -134,16 +136,33 @@ export default function RegisterScreen(props) {
                 styles.appleButton,
                 {
                   // 根據 agreeChecked 調整邊框顏色
-                  borderColor: agreeChecked ? "#0abab5" : "#999999",
-                  // 統一邊框寬度為 2
-                  borderWidth: 2, 
+                  borderColor: agreeChecked ? "#0abab5" : "transparent",
+                  // 統一邊框寬度，禁用時隱藏邊框
+                  borderWidth: agreeChecked ? 2 : 0, 
                   // 確保邊框有圓角
                   borderRadius: 25,
+                  opacity: agreeChecked ? 1 : 0.5,
                 },
               ]}
               onPress={() => handlePress("onAppleRegister")}
               accessibilityRole="button"
             />
+            {/* 覆蓋層 - 蓋在按鈕上方 */}
+            {!agreeChecked && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: "#555555",
+                  borderRadius: 25,
+                  zIndex: 1,
+                }}
+                pointerEvents="auto"
+              />
+            )}
           </View>
         )}
 
@@ -228,7 +247,6 @@ const styles = StyleSheet.create({
   appleButton: {
     width: "100%",
     height: 54,
-    marginTop: 10,
   },
   bottomRow: {
     marginTop: 40,

@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "xStory",
-    "slug": "xStory",
-    "version": "1.0.19",
+    "slug": "story-app-v2",
+    "version": "1.0.32",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {

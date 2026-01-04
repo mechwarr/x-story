@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet, Image, Pressable, Text, Platform } from 'react-native';
 import { useNavigation, DrawerActions } from '@react-navigation/native';
 import routes from '../navigations/routes';
@@ -7,7 +7,12 @@ import { useCoins } from '../store/coinContext';
 
 function AppHeader({ news, config, onNewsPress }) {
   const navigation = useNavigation();
-  const { coins } = useCoins();
+  const { coins, refreshCoins } = useCoins();
+
+  // 組件掛載時刷新金幣餘額
+  useEffect(() => {
+    refreshCoins();
+  }, [refreshCoins]);
 
   return (
     <View style={styles.container}>

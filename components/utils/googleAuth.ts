@@ -27,24 +27,35 @@ export type GoogleAuthError = {
 
 export type GoogleAuthResult = GoogleAuthOk | GoogleAuthCancel | GoogleAuthError;
 
-const IOS_CLIENT_ID = '927761409049-ctsfhthe6jcjtti20igrftinqjb3jv36.apps.googleusercontent.com';
+// iOS Client ID - 必須與 Info.plist 中的 GIDClientID 一致
+const IOS_CLIENT_ID = '927761409049-66o2rujvgaoaovopb4q3mvev3kceej95.apps.googleusercontent.com';
 const WEB_CLIENT_ID = '927761409049-nukfc1nb5bckdm6q696cfo0b8vmtrl5j.apps.googleusercontent.com';
 
 let configured = false;
 
 export function configureGoogleSignIn() {
   if (configured) return;
-  GoogleSignin.configure({
+  
+  const config = {
     iosClientId: IOS_CLIENT_ID,
     webClientId: WEB_CLIENT_ID,
-    // 若你需要 serverAuthCode 給後端換 refresh_token，請打開：
-    // offlineAccess: true,
-    // forceCodeForRefreshToken: true, //（部分情境下需要）
     offlineAccess: true,
     forceCodeForRefreshToken: true,
+  };
+  
+  console.log('[Google Auth] 配置 Google Sign In:', {
+    platform: Platform.OS,
+    iosClientId: config.iosClientId,
+    webClientId: config.webClientId,
+    offlineAccess: config.offlineAccess,
+    forceCodeForRefreshToken: config.forceCodeForRefreshToken,
   });
+  
+  GoogleSignin.configure(config);
   configured = true;
-} export async function googleSignInInteractive(): Promise<GoogleAuthResult> {
+}
+
+export async function googleSignInInteractive(): Promise<GoogleAuthResult> {
   try {
     configureGoogleSignIn();
 
@@ -64,10 +75,32 @@ export function configureGoogleSignIn() {
       const user = (res as any).data as GoogleUser;
 
       // 需要 idToken/accessToken 可接著呼叫 getTokens()
+      // iOS 上 signIn() 後需要等待一小段時間才能取得 token
+      if (Platform.OS === 'ios') {
+        console.log('[Google Auth] iOS 登入成功，等待 300ms 後取得 tokens...');
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      
       let tokens: { idToken?: string | null; accessToken?: string | null } = {};
       try {
         tokens = await getGoogleTokens(); // iOS 需要額外取；Android 也可統一用這招
-      } catch { }
+        if (Platform.OS === 'ios') {
+          console.log('[Google Auth] iOS 互動登入後取得 tokens:', {
+            hasIdToken: !!tokens.idToken,
+            hasAccessToken: !!tokens.accessToken,
+            idTokenLength: tokens.idToken?.length || 0,
+            accessTokenLength: tokens.accessToken?.length || 0,
+            tokensObject: JSON.stringify(tokens, null, 2),
+          });
+        }
+      } catch (err: any) {
+        // 記錄錯誤但不中斷流程，讓呼叫端有機會重試
+        console.error('[Google Auth] 互動登入後 getTokens 失敗:', {
+          code: err?.code,
+          message: err?.message || err,
+          error: err,
+        });
+      }
 
       return {
         ok: true,
@@ -101,10 +134,32 @@ export async function googleSignInSilently(): Promise<GoogleAuthResult> {
     const res = await GoogleSignin.signInSilently(); // 套件會回 { type:'success', data } | 拋出 SIGN_IN_REQUIRED
     if ((res as any)?.type === 'success' && (res as any)?.data) {
       const user = (res as any).data as GoogleUser;
+      // iOS 上 signInSilently() 後也需要等待一小段時間才能取得 token
+      if (Platform.OS === 'ios') {
+        console.log('[Google Auth] iOS 靜默登入成功，等待 300ms 後取得 tokens...');
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      
       let tokens: { idToken?: string | null; accessToken?: string | null } = {};
       try {
         tokens = await getGoogleTokens();
-      } catch { }
+        if (Platform.OS === 'ios') {
+          console.log('[Google Auth] iOS 靜默登入後取得 tokens:', {
+            hasIdToken: !!tokens.idToken,
+            hasAccessToken: !!tokens.accessToken,
+            idTokenLength: tokens.idToken?.length || 0,
+            accessTokenLength: tokens.accessToken?.length || 0,
+            tokensObject: JSON.stringify(tokens, null, 2),
+          });
+        }
+      } catch (err: any) {
+        // 記錄錯誤但不中斷流程，讓呼叫端有機會重試
+        console.error('[Google Auth] 靜默登入後 getTokens 失敗:', {
+          code: err?.code,
+          message: err?.message || err,
+          error: err,
+        });
+      }
       return { ok: true, user, idToken: tokens.idToken, accessToken: tokens.accessToken };
     }
     return { ok: false, reason: 'cancelled' }; // 極少見（大多數情況會 throw）
@@ -115,12 +170,60 @@ export async function googleSignInSilently(): Promise<GoogleAuthResult> {
 }
 
 /** 取得 idToken / accessToken（跨 iOS/Android 統一） */
-export async function getGoogleTokens(): Promise<{
+export async function getGoogleTokens(retryCount = 0, maxRetries = 2): Promise<{
   idToken?: string | null;
   accessToken?: string | null;
 }> {
   configureGoogleSignIn();
-  return GoogleSignin.getTokens(); // 套件已做平台差異處理
+  
+  try {
+    console.log(`[Google Auth] 開始取得 tokens (嘗試 ${retryCount + 1}/${maxRetries + 1})...`);
+    const tokens = await GoogleSignin.getTokens(); // 套件已做平台差異處理
+    
+    console.log(`[Google Auth] getTokens 回應:`, {
+      platform: Platform.OS,
+      hasIdToken: !!tokens.idToken,
+      hasAccessToken: !!tokens.accessToken,
+      idTokenLength: tokens.idToken?.length || 0,
+      accessTokenLength: tokens.accessToken?.length || 0,
+      idTokenPreview: tokens.idToken ? tokens.idToken.substring(0, 50) + '...' : null,
+    });
+    
+    // iOS 上如果 token 為空，可能需要等待一小段時間後重試
+    if (Platform.OS === 'ios' && !tokens.idToken && retryCount < maxRetries) {
+      const delay = 500 * (retryCount + 1);
+      console.log(`[Google Auth] iOS token 為空，${delay}ms 後重試 (${retryCount + 1}/${maxRetries})...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return getGoogleTokens(retryCount + 1, maxRetries);
+    }
+    
+    return tokens;
+  } catch (error: any) {
+    console.error(`[Google Auth] getTokens 拋出錯誤 (嘗試 ${retryCount + 1}/${maxRetries + 1}):`, {
+      platform: Platform.OS,
+      code: error?.code,
+      message: error?.message || error,
+      error: error,
+    });
+    
+    // 如果是 iOS 且還有重試次數，則重試
+    if (Platform.OS === 'ios' && retryCount < maxRetries) {
+      const delay = 500 * (retryCount + 1);
+      console.log(`[Google Auth] iOS getTokens 失敗，${delay}ms 後重試 (${retryCount + 1}/${maxRetries})...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return getGoogleTokens(retryCount + 1, maxRetries);
+    }
+    
+    // 記錄錯誤並拋出，讓呼叫端處理
+    console.error('[Google Auth] getTokens 最終失敗:', {
+      platform: Platform.OS,
+      code: error?.code,
+      message: error?.message || error,
+      retryCount,
+      maxRetries,
+    });
+    throw error;
+  }
 }
 
 /** 登出（不會撤銷同意，只是登出本機） */

@@ -14,6 +14,15 @@
     "build:emulator": "./scripts/build-emulator-apk.sh debug",
     "build:emulator:release": "./scripts/build-emulator-apk.sh release",
     "build:emulator:clean": "./scripts/build-emulator-apk.sh debug clean",
+    "build:ios": "./scripts/build-ios.sh",
+    "build:ios:skip": "./scripts/build-ios.sh skip",
+    "build:ios:preview": "./scripts/build-ios.sh patch preview",
+    "build:ios:development": "./scripts/build-ios.sh patch development",
+    "prepare:ios:xcode": "./scripts/prepare-ios-xcode.sh",
+    "prepare:ios:xcode:skip": "./scripts/prepare-ios-xcode.sh skip",
+    "fix:ios:credentials": "./scripts/fix-ios-credentials.sh",
+    "fix:ios:dsym": "./scripts/fix-ios-dsym.sh",
+    "fix:ios:dsym:auto": "node scripts/add-hermes-dsym-phase.js",
     "version:bump": "node scripts/bump-version.js"
   },
   "dependencies": {

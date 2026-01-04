@@ -329,22 +329,44 @@ export async function googleLoginWithXStory(
   payload: XStoryGoogleLoginRequest
 ): Promise<string> {
   try {
+    console.log("[Google Login API] 發送請求到後端，idToken 長度:", payload.idToken?.length || 0);
     const res = await authApi.post<XStoryGoogleLoginResponse>(
       "api/auth/google-login",
       payload
     );
 
+    console.log("[Google Login API] 後端回應:", {
+      success: res?.success,
+      hasAccessToken: !!res?.accessToken,
+      accessTokenLength: res?.accessToken?.length || 0,
+      message: res?.message,
+      fullResponse: JSON.stringify(res, null, 2),
+    });
+
     if (res && res.success && res.accessToken) {
-      console.log("api/auth/google-login 登入成功，token:", res.accessToken);
+      console.log("[Google Login API] 登入成功，token 長度:", res.accessToken.length);
       return res.accessToken;
     } else {
-      alert(res?.message || "Google 登入失敗，請稍後再試");
-      console.warn("api/auth/google-login 登入失敗:", res?.message);
+      const errorMsg = res?.message || "Google 登入失敗，請稍後再試";
+      console.warn("[Google Login API] 登入失敗:", {
+        success: res?.success,
+        hasAccessToken: !!res?.accessToken,
+        message: errorMsg,
+        fullResponse: JSON.stringify(res, null, 2),
+      });
+      // 不在此處 alert，讓呼叫端決定是否要顯示錯誤訊息
+      // alert(errorMsg);
       return "";
     }
   } catch (error) {
-    alert(extractErrorMessage(error));
-    console.error("api/auth/google-login 登入發生錯誤:", error);
+    const errorMsg = extractErrorMessage(error);
+    console.error("[Google Login API] 請求發生錯誤:", {
+      message: errorMsg,
+      error: error,
+      stack: (error as any)?.stack,
+    });
+    // 不在此處 alert，讓呼叫端決定是否要顯示錯誤訊息
+    // alert(errorMsg);
     return "";
   }
 }
@@ -401,7 +423,8 @@ export async function appleLoginWithXStory(
 
 // Facebook 登入 Request
 export interface XStoryFacebookLoginRequest {
-  token: string;
+  token: string;        // iOS: idToken (JWT), Android: accessToken
+  rawNonce?: string;   // iOS Limited Login 時需要，用於後端驗證
 }
 
 // Facebook 登入 Response
@@ -415,29 +438,54 @@ export interface XStoryFacebookLoginResponse {
 
 /**
  * 使用 xStory Facebook 登入
- * @param payload - 包含 Facebook 的 accessToken
- * @returns 成功回傳 accessToken，失敗則為 null
+ * @param payload - 包含 Facebook 的 token (iOS: idToken, Android: accessToken) 和可選的 rawNonce
+ * @returns 成功回傳 accessToken，失敗則為空字串
  */
 export async function facebookLoginWithXStory(
   payload: XStoryFacebookLoginRequest
 ): Promise<string> {
   try {
+    console.log("[Facebook Login API] 發送請求到後端，token 長度:", payload.token?.length || 0);
+    if (payload.rawNonce) {
+      console.log("[Facebook Login API] 包含 rawNonce (iOS Limited Login)");
+    }
     const res = await authApi.post<XStoryFacebookLoginResponse>(
       "api/auth/facebook-login",
       payload
     );
 
+    console.log("[Facebook Login API] 後端回應:", {
+      success: res?.success,
+      hasAccessToken: !!res?.accessToken,
+      accessTokenLength: res?.accessToken?.length || 0,
+      message: res?.message,
+      fullResponse: JSON.stringify(res, null, 2),
+    });
+
     if (res && res.success && res.accessToken) {
-      console.log("Facebook 登入成功，token:", res.accessToken);
+      console.log("[Facebook Login API] 登入成功，token 長度:", res.accessToken.length);
       return res.accessToken;
     } else {
-      alert(res?.message || "Facebook 登入失敗，請稍後再試");
-      console.warn("Facebook 登入失敗:", res?.message);
+      const errorMsg = res?.message || "Facebook 登入失敗，請稍後再試";
+      console.warn("[Facebook Login API] 登入失敗:", {
+        success: res?.success,
+        hasAccessToken: !!res?.accessToken,
+        message: errorMsg,
+        fullResponse: JSON.stringify(res, null, 2),
+      });
+      // 不在此處 alert，讓呼叫端決定是否要顯示錯誤訊息
+      // alert(errorMsg);
       return "";
     }
   } catch (error) {
-    alert(extractErrorMessage(error));
-    console.error("Facebook 登入發生錯誤:", error);
+    const errorMsg = extractErrorMessage(error);
+    console.error("[Facebook Login API] 請求發生錯誤:", {
+      message: errorMsg,
+      error: error,
+      stack: (error as any)?.stack,
+    });
+    // 不在此處 alert，讓呼叫端決定是否要顯示錯誤訊息
+    // alert(errorMsg);
     return "";
   }
 }

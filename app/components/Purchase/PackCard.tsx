@@ -68,6 +68,7 @@ export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style,
       <View style={styles.left}>
         {/* 單行：標題 + 金幣icon + 數量 + bonus */}
         <View style={styles.contentRow}>
+          {/* 商品名稱 - 固定寬度 */}
           <View style={styles.titleContainer}>
             <Text 
               numberOfLines={1} 
@@ -78,15 +79,23 @@ export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style,
               {displayName}
             </Text>
           </View>
+          
+          {/* 金幣圖標 */}
           <Image style={styles.titleCoin} source={require('../../../assets/coin.png')} />
-          <Text style={styles.coins}>{coins}</Text>
+          
+          {/* 金幣數量 - 固定寬度 */}
+          <View style={styles.coinsContainer}>
+            <Text style={styles.coins}>{coins}</Text>
+          </View>
+          
+          {/* BONUS 組件 - 固定寬度，上下排版 */}
           {typeof bonus === 'number' && bonus > 0 && (
-            <>
+            <View style={styles.bonusContainer}>
               <Text style={styles.bonusPlus}>+{bonus}</Text>
               <View style={styles.bonusPill}>
                 <Text style={styles.bonusPillText}>Bonus</Text>
               </View>
-            </>
+            </View>
           )}
         </View>
       </View>
@@ -121,10 +130,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  // 商品名稱 - 固定寬度
   titleContainer: {
-    maxWidth: 85,                        // 固定最大寬度，確保後面元素有空間
-    minWidth: 60,
-    flexShrink: 1,                      // 允許縮小
+    width: 90,                          // 固定寬度，統一排版
+    alignItems: 'flex-start',
+    justifyContent: 'center',
   },
   title: {
     color: '#171717',
@@ -136,27 +146,42 @@ const styles = StyleSheet.create({
     width: 20,                          // 統一圖標大小
     height: 20, 
   },
+  // 金幣數量 - 固定寬度
+  coinsContainer: {
+    width: 60,                          // 固定寬度，統一排版
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
   coins: {
     color: '#222',
     fontSize: 16,                       // 統一文本大小，與標題一致
     fontWeight: '800',
   },
+  // BONUS 組件 - 固定寬度，上下排版
+  bonusContainer: {
+    width: 50,                          // 固定寬度，統一排版
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,                             // 上下間距
+  },
   bonusPlus: {
     color: '#E5413B',
-    fontSize: 16,                       // 統一文本大小
+    fontSize: 14,                       // 稍微縮小以適應固定寬度
     fontWeight: '900',
+    textAlign: 'center',
   },
   bonusPill: {
     backgroundColor: '#E53935',
     borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
     alignItems: 'center',
     justifyContent: 'center',
+    width: '100%',                      // 填滿容器寬度
   },
   bonusPillText: {
     color: '#fff',
-    fontSize: 12,                       // Bonus 文字稍小但保持可讀性
+    fontSize: 10,                       // 稍微縮小以適應固定寬度
     fontWeight: '900',
     letterSpacing: 0.5,
   },

@@ -12,6 +12,7 @@ import RegisterScreen from "../screens/RegisterScreen"
 import { RegisterXStoryScreen } from "../screens/RegisterXStoryScreen";
 import { XStoryLogin } from "../screens/XStoryLogin"
 import { Alert, View, BackHandler, Keyboard, KeyboardAvoidingView, TouchableWithoutFeedback, Platform } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import tokenStorage from './Storage';
 import { translate } from "../i18n/i18n";
 import {
@@ -67,25 +68,44 @@ export default function LoginContainer({ onLoginSuccess }) {
 
   const handleFacebookLogin = async () => {
     try {
+      console.log('[Facebook Login] 開始登入流程，平台:', Platform.OS);
       let body = null;
 
       if (Platform.OS === "ios") {
         // 走 Limited Login（id_token）
+        console.log('[Facebook Login] iOS 使用 Limited Login');
         const r = await facebookLimitedLoginIOS();
         // 若使用者取消，SDK 通常會回傳 undefined/null；此時不提示，直接結束
-        if (!r) return;
+        if (!r) {
+          console.log('[Facebook Login] iOS Limited Login 返回 null（可能是使用者取消）');
+          return;
+        }
+
+        console.log('[Facebook Login] iOS Limited Login 結果:', {
+          hasIdToken: !!r?.idToken,
+          idTokenLength: r?.idToken?.length || 0,
+          hasRawNonce: !!r?.rawNonce,
+        });
 
         if (r?.idToken) {
           body = {
             token: r.idToken,      // id_token (JWT)
             rawNonce: r.rawNonce   // 強烈建議一併傳給後端做 nonce 驗證
           };
+        } else {
+          console.error('[Facebook Login] iOS Limited Login 未取得 idToken');
         }
       } else {
         // 走傳統 Access Token
+        console.log('[Facebook Login] Android 使用傳統 Access Token');
         const accessToken = await facebookLogin();
         // 若使用者取消，不提示，直接結束
-        if (!accessToken) return;
+        if (!accessToken) {
+          console.log('[Facebook Login] Android 登入返回 null（可能是使用者取消）');
+          return;
+        }
+
+        console.log('[Facebook Login] Android 取得 accessToken，長度:', accessToken.length);
 
         body = {
           token: accessToken     // 統一欄位名為 token
@@ -94,21 +114,33 @@ export default function LoginContainer({ onLoginSuccess }) {
 
       if (!body) {
         // 到這裡通常代表流程未取得必要憑證（多半是取消或無效回傳）
-        // 依需求：使用者取消就不 alert；因此直接 return
+        console.warn('[Facebook Login] body 為空，無法繼續');
         return;
       }
 
+      console.log('[Facebook Login] 準備呼叫後端 API，body:', {
+        hasToken: !!body.token,
+        tokenLength: body.token?.length || 0,
+        hasRawNonce: !!body.rawNonce,
+      });
+
       const serverToken = await facebookLoginWithXStory(body); // 你的 API 呼叫
       if (serverToken && serverToken.length > 0) {
+        console.log('[Facebook Login] 後端登入成功，token 長度:', serverToken.length);
         await tokenStorage.setStoreToken(serverToken);
         onLoginSuccess();
       } else {
+        console.error('[Facebook Login] 後端返回的 accessToken 為空');
         alert("serverToken is empty, please try again");
       }
     } catch (e) {
       // 取消不提示；其他錯誤才提示
-      if (isUserCancelError(e)) return;
-      alert("Facebook 登入錯誤: " + e.message);
+      if (isUserCancelError(e)) {
+        console.log('[Facebook Login] 使用者取消登入');
+        return;
+      }
+      console.error('[Facebook Login] 發生錯誤:', e);
+      alert("Facebook 登入錯誤: " + (e?.message ?? String(e)));
     }
   };
 
@@ -136,28 +168,55 @@ export default function LoginContainer({ onLoginSuccess }) {
       }
 
       // 3) 成功：拿到使用者與 token
-      console.log('google email:', res.user?.email);
-      console.log('google id:', res.user?.id);
+      console.log('[Google Login] 登入成功，使用者資訊:', {
+        email: res.user?.email,
+        id: res.user?.id,
+        hasIdToken: !!res.idToken,
+        idTokenLength: res.idToken?.length || 0,
+        platform: Platform.OS,
+      });
 
-      // 優先用 wrapper 已帶回的 idToken；若沒有，再補拿一次
+      // 優先用 wrapper 已帶回的 idToken；若沒有，再補拿一次（iOS 上可能需要重試）
       let idToken = res.idToken ?? null;
       if (!idToken) {
-        const tokens = await getGoogleTokens();
-        idToken = tokens.idToken ?? null;
+        console.log('[Google Login] res.idToken 為空，嘗試重新取得 tokens...');
+        try {
+          const tokens = await getGoogleTokens();
+          idToken = tokens.idToken ?? null;
+          console.log('[Google Login] 重新取得 tokens 結果:', {
+            hasIdToken: !!idToken,
+            idTokenLength: idToken?.length || 0,
+          });
+        } catch (tokenError) {
+          console.error('[Google Login] 重新取得 tokens 失敗:', tokenError);
+        }
       }
 
       if (!idToken || idToken.length === 0) {
+        console.error('[Google Login] 最終 idToken 為空，無法繼續');
         alert('未取得 Google idToken，請重試');
         return;
       }
 
+      console.log('[Google Login] 準備呼叫後端 API，idToken 長度:', idToken.length);
+      console.log('[Google Login] idToken 前 100 字元:', idToken.substring(0, 100));
+
       // 4) 呼叫你原本的後端 API 換取 server access token
       const serverGoogleLoginAccessToken = await googleLoginWithXStory({ idToken });
 
+      console.log('[Google Login] 後端 API 回應結果:', {
+        hasToken: !!serverGoogleLoginAccessToken,
+        tokenLength: serverGoogleLoginAccessToken?.length || 0,
+        tokenPreview: serverGoogleLoginAccessToken ? serverGoogleLoginAccessToken.substring(0, 50) + '...' : null,
+      });
+
       if (serverGoogleLoginAccessToken && serverGoogleLoginAccessToken.length > 0) {
+        console.log('[Google Login] 後端登入成功，token 長度:', serverGoogleLoginAccessToken.length);
         await tokenStorage.setStoreToken(serverGoogleLoginAccessToken);
         onLoginSuccess();
       } else {
+        console.error('[Google Login] 後端返回的 accessToken 為空');
+        console.error('[Google Login] 請檢查 console 中的 [Google Login API] 後端回應 日誌，查看具體錯誤訊息');
         alert('serverGoogleLoginAccessToken is empty, please try again');
       }
     } catch (e) {
@@ -192,17 +251,70 @@ export default function LoginContainer({ onLoginSuccess }) {
 
   const handleWeChatLogin = async () => {
     try {
-      const code = await wechatLogin();
-      // 若使用者取消或未回傳 code，不提示，直接返回
-      if (!code) return;
+      console.log('[WeChat Login] 開始登入流程，平台:', Platform.OS);
+      
+      // 添加詳細的錯誤診斷
+      try {
+        const code = await wechatLogin();
+        
+        // 若使用者取消或未回傳 code，不提示，直接返回
+        if (!code) {
+          console.log('[WeChat Login] 返回 null（可能是使用者取消或失敗）');
+          return;
+        }
 
-      await tokenStorage.setStoreToken(code);
-      console.log('google login: ' + code);
-      onLoginSuccess();
+        console.log('[WeChat Login] 取得授權碼 code，長度:', code.length);
+        console.log('[WeChat Login] ⚠️ 注意：WeChat 登入目前直接使用 code 作為 token，建議改為調用後端 API 換取 server token');
+
+        // TODO: 應該要像 Google/Facebook 一樣，調用後端 API 換取 server token
+        // 目前暫時直接使用 code，但這不是最佳實踐
+        // const serverToken = await wechatLoginWithXStory({ code });
+        // if (serverToken && serverToken.length > 0) {
+        //   await tokenStorage.setStoreToken(serverToken);
+        //   onLoginSuccess();
+        // } else {
+        //   alert("WeChat 登入失敗，請稍後再試");
+        // }
+
+        await tokenStorage.setStoreToken(code);
+        console.log('[WeChat Login] 直接使用 code 作為 token（臨時方案）');
+        onLoginSuccess();
+      } catch (wechatError) {
+        // 檢查是否為用戶取消
+        if (isUserCancelError(wechatError)) {
+          console.log('[WeChat Login] 使用者取消登入');
+          return;
+        }
+        
+        // 其他錯誤都顯示 Alert，這樣在 TestFlight 中也能看到
+        const errorMessage = wechatError?.message || String(wechatError);
+        console.error('[WeChat Login] 發生錯誤:', wechatError);
+        console.error('[WeChat Login] 錯誤詳情:', {
+          message: errorMessage,
+          code: wechatError?.code,
+          stack: wechatError?.stack,
+        });
+        
+        // 在 TestFlight 中顯示詳細錯誤信息
+        Alert.alert(
+          "微信登入錯誤",
+          errorMessage + "\n\n如果問題持續，請聯繫客服。",
+          [{ text: "確定" }]
+        );
+        return;
+      }
     } catch (e) {
-      // 取消不提示；其他錯誤才提示
-      if (isUserCancelError(e)) return;
-      alert("WeChat 登入錯誤: " + e.message);
+      // 外層錯誤處理（不應該到達這裡，但以防萬一）
+      if (isUserCancelError(e)) {
+        console.log('[WeChat Login] 使用者取消登入');
+        return;
+      }
+      console.error('[WeChat Login] 發生未預期的錯誤:', e);
+      Alert.alert(
+        "微信登入錯誤",
+        "發生未預期的錯誤: " + (e?.message ?? String(e)),
+        [{ text: "確定" }]
+      );
     }
   };
 
@@ -215,6 +327,38 @@ export default function LoginContainer({ onLoginSuccess }) {
   const handleXStoryRegister = () => {
     setHistoryStack((prev) => [...prev, 'emailVerification']);
     setShowEmailVerification(true);
+  };
+
+  // 開啟服務條款（在 App 內瀏覽器）
+  const handleOpenTOS = async () => {
+    try {
+      // TODO: 替換為實際的服務條款 URL
+      const termsUrl = 'https://your-domain.com/terms-of-service';
+      await WebBrowser.openBrowserAsync(termsUrl, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        controlsColor: '#0abab5', // 使用品牌色作為控制項顏色
+      });
+    } catch (error) {
+      console.error('開啟服務條款失敗:', error);
+      // 可選：顯示錯誤提示
+      // Alert.alert('錯誤', '無法開啟服務條款頁面，請稍後再試');
+    }
+  };
+
+  // 開啟隱私政策（在 App 內瀏覽器）
+  const handleOpenPP = async () => {
+    try {
+      // TODO: 替換為實際的隱私政策 URL
+      const privacyUrl = 'https://your-domain.com/privacy-policy';
+      await WebBrowser.openBrowserAsync(privacyUrl, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        controlsColor: '#0abab5', // 使用品牌色作為控制項顏色
+      });
+    } catch (error) {
+      console.error('開啟隱私政策失敗:', error);
+      // 可選：顯示錯誤提示
+      // Alert.alert('錯誤', '無法開啟隱私政策頁面，請稍後再試');
+    }
   };
 
   useEffect(() => {
@@ -313,6 +457,8 @@ export default function LoginContainer({ onLoginSuccess }) {
               onWeChatRegister={handleWeChatLogin}
               onRegister={handleRegister}
               onCancel={() => setshowRegisterView(false)}
+              onOpenTOS={handleOpenTOS}
+              onOpenPP={handleOpenPP}
             />
           ) : (
             <LoginScreen

@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Alert, Platform } from 'react-native';
-import { iapService, type ProductId } from '../services/iapService';
+import { iapService, PRODUCT_IDS, type ProductId } from '../services/iapService';
 import type { Product, Purchase, PurchaseError } from 'react-native-iap';
 
 interface UseIAPReturn {
@@ -32,21 +32,15 @@ export function useIAP(): UseIAPReturn {
 
       console.log('[useIAP] ========== 開始載入商品 ==========');
 
-      // 步驟 1: 使用硬編碼的商品 ID 列表（item_001 到 item_006）
-      // 這些是 Google Play Console 中配置的商品 ID
-      const productIds = [
-        'item_001',
-        'item_002',
-        'item_003',
-        'item_004',
-        'item_005',
-        'item_006',
-      ];
+      // 步驟 1: 使用 PRODUCT_IDS 配置（支援 iOS App Store 和 Google Play）
+      // 這些商品 ID 需要在 App Store Connect 和 Google Play Console 中設定
+      const productIds = Object.values(PRODUCT_IDS);
       
-      console.log('[useIAP] 步驟 1: 使用硬編碼的商品 ID 列表');
+      console.log('[useIAP] 步驟 1: 使用 PRODUCT_IDS 配置');
       console.log('[useIAP] 當前平台:', Platform.OS);
       console.log('[useIAP] 商品 ID 列表:', productIds);
       console.log('[useIAP] 商品 ID 數量:', productIds.length);
+      console.log('[useIAP] 商品 ID 來源: PRODUCT_IDS (支援 iOS 和 Android)');
       
       // 驗證商品 ID 都是有效的字串
       const invalidIds = productIds.filter(id => !id || typeof id !== 'string' || id.trim().length === 0);
@@ -61,22 +55,61 @@ export function useIAP(): UseIAPReturn {
       console.log('[useIAP] 步驟 2: 初始化 IAP 連線...');
       const initialized = await iapService.initialize();
       if (!initialized) {
-        const errorMsg = '無法初始化內購服務。可能原因：1) 在模擬器上運行 2) 設備沒有 Google Play 服務 3) 應用未正確配置';
+        const errorMsg = Platform.OS === 'ios'
+          ? '無法初始化內購服務。可能原因：1) 未登入 App Store 帳號 2) 應用未正確配置 App Store Connect 3) 網絡連接問題'
+          : '無法初始化內購服務。可能原因：1) 在模擬器上運行 2) 設備沒有 Google Play 服務 3) 應用未正確配置';
         console.warn('[useIAP]', errorMsg);
         setError(new Error(errorMsg));
         setProducts([]);
         return;
       }
 
-      // 步驟 3: 使用硬編碼的商品 ID 列表獲取 IAP 商品詳情
-      console.log('[useIAP] 步驟 3: 使用商品 ID 列表獲取 IAP 商品詳情...');
-      const productList = await iapService.getProductList(productIds);
-      console.log('[useIAP] ✓ 成功獲取 IAP 商品數量:', productList.length);
-      console.log('[useIAP] IAP 商品列表:', productList.map(p => ({ 
-        id: p.id, 
-        title: p.title, 
-        price: p.displayPrice || p.price 
-      })));
+      // 步驟 3: 根據平台使用不同的方式獲取 IAP 商品詳情
+      console.log('[useIAP] 步驟 3: 根據平台獲取 IAP 商品詳情...');
+      console.log('[useIAP] 當前平台:', Platform.OS);
+      
+      let productList: Product[] = [];
+      
+      if (Platform.OS === 'android') {
+        // Android 平台：使用 Google Play 獲取商品（保持現有流程不變）
+        console.log('[useIAP] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('[useIAP] 📱 Android 平台：使用 Google Play 獲取商品');
+        console.log('[useIAP] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('[useIAP] 將從 Google Play 獲取商品名稱和價格');
+        console.log('[useIAP] 商品 ID 列表:', productIds);
+        
+        productList = await iapService.getProductList(productIds);
+        
+        console.log('[useIAP] ✓ Android: 成功獲取 IAP 商品數量:', productList.length);
+        console.log('[useIAP] Android 商品列表:', productList.map(p => ({ 
+          id: p.id, 
+          title: p.title, 
+          price: p.displayPrice || p.price,
+          currency: p.currency,
+        })));
+      } else if (Platform.OS === 'ios') {
+        // iOS 平台：使用 App Store 獲取商品
+        console.log('[useIAP] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('[useIAP] 🍎 iOS 平台：使用 App Store 獲取商品');
+        console.log('[useIAP] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('[useIAP] 將從 App Store 獲取商品名稱和價格');
+        console.log('[useIAP] 商品 ID 列表:', productIds);
+        
+        productList = await iapService.getProductList(productIds);
+        
+        console.log('[useIAP] ✓ iOS: 成功獲取 IAP 商品數量:', productList.length);
+        console.log('[useIAP] iOS 商品列表:', productList.map(p => ({ 
+          id: p.id, 
+          title: p.title, 
+          price: p.displayPrice || p.price,
+          currency: p.currency,
+        })));
+      } else {
+        // 其他平台（理論上不會發生，但為了完整性）
+        console.warn('[useIAP] ⚠️ 未知平台:', Platform.OS);
+        console.warn('[useIAP] 嘗試使用通用方式獲取商品...');
+        productList = await iapService.getProductList(productIds);
+      }
       
       setProducts(productList);
     } catch (err) {

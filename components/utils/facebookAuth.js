@@ -12,25 +12,34 @@ import { sha256 } from "js-sha256";
  */
 export async function facebookLogin() {
   try {
+    console.log("[FB Classic Login] 開始傳統 Facebook 登入");
     const loginTracking = "enabled"; // 關鍵：避免 iOS 走 Limited Login
     const result = await LoginManager.logInWithPermissions(
       ["public_profile", "email"],
       loginTracking
     );
 
+    console.log("[FB Classic Login] 登入結果:", {
+      isCancelled: result?.isCancelled,
+      grantedPermissions: result?.grantedPermissions,
+    });
+
     if (result.isCancelled) {
+      console.log("[FB Classic Login] 使用者取消登入");
       return null; // 使用者取消
     }
 
     const data = await AccessToken.getCurrentAccessToken();
     if (!data?.accessToken) {
+      console.error("[FB Classic Login] 未取得 accessToken");
       throw new Error("Failed to get access token");
     }
 
+    console.log("[FB Classic Login] 成功取得 accessToken，長度:", data.accessToken.toString().length);
     // ✅ 回傳 accessToken（送往後端 /facebook-login 驗證）
     return data.accessToken.toString();
   } catch (error) {
-    console.error("Facebook login (classic) error:", error);
+    console.error("[FB Classic Login] 發生錯誤:", error?.message || error);
     return null;
   }
 }

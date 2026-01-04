@@ -1,6 +1,7 @@
 // userApiClient.ts
 import { RestfulApi } from "./api";
 import { portURL, devBaseUrl } from "./apiClient";
+import tokenStorage from "../auth/Storage";
 
 // 創建使用 portURL 的 API 實例（用於用戶相關 API）
 const userApi = new RestfulApi({
@@ -70,6 +71,71 @@ export async function getBookstoreList(): Promise<BookstoreItem[]> {
 //=======================================================
 
 /**
+ * 獲取當前用戶資料 Response
+ */
+export interface UserProfile {
+  id?: number;
+  name?: string;
+  email?: string;
+  birthday?: string; // ISO 8601 格式日期字串
+  gender?: 'female' | 'male' | 'other';
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: any; // 允許其他欄位
+}
+
+/**
+ * 獲取當前用戶資料 Response（API 響應格式）
+ */
+export interface GetUserProfileResponse {
+  success?: boolean;
+  message?: string;
+  data?: UserProfile;
+  // 或者直接返回 UserProfile 格式
+  id?: number;
+  name?: string;
+  email?: string;
+  birthday?: string;
+  gender?: 'female' | 'male' | 'other';
+}
+
+/**
+ * 獲取當前登入使用者的個人資訊
+ * @returns Promise<UserProfile | null> 用戶資料，失敗時返回 null
+ */
+export async function getUserProfile(): Promise<UserProfile | null> {
+  try {
+    const endpoint = "api/users/me";
+    
+    // 獲取 token 並添加到 header
+    const token = await tokenStorage.getToken();
+    
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    const res = await userApi.get<GetUserProfileResponse>(endpoint, headers);
+
+    console.log("[userApiClient] ✓ 成功獲取用戶資料:", res);
+    
+    // 處理不同的響應格式
+    if (res.data) {
+      return res.data;
+    } else if (res.id || res.name || res.email) {
+      // 如果響應直接是 UserProfile 格式
+      return res as UserProfile;
+    } else {
+      console.warn("[userApiClient] ✗ 獲取用戶資料失敗，響應格式不正確:", res);
+      return null;
+    }
+  } catch (error) {
+    console.error("[userApiClient] 獲取用戶資料時發生錯誤:", error);
+    return null;
+  }
+}
+
+/**
  * 更新用戶資料 Request
  */
 export interface UpdateUserProfileRequest {
@@ -95,7 +161,16 @@ export async function updateUserProfile(
 ): Promise<UpdateUserProfileResponse> {
   try {
     const endpoint = "api/users/me";
-    const res = await userApi.patch<UpdateUserProfileResponse>(endpoint, payload);
+    
+    // 獲取 token 並添加到 header
+    const token = await tokenStorage.getToken();
+    
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    const res = await userApi.patch<UpdateUserProfileResponse>(endpoint, payload, headers);
 
     console.log("[userApiClient] ✓ 成功更新用戶資料:", res);
     return res;
@@ -109,5 +184,42 @@ export async function updateUserProfile(
 //============== 金幣相關 API ==============
 //=======================================================
 
-// TODO: 待實作金幣相關 API
+/**
+ * 獲取用戶金幣餘額 Response
+ */
+export interface GetUserCoinBalanceResponse {
+  balance: number;
+}
+
+/**
+ * 獲取當前登入使用者的金幣餘額
+ * @returns Promise<number> 用戶金幣餘額，失敗時返回 0
+ */
+export async function getUserCoinBalance(): Promise<number> {
+  try {
+    const endpoint = "api/me/coins/balance";
+    
+    // 獲取 token 並添加到 header
+    const token = await tokenStorage.getToken();
+    
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    const res = await userApi.get<GetUserCoinBalanceResponse>(endpoint, headers);
+
+    console.log("[userApiClient] ✓ 成功獲取用戶金幣餘額:", res);
+    
+    if (res && typeof res.balance === 'number') {
+      return res.balance;
+    } else {
+      console.warn("[userApiClient] ✗ 獲取用戶金幣餘額失敗，響應格式不正確:", res);
+      return 0;
+    }
+  } catch (error) {
+    console.error("[userApiClient] 獲取用戶金幣餘額時發生錯誤:", error);
+    return 0;
+  }
+}
 

@@ -1,5 +1,5 @@
 // app/screens/ProfileScreen.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView,
   View,
@@ -13,26 +13,75 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import { useCoins } from '../store/coinContext';
-import { updateUserProfile } from '../config/userApiClient';
+import { getUserProfile, updateUserProfile } from '../config/userApiClient';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
-  const { coins } = useCoins();
+  const { coins, refreshCoins } = useCoins();
 
   // ---- 狀態 ----
-  const [name, setName] = useState<string>('Monica');
+  const [name, setName] = useState<string>('');
   const [birthday, setBirthday] = useState<Date>(new Date(1995, 7, 5));
   const [gender, setGender] = useState<'female' | 'male' | 'other'>('female');
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const { width: screenWidth } = Dimensions.get('window');
   const avatarSize = Math.round(screenWidth / 4);
+
+  // ---- 載入用戶資料 ----
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      try {
+        setIsLoading(true);
+        const userData = await getUserProfile();
+        
+        if (userData) {
+          // 更新名稱
+          if (userData.name) {
+            setName(userData.name);
+          }
+          
+          // 更新生日
+          if (userData.birthday) {
+            const birthdayDate = new Date(userData.birthday);
+            if (!isNaN(birthdayDate.getTime())) {
+              setBirthday(birthdayDate);
+            }
+          }
+          
+          // 更新性別
+          if (userData.gender && ['female', 'male', 'other'].includes(userData.gender)) {
+            setGender(userData.gender as 'female' | 'male' | 'other');
+          }
+          
+          console.log('[ProfileScreen] ✓ 成功載入用戶資料:', userData);
+        } else {
+          console.warn('[ProfileScreen] 無法獲取用戶資料，使用預設值');
+        }
+      } catch (error) {
+        console.error('[ProfileScreen] 載入用戶資料時發生錯誤:', error);
+        // 不顯示錯誤提示，只使用預設值
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUserProfile();
+  }, []);
+
+  // 當畫面獲得焦點時，刷新金幣餘額
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshCoins();
+    }, [refreshCoins])
+  );
 
   // ---- 事件：日期變更 ----
   const onChangeBirthday = (e: DateTimePickerEvent, date?: Date) => {
@@ -64,6 +113,23 @@ export default function ProfileScreen() {
       setIsSubmitting(false);
     }
   };
+
+  // 如果正在載入，顯示載入指示器
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={[styles.topBar, { paddingTop: 8 }]}>
+          <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
+            <Image style={styles.profileIconTop} source={require('../../assets/blueeye.png')} />
+          </Pressable>
+        </View>
+        <View style={[styles.container, styles.loadingContainer]}>
+          <ActivityIndicator size="large" color="#00a99d" />
+          <Text style={styles.loadingText}>載入中...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -311,5 +377,17 @@ const styles = StyleSheet.create({
     height: 18,
     marginLeft: 6,
     resizeMode: 'contain',
+  },
+
+  // ---- 載入狀態 ----
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#e7eef6',
+    marginTop: 12,
+    fontSize: 16,
   },
 });

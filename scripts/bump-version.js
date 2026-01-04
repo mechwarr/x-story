@@ -19,6 +19,8 @@ const path = require('path');
 const BUILD_GRADLE_PATH = path.join(__dirname, '../android/app/build.gradle');
 const GRADLE_PROPERTIES_PATH = path.join(__dirname, '../android/gradle.properties');
 const APP_JSON_PATH = path.join(__dirname, '../app.json');
+const IOS_PROJECT_PATH = path.join(__dirname, '../ios/storyappv2.xcodeproj/project.pbxproj');
+const IOS_INFO_PLIST_PATH = path.join(__dirname, '../ios/storyappv2/Info.plist');
 
 // 解析版本號 (例如: "1.0.0" -> [1, 0, 0])
 function parseVersion(versionString) {
@@ -128,6 +130,74 @@ function updateAppJson(versionName) {
     }
 }
 
+// 讀取 iOS project.pbxproj 文件
+function readIOSProject() {
+    if (fs.existsSync(IOS_PROJECT_PATH)) {
+        return fs.readFileSync(IOS_PROJECT_PATH, 'utf8');
+    }
+    return null;
+}
+
+// 更新 iOS project.pbxproj 中的版本號
+function updateIOSProject(versionName, buildNumber) {
+    const content = readIOSProject();
+    if (!content) {
+        console.log('⚠️  iOS project.pbxproj 不存在，跳過 iOS 版本更新');
+        return;
+    }
+    
+    let updated = content;
+    
+    // 更新 MARKETING_VERSION (版本號，例如 1.0.0)
+    updated = updated.replace(
+        /MARKETING_VERSION = [^;]+;/g,
+        `MARKETING_VERSION = ${versionName};`
+    );
+    
+    // 更新 CURRENT_PROJECT_VERSION (build number)
+    updated = updated.replace(
+        /CURRENT_PROJECT_VERSION = [^;]+;/g,
+        `CURRENT_PROJECT_VERSION = ${buildNumber};`
+    );
+    
+    fs.writeFileSync(IOS_PROJECT_PATH, updated, 'utf8');
+    console.log(`✅ 已更新 iOS project.pbxproj: MARKETING_VERSION=${versionName}, CURRENT_PROJECT_VERSION=${buildNumber}`);
+}
+
+// 讀取 iOS Info.plist 文件
+function readIOSInfoPlist() {
+    if (fs.existsSync(IOS_INFO_PLIST_PATH)) {
+        return fs.readFileSync(IOS_INFO_PLIST_PATH, 'utf8');
+    }
+    return null;
+}
+
+// 更新 iOS Info.plist 中的版本號
+function updateIOSInfoPlist(versionName, buildNumber) {
+    const content = readIOSInfoPlist();
+    if (!content) {
+        console.log('⚠️  iOS Info.plist 不存在，跳過 Info.plist 版本更新');
+        return;
+    }
+    
+    let updated = content;
+    
+    // 更新 CFBundleShortVersionString (版本號)
+    updated = updated.replace(
+        /<key>CFBundleShortVersionString<\/key>\s*<string>[^<]+<\/string>/,
+        `<key>CFBundleShortVersionString</key>\n    <string>${versionName}</string>`
+    );
+    
+    // 更新 CFBundleVersion (build number)
+    updated = updated.replace(
+        /<key>CFBundleVersion<\/key>\s*<string>[^<]+<\/string>/,
+        `<key>CFBundleVersion</key>\n    <string>${buildNumber}</string>`
+    );
+    
+    fs.writeFileSync(IOS_INFO_PLIST_PATH, updated, 'utf8');
+    console.log(`✅ 已更新 iOS Info.plist: CFBundleShortVersionString=${versionName}, CFBundleVersion=${buildNumber}`);
+}
+
 // 從 build.gradle 讀取當前版本號
 function getCurrentVersion() {
     const content = readBuildGradle();
@@ -170,14 +240,20 @@ function main() {
         updateBuildGradle(newVersionCode, newVersionName);
         updateGradleProperties(newVersionCode, newVersionName);
         updateAppJson(newVersionName);
+        updateIOSProject(newVersionName, newVersionCode);
+        updateIOSInfoPlist(newVersionName, newVersionCode);
         
         console.log('');
         console.log('✨ 版本號更新完成！');
         console.log('');
         console.log('下一步:');
-        console.log('  1. 構建 Release AAB: cd android && ./gradlew bundleRelease');
-        console.log('  2. 上傳 AAB 到 Google Play Console');
-        console.log('  3. 上傳 mapping 文件: android/app/mapping/mapping-' + newVersionName + '-' + newVersionCode + '.txt');
+        console.log('  Android:');
+        console.log('    1. 構建 Release AAB: cd android && ./gradlew bundleRelease');
+        console.log('    2. 上傳 AAB 到 Google Play Console');
+        console.log('    3. 上傳 mapping 文件: android/app/mapping/mapping-' + newVersionName + '-' + newVersionCode + '.txt');
+        console.log('  iOS:');
+        console.log('    1. 構建 iOS: npm run build:ios 或 eas build --platform ios --profile production');
+        console.log('    2. 提交到 App Store: eas submit --platform ios');
         
     } catch (error) {
         console.error('❌ 錯誤:', error.message);

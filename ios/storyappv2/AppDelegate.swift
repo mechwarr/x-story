@@ -1,6 +1,7 @@
 import Expo
 import React
 import ReactAppDependencyProvider
+// WeChat SDK 通過 Bridging Header 導入，無需在這裡 import
 
 @UIApplicationMain
 public class AppDelegate: ExpoAppDelegate {
@@ -38,6 +39,30 @@ public class AppDelegate: ExpoAppDelegate {
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
+    // 處理 WeChat 回調
+    // 使用 Objective-C 運行時動態調用，避免編譯時找不到類
+    if url.scheme == "wx277826ce3d9510c6" {
+      if let weChatModuleClass = NSClassFromString("WeChatModule") as? NSObject.Type {
+        // 調用 shared() 方法
+        let sharedSelector = NSSelectorFromString("shared")
+        if weChatModuleClass.responds(to: sharedSelector) {
+          if let sharedMethod = weChatModuleClass.perform(sharedSelector) {
+            if let weChatModule = sharedMethod.takeUnretainedValue() as? NSObject {
+              // 調用 handleOpenURL: 方法
+              let handleSelector = NSSelectorFromString("handleOpenURL:")
+              if weChatModule.responds(to: handleSelector) {
+                if let handleMethod = weChatModule.perform(handleSelector, with: url) {
+                  if let result = handleMethod.takeUnretainedValue() as? Bool, result {
+                    return true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
     return super.application(app, open: url, options: options) || RCTLinkingManager.application(app, open: url, options: options)
   }
 
@@ -47,6 +72,28 @@ public class AppDelegate: ExpoAppDelegate {
     continue userActivity: NSUserActivity,
     restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
   ) -> Bool {
+    // 處理 WeChat Universal Links
+    // 使用 Objective-C 運行時動態調用，避免編譯時找不到類
+    if let weChatModuleClass = NSClassFromString("WeChatModule") as? NSObject.Type {
+      // 調用 shared() 方法
+      let sharedSelector = NSSelectorFromString("shared")
+      if weChatModuleClass.responds(to: sharedSelector) {
+        if let sharedMethod = weChatModuleClass.perform(sharedSelector) {
+          if let weChatModule = sharedMethod.takeUnretainedValue() as? NSObject {
+            // 調用 handleOpenUniversalLink: 方法
+            let handleSelector = NSSelectorFromString("handleOpenUniversalLink:")
+            if weChatModule.responds(to: handleSelector) {
+              if let handleMethod = weChatModule.perform(handleSelector, with: userActivity) {
+                if let result = handleMethod.takeUnretainedValue() as? Bool, result {
+                  return true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
     let result = RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
     return super.application(application, continue: userActivity, restorationHandler: restorationHandler) || result
   }

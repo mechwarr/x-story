@@ -23,7 +23,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.0.32</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -34,11 +34,14 @@
           <string>xstoryscheme</string>
           <string>xstoryscheme</string>
           <string>com.rueiyang.story</string>
+          <string>wx277826ce3d9510c6</string>
+          <string>fb753717744007574</string>
+          <string>com.googleusercontent.apps.927761409049-66o2rujvgaoaovopb4q3mvev3kceej95</string>
         </array>
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>41</string>
     <key>CLIENT_ID</key>
     <string>927761409049-66o2rujvgaoaovopb4q3mvev3kceej95.apps.googleusercontent.com</string>
     <key>FacebookAdvertiserIDCollectionEnabled</key>
@@ -71,6 +74,8 @@
       <string>fbauth2</string>
       <string>fbshareextension</string>
       <string>google</string>
+      <string>weixin</string>
+      <string>weixinULAPI</string>
     </array>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>

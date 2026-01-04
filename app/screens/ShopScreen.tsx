@@ -1,9 +1,9 @@
 // app/screens/ShopScreen.tsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import {
-  SafeAreaView, View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator,
+  SafeAreaView, View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator, Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import PackCard, { PackItem } from '../components/Purchase/PackCard';
 import { useIAP } from '../hook/useIAP';
@@ -32,7 +32,17 @@ function extractProductName(title: string): string {
 export default function ShopScreen() {
   const navigation = useNavigation();
   const { products, isLoading: isIAPLoading, isPurchasing, purchaseProduct, error, refreshProducts } = useIAP();
-  const { coins } = useCoins();
+  const { coins, refreshCoins } = useCoins();
+  
+  // 根據平台獲取對應的平台名稱
+  const platformName = Platform.OS === 'ios' ? 'App Store' : 'Google Play';
+
+  // 當畫面獲得焦點時，刷新金幣餘額
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshCoins();
+    }, [refreshCoins])
+  );
 
   // 將 IAP 商品轉換為 PackItem 格式
   // 注意：coins 和 bonus 資訊應從後端 API 獲取，目前暫時設為 0
@@ -115,9 +125,15 @@ export default function ShopScreen() {
           <Text style={styles.errorMessage}>{error.message}</Text>
           <Text style={styles.errorHint}>
             {error.message.includes('模擬器') 
-              ? '請在真實設備上測試 Google Play 內購功能'
+              ? Platform.OS === 'ios' 
+                ? '請在真實設備上測試 App Store 內購功能'
+                : '請在真實設備上測試 Google Play 內購功能'
               : error.message.includes('Google Play 服務')
               ? '請確保設備已安裝並更新 Google Play 服務'
+              : error.message.includes('App Store') || error.message.includes('App Store Connect')
+              ? Platform.OS === 'ios'
+                ? '請確保已登入 App Store 帳號並檢查 App Store Connect 配置'
+                : '請檢查網絡連接和 API 服務器狀態'
               : error.message.includes('無法從伺服器獲取')
               ? '請檢查網絡連接和 API 服務器狀態'
               : '請查看控制台日誌獲取詳細錯誤資訊'}
@@ -142,10 +158,10 @@ export default function ShopScreen() {
             1. 後端 API 未返回商品列表
           </Text>
           <Text style={styles.loadingHint}>
-            2. 後端返回的商品中沒有 Google Play 平台商品
+            2. 後端返回的商品中沒有 {platformName} 平台商品
           </Text>
           <Text style={styles.loadingHint}>
-            3. Google Play 無法獲取商品詳情（請檢查 Google Play Console 配置）
+            3. {platformName} 無法獲取商品詳情（請檢查 {Platform.OS === 'ios' ? 'App Store Connect' : 'Google Play Console'} 配置）
           </Text>
           <Text style={styles.errorDebug}>
             詳細診斷請查看控制台日誌（搜尋 [useIAP] 或 [iapService]）

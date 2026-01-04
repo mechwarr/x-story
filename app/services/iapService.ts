@@ -18,6 +18,8 @@ import {
   type Purchase,
   type PurchaseError,
 } from 'react-native-iap';
+import authApi from '../config/authApiClient';
+import Storage from '../auth/Storage';
 
 // 商品 ID 配置（需要在 App Store Connect 和 Google Play Console 中設定）
 export const PRODUCT_IDS = {
@@ -427,10 +429,18 @@ class IAPService {
       if (!products) {
         console.warn('[iapService] ⚠️ fetchProducts 返回 null');
         console.warn('[iapService] 這通常表示：');
-        console.warn('[iapService] 1. 商品 ID 與 Google Play Console 中的不一致');
-        console.warn('[iapService] 2. 應用未發布到測試軌道');
-        console.warn('[iapService] 3. 測試帳號未加入測試人員');
-        console.warn('[iapService] 4. 在模擬器上運行（Google Play Billing 不支持模擬器）');
+        if (Platform.OS === 'ios') {
+          console.warn('[iapService] 1. 商品 ID 與 App Store Connect 中的不一致');
+          console.warn('[iapService] 2. 應用未正確配置 App Store Connect');
+          console.warn('[iapService] 3. 未登入 App Store 帳號或帳號無權限');
+          console.warn('[iapService] 4. 商品未在 App Store Connect 中建立或未啟用');
+          console.warn('[iapService] 5. 網絡連接問題');
+        } else {
+          console.warn('[iapService] 1. 商品 ID 與 Google Play Console 中的不一致');
+          console.warn('[iapService] 2. 應用未發布到測試軌道');
+          console.warn('[iapService] 3. 測試帳號未加入測試人員');
+          console.warn('[iapService] 4. 在模擬器上運行（Google Play Billing 不支持模擬器）');
+        }
         return [];
       }
       
@@ -455,7 +465,7 @@ class IAPService {
       if (products.length === 0) {
         console.error('[iapService] ⚠️⚠️⚠️ 獲取到 0 個商品！⚠️⚠️⚠️');
         console.error('[iapService] ========== 詳細診斷資訊 ==========');
-        console.error('[iapService] 這是 Google Play IAP 最常見的問題之一');
+        console.error(`[iapService] 這是 ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'} IAP 最常見的問題之一`);
         console.error('[iapService]');
         console.error('[iapService] 📋 當前請求的商品 ID:');
         skus.forEach((sku, index) => {
@@ -464,81 +474,141 @@ class IAPService {
         console.error('[iapService]');
         console.error('[iapService] 🔍 請按照以下順序逐步檢查：');
         console.error('[iapService]');
-        console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('[iapService] 1️⃣  應用是否已發布到測試軌道？（最常見）');
-        console.error('[iapService]    ⚠️  這是最常見的原因！');
-        console.error('[iapService]    📍 路徑：Google Play Console → 您的應用 → 測試 → [選擇測試軌道]');
-        console.error('[iapService]    ✅ 檢查：');
-        console.error('[iapService]       - 狀態必須顯示為「已發布」而非「草稿」或「審核中」');
-        console.error('[iapService]       - 必須完成整個發布流程（上傳 → 填寫資訊 → 審核 → 發布）');
-        console.error('[iapService]       - 等待發布完成（通常需要 5-15 分鐘）');
-        console.error('[iapService]');
-        console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('[iapService] 2️⃣  測試帳號是否已加入測試人員？');
-        console.error('[iapService]    📍 路徑：測試軌道 → 測試人員 → 添加測試人員');
-        console.error('[iapService]    ✅ 檢查：');
-        console.error('[iapService]       - 設備上的 Google 帳號必須在測試人員列表中');
-        console.error('[iapService]       - 如果使用「電子郵件地址列表」，需要接受測試邀請');
-        console.error('[iapService]       - 等待幾分鐘讓 Google Play 同步');
-        console.error('[iapService]');
-        console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('[iapService] 3️⃣  商品狀態是否為「已啟用」？');
-        console.error('[iapService]    📍 路徑：Google Play Console → 您的應用 → 貨幣化 → 產品和訂閱 → 應用內商品');
-        console.error('[iapService]    ✅ 檢查每個商品（item_001 到 item_006）：');
-        console.error('[iapService]       - 狀態必須為「已啟用」（不是「草稿」）');
-        console.error('[iapService]       - 商品 ID 必須與程式碼完全一致（區分大小寫）');
-        console.error('[iapService]       - 價格已設定');
-        console.error('[iapService]       - 名稱已設定');
-        console.error('[iapService]');
-        console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('[iapService] 4️⃣  商品 ID 是否完全一致？（區分大小寫）');
-        console.error('[iapService]    ⚠️  必須完全一致，包括大小寫、空格、特殊字符');
-        console.error('[iapService]    ✅ 程式碼中的 ID:');
-        skus.forEach((sku) => {
-          console.error(`[iapService]       "${sku}"`);
-        });
-        console.error('[iapService]    ❌ 常見錯誤：');
-        console.error('[iapService]       - Item_001（大寫 I）- 錯誤');
-        console.error('[iapService]       - item_001 （尾隨空格）- 錯誤');
-        console.error('[iapService]       - item_1（少了一個 0）- 錯誤');
-        console.error('[iapService]    ✅ 必須是：');
-        console.error('[iapService]       - item_001（完全一致）- 正確');
-        console.error('[iapService]');
-        console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('[iapService] 5️⃣  應用簽名是否正確？');
-        console.error('[iapService]    📍 路徑：Google Play Console → 您的應用 → 發布 → 應用簽名');
-        console.error('[iapService]    ✅ 檢查：');
-        console.error('[iapService]       - 如果使用「Google Play 應用簽署」，使用提供的測試證書');
-        console.error('[iapService]       - 確保本地 APK 簽名與 Google Play 一致');
-        console.error('[iapService]');
-        console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('[iapService] 6️⃣  是否等待足夠時間？（Google Play 同步延遲）');
-        console.error('[iapService]    ⏰ 等待時間：');
-        console.error('[iapService]       - 商品建立/啟用後：5-30 分鐘');
-        console.error('[iapService]       - 測試軌道發布後：10-60 分鐘');
-        console.error('[iapService]       - 第一次安裝測試版本後：可能需要更長時間');
-        console.error('[iapService]    ✅ 建議：');
-        console.error('[iapService]       - 清除 Google Play 商店快取');
-        console.error('[iapService]       - 重啟設備');
-        console.error('[iapService]       - 卸載並重新安裝測試版本');
-        console.error('[iapService]       - 等待 30-60 分鐘後再試');
-        console.error('[iapService]');
-        console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('[iapService] 7️⃣  Package Name 是否一致？');
-        console.error('[iapService]    ✅ 檢查：com.rueiyang.story');
-        console.error('[iapService]       - app.json');
-        console.error('[iapService]       - AndroidManifest.xml');
-        console.error('[iapService]       - build.gradle (applicationId)');
-        console.error('[iapService]       - Google Play Console');
-        console.error('[iapService]');
-        console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('[iapService] 8️⃣  是否在真實設備上測試？');
-        console.error('[iapService]    ⚠️  Google Play Billing 不支持模擬器');
-        console.error('[iapService]    ✅ 必須在真實的 Android 設備上測試');
-        console.error('[iapService]');
-        console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('[iapService] 📚 詳細診斷指南：');
-        console.error('[iapService]    請查看 GOOGLE_PLAY_FETCH_PRODUCTS_TROUBLESHOOTING.md');
+        
+        if (Platform.OS === 'ios') {
+          // iOS App Store 診斷資訊
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 1️⃣  商品是否在 App Store Connect 中建立並啟用？（最常見）');
+          console.error('[iapService]    ⚠️  這是最常見的原因！');
+          console.error('[iapService]    📍 路徑：App Store Connect → 您的應用 → 應用內購買項目');
+          console.error('[iapService]    ✅ 檢查每個商品（item_001 到 item_006）：');
+          console.error('[iapService]       - 商品必須已建立（不是草稿）');
+          console.error('[iapService]       - 商品 ID 必須與程式碼完全一致（區分大小寫）');
+          console.error('[iapService]       - 商品狀態必須為「準備提交」或「已批准」');
+          console.error('[iapService]       - 價格已設定');
+          console.error('[iapService]       - 名稱和描述已設定');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 2️⃣  商品 ID 是否完全一致？（區分大小寫）');
+          console.error('[iapService]    ⚠️  必須完全一致，包括大小寫、空格、特殊字符');
+          console.error('[iapService]    ✅ 程式碼中的 ID:');
+          skus.forEach((sku) => {
+            console.error(`[iapService]       "${sku}"`);
+          });
+          console.error('[iapService]    ❌ 常見錯誤：');
+          console.error('[iapService]       - Item_001（大寫 I）- 錯誤');
+          console.error('[iapService]       - item_001 （尾隨空格）- 錯誤');
+          console.error('[iapService]       - item_1（少了一個 0）- 錯誤');
+          console.error('[iapService]    ✅ 必須是：');
+          console.error('[iapService]       - item_001（完全一致）- 正確');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 3️⃣  是否已登入 App Store 帳號？');
+          console.error('[iapService]    📍 路徑：設定 → [您的名稱] → 媒體與購買項目 → 檢視帳號');
+          console.error('[iapService]    ✅ 檢查：');
+          console.error('[iapService]       - 設備必須登入有效的 App Store 帳號');
+          console.error('[iapService]       - 帳號必須有權限測試應用內購買');
+          console.error('[iapService]       - 如果是沙盒測試，需要使用沙盒測試帳號');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 4️⃣  應用 Bundle ID 是否一致？');
+          console.error('[iapService]    ✅ 檢查：');
+          console.error('[iapService]       - Xcode 專案中的 Bundle Identifier');
+          console.error('[iapService]       - App Store Connect 中的 Bundle ID');
+          console.error('[iapService]       - 兩者必須完全一致');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 5️⃣  是否等待足夠時間？（App Store 同步延遲）');
+          console.error('[iapService]    ⏰ 等待時間：');
+          console.error('[iapService]       - 商品建立/啟用後：5-30 分鐘');
+          console.error('[iapService]       - 應用提交審核後：可能需要更長時間');
+          console.error('[iapService]    ✅ 建議：');
+          console.error('[iapService]       - 重啟設備');
+          console.error('[iapService]       - 登出並重新登入 App Store 帳號');
+          console.error('[iapService]       - 等待 30-60 分鐘後再試');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 6️⃣  是否在真實設備上測試？');
+          console.error('[iapService]    ⚠️  雖然 iOS 模擬器可以測試，但建議在真實設備上測試');
+          console.error('[iapService]    ✅ 真實設備測試更可靠');
+        } else {
+          // Android Google Play 診斷資訊
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 1️⃣  應用是否已發布到測試軌道？（最常見）');
+          console.error('[iapService]    ⚠️  這是最常見的原因！');
+          console.error('[iapService]    📍 路徑：Google Play Console → 您的應用 → 測試 → [選擇測試軌道]');
+          console.error('[iapService]    ✅ 檢查：');
+          console.error('[iapService]       - 狀態必須顯示為「已發布」而非「草稿」或「審核中」');
+          console.error('[iapService]       - 必須完成整個發布流程（上傳 → 填寫資訊 → 審核 → 發布）');
+          console.error('[iapService]       - 等待發布完成（通常需要 5-15 分鐘）');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 2️⃣  測試帳號是否已加入測試人員？');
+          console.error('[iapService]    📍 路徑：測試軌道 → 測試人員 → 添加測試人員');
+          console.error('[iapService]    ✅ 檢查：');
+          console.error('[iapService]       - 設備上的 Google 帳號必須在測試人員列表中');
+          console.error('[iapService]       - 如果使用「電子郵件地址列表」，需要接受測試邀請');
+          console.error('[iapService]       - 等待幾分鐘讓 Google Play 同步');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 3️⃣  商品狀態是否為「已啟用」？');
+          console.error('[iapService]    📍 路徑：Google Play Console → 您的應用 → 貨幣化 → 產品和訂閱 → 應用內商品');
+          console.error('[iapService]    ✅ 檢查每個商品（item_001 到 item_006）：');
+          console.error('[iapService]       - 狀態必須為「已啟用」（不是「草稿」）');
+          console.error('[iapService]       - 商品 ID 必須與程式碼完全一致（區分大小寫）');
+          console.error('[iapService]       - 價格已設定');
+          console.error('[iapService]       - 名稱已設定');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 4️⃣  商品 ID 是否完全一致？（區分大小寫）');
+          console.error('[iapService]    ⚠️  必須完全一致，包括大小寫、空格、特殊字符');
+          console.error('[iapService]    ✅ 程式碼中的 ID:');
+          skus.forEach((sku) => {
+            console.error(`[iapService]       "${sku}"`);
+          });
+          console.error('[iapService]    ❌ 常見錯誤：');
+          console.error('[iapService]       - Item_001（大寫 I）- 錯誤');
+          console.error('[iapService]       - item_001 （尾隨空格）- 錯誤');
+          console.error('[iapService]       - item_1（少了一個 0）- 錯誤');
+          console.error('[iapService]    ✅ 必須是：');
+          console.error('[iapService]       - item_001（完全一致）- 正確');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 5️⃣  應用簽名是否正確？');
+          console.error('[iapService]    📍 路徑：Google Play Console → 您的應用 → 發布 → 應用簽名');
+          console.error('[iapService]    ✅ 檢查：');
+          console.error('[iapService]       - 如果使用「Google Play 應用簽署」，使用提供的測試證書');
+          console.error('[iapService]       - 確保本地 APK 簽名與 Google Play 一致');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 6️⃣  是否等待足夠時間？（Google Play 同步延遲）');
+          console.error('[iapService]    ⏰ 等待時間：');
+          console.error('[iapService]       - 商品建立/啟用後：5-30 分鐘');
+          console.error('[iapService]       - 測試軌道發布後：10-60 分鐘');
+          console.error('[iapService]       - 第一次安裝測試版本後：可能需要更長時間');
+          console.error('[iapService]    ✅ 建議：');
+          console.error('[iapService]       - 清除 Google Play 商店快取');
+          console.error('[iapService]       - 重啟設備');
+          console.error('[iapService]       - 卸載並重新安裝測試版本');
+          console.error('[iapService]       - 等待 30-60 分鐘後再試');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 7️⃣  Package Name 是否一致？');
+          console.error('[iapService]    ✅ 檢查：com.rueiyang.story');
+          console.error('[iapService]       - app.json');
+          console.error('[iapService]       - AndroidManifest.xml');
+          console.error('[iapService]       - build.gradle (applicationId)');
+          console.error('[iapService]       - Google Play Console');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 8️⃣  是否在真實設備上測試？');
+          console.error('[iapService]    ⚠️  Google Play Billing 不支持模擬器');
+          console.error('[iapService]    ✅ 必須在真實的 Android 設備上測試');
+          console.error('[iapService]');
+          console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.error('[iapService] 📚 詳細診斷指南：');
+          console.error('[iapService]    請查看 GOOGLE_PLAY_FETCH_PRODUCTS_TROUBLESHOOTING.md');
+        }
         console.error('[iapService] ============================================');
       } else {
         console.log('[iapService] 商品詳情:');
@@ -922,6 +992,52 @@ class IAPService {
       this.isInitialized = false;
     } catch (error) {
       console.error('關閉 IAP 連線失敗:', error);
+    }
+  }
+
+  /**
+   * 獲取用戶的 IAP 收據列表
+   * @returns Promise<IapReceipt[]> 返回 IAP 收據列表
+   */
+  async getIapReceipts(): Promise<any[]> {
+    try {
+      console.log('[iapService] ========== 開始獲取 IAP 收據列表 ==========');
+      
+      // 獲取 token
+      const token = await Storage.getToken();
+      if (!token) {
+        throw new Error('未找到認證 token，請先登入');
+      }
+
+      console.log('[iapService] ✓ Token 已獲取');
+      
+      // 設置 Authorization header
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'accept': '*/*',
+      };
+
+      console.log('[iapService] 調用 API: GET /api/me/iap-receipts');
+      
+      // 調用 API
+      const receipts = await authApi.get<any[]>('api/me/iap-receipts', headers);
+      
+      console.log('[iapService] ✓ 成功獲取 IAP 收據列表');
+      console.log('[iapService] 收據數量:', receipts?.length || 0);
+      console.log('[iapService] ============================================');
+      
+      return receipts || [];
+    } catch (error) {
+      console.error('[iapService] ========== 獲取 IAP 收據列表失敗 ==========');
+      console.error('[iapService] 錯誤:', error);
+      
+      if (error instanceof Error) {
+        console.error('[iapService] 錯誤訊息:', error.message);
+        console.error('[iapService] 錯誤堆疊:', error.stack);
+      }
+      
+      console.error('[iapService] ============================================');
+      throw error;
     }
   }
 

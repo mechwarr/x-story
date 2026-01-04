@@ -15,6 +15,9 @@ prepare_react_native_project!
 
 target 'storyappv2' do
   use_expo_modules!
+  
+  # WeChat SDK
+  pod 'WechatOpenSDK', '~> 1.9.0'
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
