@@ -146,26 +146,77 @@ export default function LoginContainer({ onLoginSuccess }) {
 
   const handleGoogleLogin = async () => {
     try {
-      // 1) 先試靜默登入，有紀錄就不跳 UI；沒有再互動式登入
-      let res = await googleSignInSilently();
-      if (!res.ok) {
+      console.log('[Google Login] ========== 開始 Google 登入流程 ==========');
+      console.log('[Google Login] 平台:', Platform.OS);
+      
+      let res = null;
+      
+      // iOS 上強制使用互動式登入，確保顯示登入視窗
+      if (Platform.OS === 'ios') {
+        console.log('[Google Login] iOS 平台：直接使用互動式登入，確保顯示登入視窗');
+        console.log('[Google Login] ⚠️ 應該會跳出 Google 登入視窗，請確認視窗是否出現');
         res = await googleSignInInteractive();
+        console.log('[Google Login] 互動式登入結果:', {
+          ok: res.ok,
+          reason: res.reason,
+          code: res.code,
+          message: res.message,
+          hasUser: !!res.user,
+          hasIdToken: !!res.idToken,
+          idTokenLength: res.idToken?.length || 0,
+        });
+      } else {
+        // Android 上先試靜默登入，失敗再互動式登入
+        console.log('[Google Login] 步驟 1: 嘗試靜默登入...');
+        res = await googleSignInSilently();
+        console.log('[Google Login] 靜默登入結果:', {
+          ok: res.ok,
+          reason: res.reason,
+          code: res.code,
+          message: res.message,
+          hasUser: !!res.user,
+          hasIdToken: !!res.idToken,
+          idTokenLength: res.idToken?.length || 0,
+        });
+        
+        // 如果靜默登入失敗或沒有有效的 idToken，使用互動式登入
+        if (!res.ok || !res.idToken || res.idToken.length === 0) {
+          console.log('[Google Login] 靜默登入失敗或無有效 token，嘗試互動式登入...');
+          res = await googleSignInInteractive();
+          console.log('[Google Login] 互動式登入結果:', {
+            ok: res.ok,
+            reason: res.reason,
+            code: res.code,
+            message: res.message,
+            hasUser: !!res.user,
+            hasIdToken: !!res.idToken,
+            idTokenLength: res.idToken?.length || 0,
+          });
+        }
       }
 
-      // 2) 取消或錯誤
-      if (!res.ok) {
+      // 2) 檢查登入結果和 token 有效性
+      if (!res || !res.ok) {
+        console.error('[Google Login] 登入失敗或取消，原因:', res?.reason || '未知');
         // 若是使用者取消，不要 alert
-        if (res.reason === 'cancelled' || res.code === 'canceled' || res.code === 'cancelled') {
+        if (res?.reason === 'cancelled' || res?.code === 'canceled' || res?.code === 'cancelled') {
+          console.log('[Google Login] 使用者取消登入，結束流程');
           return;
         }
-        const msg =
-          res.reason === 'cancelled'
-            ? '' // 已在上面 return，不會進到這裡
-            : `Google 登入錯誤：${res.code ?? ''} ${res.message ?? ''}`;
-        const trimmed = msg.trim();
-        if (trimmed.length > 0) alert(trimmed);
+        const errorMsg = res?.message || res?.code || 'Google 登入失敗，請稍後再試';
+        console.error('[Google Login] 顯示錯誤訊息:', errorMsg);
+        Alert.alert('Google 登入錯誤', errorMsg);
         return;
       }
+      
+      // 檢查是否有有效的 idToken
+      if (!res.idToken || res.idToken.length === 0) {
+        console.error('[Google Login] 登入成功但沒有有效的 idToken');
+        Alert.alert('Google 登入錯誤', '未取得有效的登入憑證，請重試');
+        return;
+      }
+      
+      console.log('[Google Login] ✅ 登入成功，進入 token 處理階段');
 
       // 3) 成功：拿到使用者與 token
       console.log('[Google Login] 登入成功，使用者資訊:', {
@@ -178,7 +229,7 @@ export default function LoginContainer({ onLoginSuccess }) {
 
       // 優先用 wrapper 已帶回的 idToken；若沒有，再補拿一次（iOS 上可能需要重試）
       let idToken = res.idToken ?? null;
-      if (!idToken) {
+      if (!idToken || idToken.length === 0) {
         console.log('[Google Login] res.idToken 為空，嘗試重新取得 tokens...');
         try {
           const tokens = await getGoogleTokens();
@@ -189,12 +240,15 @@ export default function LoginContainer({ onLoginSuccess }) {
           });
         } catch (tokenError) {
           console.error('[Google Login] 重新取得 tokens 失敗:', tokenError);
+          const errorMsg = tokenError?.message || String(tokenError) || '無法取得登入憑證';
+          Alert.alert('Google 登入錯誤', `無法取得登入憑證：${errorMsg}`);
+          return;
         }
       }
 
       if (!idToken || idToken.length === 0) {
         console.error('[Google Login] 最終 idToken 為空，無法繼續');
-        alert('未取得 Google idToken，請重試');
+        Alert.alert('Google 登入錯誤', '未取得 Google 登入憑證，請重試');
         return;
       }
 
@@ -202,27 +256,42 @@ export default function LoginContainer({ onLoginSuccess }) {
       console.log('[Google Login] idToken 前 100 字元:', idToken.substring(0, 100));
 
       // 4) 呼叫你原本的後端 API 換取 server access token
-      const serverGoogleLoginAccessToken = await googleLoginWithXStory({ idToken });
+      try {
+        const serverGoogleLoginAccessToken = await googleLoginWithXStory({ idToken });
 
-      console.log('[Google Login] 後端 API 回應結果:', {
-        hasToken: !!serverGoogleLoginAccessToken,
-        tokenLength: serverGoogleLoginAccessToken?.length || 0,
-        tokenPreview: serverGoogleLoginAccessToken ? serverGoogleLoginAccessToken.substring(0, 50) + '...' : null,
-      });
+        console.log('[Google Login] 後端 API 回應結果:', {
+          hasToken: !!serverGoogleLoginAccessToken,
+          tokenLength: serverGoogleLoginAccessToken?.length || 0,
+          tokenPreview: serverGoogleLoginAccessToken ? serverGoogleLoginAccessToken.substring(0, 50) + '...' : null,
+        });
 
-      if (serverGoogleLoginAccessToken && serverGoogleLoginAccessToken.length > 0) {
-        console.log('[Google Login] 後端登入成功，token 長度:', serverGoogleLoginAccessToken.length);
-        await tokenStorage.setStoreToken(serverGoogleLoginAccessToken);
-        onLoginSuccess();
-      } else {
-        console.error('[Google Login] 後端返回的 accessToken 為空');
-        console.error('[Google Login] 請檢查 console 中的 [Google Login API] 後端回應 日誌，查看具體錯誤訊息');
-        alert('serverGoogleLoginAccessToken is empty, please try again');
+        if (serverGoogleLoginAccessToken && serverGoogleLoginAccessToken.length > 0) {
+          console.log('[Google Login] 後端登入成功，token 長度:', serverGoogleLoginAccessToken.length);
+          await tokenStorage.setStoreToken(serverGoogleLoginAccessToken);
+          onLoginSuccess();
+        } else {
+          console.error('[Google Login] 後端返回的 accessToken 為空');
+          console.error('[Google Login] 請檢查 console 中的 [Google Login API] 後端回應 日誌，查看具體錯誤訊息');
+          Alert.alert('Google 登入錯誤', '伺服器驗證失敗，請稍後再試');
+        }
+      } catch (apiError) {
+        console.error('[Google Login] 後端 API 調用失敗:', apiError);
+        const errorMsg = apiError?.message || '網路請求失敗，請檢查網路連線';
+        Alert.alert('Google 登入錯誤', errorMsg);
       }
     } catch (e) {
-      // 取消不提示；其他錯誤才提示
-      if (isUserCancelError(e)) return;
-      alert('Google 登入錯誤: ' + (e?.message ?? String(e)));
+      // 所有錯誤都顯示 Alert
+      console.error('[Google Login] 發生未預期的錯誤:', e);
+      
+      // 使用者取消不顯示錯誤
+      if (isUserCancelError(e)) {
+        console.log('[Google Login] 使用者取消登入');
+        return;
+      }
+      
+      // 其他錯誤都顯示
+      const errorMsg = e?.message || String(e) || 'Google 登入發生錯誤，請稍後再試';
+      Alert.alert('Google 登入錯誤', errorMsg);
     }
   };
 

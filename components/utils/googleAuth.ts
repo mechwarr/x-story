@@ -53,10 +53,12 @@ export function configureGoogleSignIn() {
   
   GoogleSignin.configure(config);
   configured = true;
+  console.log('[Google Auth] ✅ Google Sign In 配置完成');
 }
 
 export async function googleSignInInteractive(): Promise<GoogleAuthResult> {
   try {
+    console.log('[Google Auth] ========== 開始互動式登入 ==========');
     configureGoogleSignIn();
 
     if (Platform.OS === 'android') {
@@ -67,7 +69,16 @@ export async function googleSignInInteractive(): Promise<GoogleAuthResult> {
     // await GoogleSignin.signOut();
     // await GoogleSignin.revokeAccess();
 
+    console.log('[Google Auth] 準備調用 GoogleSignin.signIn()，應該會顯示登入視窗...');
+    console.log('[Google Auth] ⚠️ 如果沒有看到登入視窗，可能是配置問題');
+    
     const res = await GoogleSignin.signIn(); // 注意：套件返回 { type, data? } 但我們只關心成功/取消
+    
+    console.log('[Google Auth] GoogleSignin.signIn() 回應:', {
+      type: (res as any)?.type,
+      hasData: !!(res as any)?.data,
+      dataKeys: (res as any)?.data ? Object.keys((res as any).data) : [],
+    });
 
     // 成功：把結構轉成應用端慣用格式
     // 官方型別：{ type: 'success', data: User } | { type: 'cancelled' }
@@ -102,6 +113,17 @@ export async function googleSignInInteractive(): Promise<GoogleAuthResult> {
         });
       }
 
+      // 檢查是否有有效的 idToken
+      if (!tokens.idToken || tokens.idToken.length === 0) {
+        console.error('[Google Auth] 互動登入成功但沒有有效的 idToken');
+        return {
+          ok: false,
+          reason: 'error',
+          code: 'NO_ID_TOKEN',
+          message: '登入成功但無法取得有效的登入憑證',
+        };
+      }
+
       return {
         ok: true,
         user,
@@ -112,6 +134,7 @@ export async function googleSignInInteractive(): Promise<GoogleAuthResult> {
     }
 
     // 取消登入
+    console.log('[Google Auth] 使用者取消登入');
     return { ok: false, reason: 'cancelled' };
   } catch (err: any) {
     // 套件常見錯誤代碼處理
@@ -130,8 +153,16 @@ export async function googleSignInInteractive(): Promise<GoogleAuthResult> {
 /** 靜默登入（若裝置上已有紀錄，無需互動） */
 export async function googleSignInSilently(): Promise<GoogleAuthResult> {
   try {
+    console.log('[Google Auth] ========== 開始靜默登入 ==========');
     configureGoogleSignIn();
+    console.log('[Google Auth] 調用 GoogleSignin.signInSilently()...');
     const res = await GoogleSignin.signInSilently(); // 套件會回 { type:'success', data } | 拋出 SIGN_IN_REQUIRED
+    
+    console.log('[Google Auth] signInSilently() 回應:', {
+      type: (res as any)?.type,
+      hasData: !!(res as any)?.data,
+    });
+    
     if ((res as any)?.type === 'success' && (res as any)?.data) {
       const user = (res as any).data as GoogleUser;
       // iOS 上 signInSilently() 後也需要等待一小段時間才能取得 token
@@ -160,10 +191,22 @@ export async function googleSignInSilently(): Promise<GoogleAuthResult> {
           error: err,
         });
       }
+      // 檢查是否有有效的 idToken
+      if (!tokens.idToken || tokens.idToken.length === 0) {
+        console.warn('[Google Auth] 靜默登入成功但沒有有效的 idToken，視為失敗');
+        return { ok: false, reason: 'cancelled' };
+      }
+      
       return { ok: true, user, idToken: tokens.idToken, accessToken: tokens.accessToken };
     }
+    console.log('[Google Auth] 靜默登入返回 cancelled（未找到已儲存憑證）');
     return { ok: false, reason: 'cancelled' }; // 極少見（大多數情況會 throw）
   } catch (err: any) {
+    console.log('[Google Auth] 靜默登入拋出錯誤:', {
+      code: err?.code,
+      message: err?.message || err,
+      errorType: err?.constructor?.name,
+    });
     // 沒有已儲存憑證／需要互動 → 視為取消（由呼叫端決定是否改成互動式登入）
     return { ok: false, reason: 'cancelled' };
   }

@@ -153,6 +153,14 @@ fi
 cd ..
 echo -e "${GREEN}   ✅ CocoaPods 依賴安裝完成${NC}\n"
 
+# 步驟 5.5: 保護 WeChat 原生模組文件（防止被覆蓋）
+echo -e "${BLUE}🔒 步驟 5.5: 保護 WeChat 原生模組文件...${NC}"
+if [ -f "scripts/protect-wechat-files.sh" ]; then
+  source scripts/protect-wechat-files.sh
+else
+  echo -e "${YELLOW}   ⚠️  保護腳本不存在，跳過${NC}\n"
+fi
+
 # 步驟 6: 打開 Xcode
 echo -e "${BLUE}🚀 步驟 6: 準備打開 Xcode...${NC}\n"
 

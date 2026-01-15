@@ -329,7 +329,14 @@ export async function googleLoginWithXStory(
   payload: XStoryGoogleLoginRequest
 ): Promise<string> {
   try {
-    console.log("[Google Login API] 發送請求到後端，idToken 長度:", payload.idToken?.length || 0);
+    const baseUrl = authApi.currentBaseUrl();
+    const fullUrl = baseUrl + "api/auth/google-login";
+    console.log("[Google Login API] 準備發送請求:");
+    console.log("[Google Login API]   基礎 URL:", baseUrl);
+    console.log("[Google Login API]   完整 URL:", fullUrl);
+    console.log("[Google Login API]   idToken 長度:", payload.idToken?.length || 0);
+    console.log("[Google Login API]   環境模式:", __DEV__ ? "開發" : "生產");
+    
     const res = await authApi.post<XStoryGoogleLoginResponse>(
       "api/auth/google-login",
       payload

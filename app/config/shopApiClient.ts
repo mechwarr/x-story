@@ -274,7 +274,7 @@ export async function purchaseProduct(
 }
 
 /**
- * 驗證購買收據 Request
+ * 驗證購買收據 Request (舊版 API - api/v1/shop/verify-purchase)
  */
 export interface VerifyPurchaseRequest {
   platform: "ios" | "android";
@@ -285,7 +285,7 @@ export interface VerifyPurchaseRequest {
 }
 
 /**
- * 驗證購買收據 Response
+ * 驗證購買收據 Response (舊版 API)
  */
 export interface VerifyPurchaseResponse {
   success: boolean;
@@ -295,7 +295,31 @@ export interface VerifyPurchaseResponse {
 }
 
 /**
- * 驗證購買收據
+ * IAP 驗證收據 Request (新版 API - api/iap/verify)
+ */
+export interface VerifyIAPReceiptRequest {
+  platform: "GOOGLE" | "APPLE";
+  receipt?: string; // iOS 收據或 Android purchaseToken
+  purchaseToken?: string; // Android purchaseToken (與 receipt 二選一)
+}
+
+/**
+ * IAP 驗證收據 Response (新版 API)
+ */
+export interface VerifyIAPReceiptResponse {
+  success: boolean;
+  platform: "GOOGLE" | "APPLE";
+  userId: string; // "123" 或 "system"
+  coinsAdded: number;
+  message: string;
+  raw?: {
+    raw?: string; // 原始回應資料
+    [key: string]: any;
+  };
+}
+
+/**
+ * 驗證購買收據 (舊版 API)
  * @param payload - 收據資訊
  * @returns Promise<boolean> 是否驗證成功
  */
@@ -317,6 +341,48 @@ export async function verifyPurchase(
   } catch (error) {
     console.error("驗證購買時發生錯誤:", error);
     return false;
+  }
+}
+
+/**
+ * 驗證 IAP 收據 (新版 API - api/iap/verify)
+ * @param payload - 收據資訊
+ * @returns Promise<VerifyIAPReceiptResponse | null> 驗證結果
+ */
+export async function verifyIAPReceipt(
+  payload: VerifyIAPReceiptRequest
+): Promise<VerifyIAPReceiptResponse | null> {
+  try {
+    console.log("[shopApiClient] ========== 開始驗證 IAP 收據 ==========");
+    console.log("[shopApiClient] 請求資料:", JSON.stringify(payload, null, 2));
+    
+    const res = await shopApi.post<VerifyIAPReceiptResponse>(
+      "api/iap/verify",
+      payload
+    );
+
+    console.log("[shopApiClient] API 回應:", JSON.stringify(res, null, 2));
+
+    if (res && res.success) {
+      console.log("[shopApiClient] ✓ 驗證成功");
+      console.log("[shopApiClient]   平台:", res.platform);
+      console.log("[shopApiClient]   用戶 ID:", res.userId);
+      console.log("[shopApiClient]   獲得金幣:", res.coinsAdded);
+      console.log("[shopApiClient]   訊息:", res.message);
+      return res;
+    } else {
+      console.warn("[shopApiClient] ✗ 驗證失敗:", res?.message || "未知錯誤");
+      return null;
+    }
+  } catch (error) {
+    console.error("[shopApiClient] ========== 驗證 IAP 收據時發生錯誤 ==========");
+    console.error("[shopApiClient] 錯誤:", error);
+    if (error instanceof Error) {
+      console.error("[shopApiClient] 錯誤訊息:", error.message);
+      console.error("[shopApiClient] 錯誤堆疊:", error.stack);
+    }
+    console.error("[shopApiClient] ============================================");
+    return null;
   }
 }
 

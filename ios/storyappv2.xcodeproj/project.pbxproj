@@ -11,6 +11,9 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		4E248F912E57AD9E00C1E8F3 /* main.jsbundle in Resources */ = {isa = PBXBuildFile; fileRef = 4E9228022E329687006CA995 /* main.jsbundle */; };
+		4EEF970D2F0C253200F3E4DB /* WeChatModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EEF970C2F0C253200F3E4DB /* WeChatModule.swift */; };
+		4EEF970F2F0C254500F3E4DB /* WeChatPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EEF970E2F0C254500F3E4DB /* WeChatPackage.swift */; };
+		4EEF97112F0C475600F3E4DB /* WeChatPackage.m in Sources */ = {isa = PBXBuildFile; fileRef = 4EEF97102F0C475600F3E4DB /* WeChatPackage.m */; };
 		A895C939859CBECEB8C92E42 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 460F09E9B2DED3B90428C8F0 /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		C79046724BE71DCE47375D4A /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA45D9FF71FB05F57CFA382 /* ExpoModulesProvider.swift */; };
@@ -26,6 +29,9 @@
 		41443B28EB928A3AA28D16B1 /* libPods-storyappv2.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-storyappv2.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		460F09E9B2DED3B90428C8F0 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = storyappv2/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		4E9228022E329687006CA995 /* main.jsbundle */ = {isa = PBXFileReference; lastKnownFileType = text; path = main.jsbundle; sourceTree = "<group>"; };
+		4EEF970C2F0C253200F3E4DB /* WeChatModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WeChatModule.swift; path = storyappv2/WeChatModule.swift; sourceTree = "<group>"; };
+		4EEF970E2F0C254500F3E4DB /* WeChatPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WeChatPackage.swift; path = storyappv2/WeChatPackage.swift; sourceTree = "<group>"; };
+		4EEF97102F0C475600F3E4DB /* WeChatPackage.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = WeChatPackage.m; path = storyappv2/WeChatPackage.m; sourceTree = "<group>"; };
 		5BA45D9FF71FB05F57CFA382 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-storyappv2/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = storyappv2/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
@@ -96,6 +102,9 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
+				4EEF97102F0C475600F3E4DB /* WeChatPackage.m */,
+				4EEF970E2F0C254500F3E4DB /* WeChatPackage.swift */,
+				4EEF970C2F0C253200F3E4DB /* WeChatModule.swift */,
 				4E9228022E329687006CA995 /* main.jsbundle */,
 				13B07FAE1A68108700A75B9A /* storyappv2 */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
@@ -350,6 +359,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
+				4EEF970D2F0C253200F3E4DB /* WeChatModule.swift in Sources */,
+				4EEF970F2F0C254500F3E4DB /* WeChatPackage.swift in Sources */,
+				4EEF97112F0C475600F3E4DB /* WeChatPackage.m in Sources */,
 				C79046724BE71DCE47375D4A /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -364,7 +376,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = storyappv2/storyappv2.entitlements;
-				CURRENT_PROJECT_VERSION = 41;
+				CURRENT_PROJECT_VERSION = 48;
 				DEVELOPMENT_TEAM = 584QBJVZ28;
 				ENABLE_BITCODE = NO;
 				EXCLUDED_ARCHS = x86_64;
@@ -378,7 +390,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.32;
+				MARKETING_VERSION = 1.0.39;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -403,7 +415,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = storyappv2/storyappv2.entitlements;
-				CURRENT_PROJECT_VERSION = 41;
+				CURRENT_PROJECT_VERSION = 48;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 584QBJVZ28;
 				EXCLUDED_ARCHS = x86_64;
@@ -413,7 +425,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.32;
+				MARKETING_VERSION = 1.0.39;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
 					"$(inherited)",

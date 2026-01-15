@@ -159,9 +159,21 @@ export default function RegisterScreen(props) {
                   backgroundColor: "#555555",
                   borderRadius: 25,
                   zIndex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingHorizontal: 20,
                 }}
                 pointerEvents="auto"
-              />
+              >
+                <Text
+                  style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {translate("signUpWithApple")}
+                </Text>
+              </View>
             )}
           </View>
         )}

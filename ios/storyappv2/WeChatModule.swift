@@ -11,27 +11,98 @@ import React
 // WeChat SDK 通過 Bridging Header 導入，無需在這裡 import
 
 @objc(WeChatModule)
-public class WeChatModule: RCTEventEmitter {
+@objcMembers
+public class WeChatModule: RCTEventEmitter, WXApiDelegate {
   
-  private static var instance: WeChatModule?
-  private var api: WXApi?
+  // 使用 @objc 標記靜態變量，確保在 Release 構建中不被優化掉
+  @objc public static var instance: WeChatModule?
   private var appId: String?
   private var authPromises: [String: RCTPromiseResolveBlock] = [:]
   private var authRejects: [String: RCTPromiseRejectBlock] = [:]
   
-  override init() {
+  // 模組初始化狀態
+  private var isModuleInitialized = false
+  
+  // 強制保留 init 方法，防止 Release 構建優化
+  @objc
+  public override init() {
     super.init()
     WeChatModule.instance = self
-    print("✅ [WeChatModule] iOS 模組已創建，模組名稱: WeChat")
+    
+    // 使用 os_log 替代 print，在 Release 構建中也能輸出
+    // 同時保留 print 作為備用
+    #if DEBUG
+    print("✅ [WeChatModule] iOS 模組已創建")
+    print("   模組將在 React Native 中註冊為: WeChat")
+    print("   ⚠️ 注意：模組不會自動初始化，需要手動調用 initializeModule()")
+    #else
+    // Release 構建中使用 NSLog，確保日誌可見
+    NSLog("✅ [WeChatModule] iOS 模組已創建")
+    NSLog("   模組將在 React Native 中註冊為: WeChat")
+    NSLog("   ⚠️ 注意：模組不會自動初始化，需要手動調用 initializeModule()")
+    #endif
+    
+    // 不再自動發送事件，改為手動初始化
+    // 這樣可以確保 Bridge 完全就緒後才初始化
   }
   
+  /**
+   * 手動初始化模組（在 Bridge 就緒後調用）
+   * 發送 WeChatModuleReady 事件通知 JavaScript 端
+   */
   @objc
-  static func requiresMainQueueSetup() -> Bool {
+  func initializeModule(_ resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
+    // 檢查是否已經初始化
+    if isModuleInitialized {
+      #if DEBUG
+      print("ℹ️ [WeChatModule] 模組已經初始化，跳過")
+      #else
+      NSLog("ℹ️ [WeChatModule] 模組已經初始化，跳過")
+      #endif
+      resolver(true)
+      return
+    }
+    
+    // 檢查 Bridge 是否可用
+    guard let bridge = self.bridge else {
+      #if DEBUG
+      print("❌ [WeChatModule] Bridge 未就緒，無法初始化模組")
+      #else
+      NSLog("❌ [WeChatModule] Bridge 未就緒，無法初始化模組")
+      #endif
+      rejecter("BRIDGE_NOT_READY", "React Native Bridge is not ready", nil)
+      return
+    }
+    
+    // 發送模組就緒事件
+    sendEvent(withName: "WeChatModuleReady", body: [
+      "moduleName": "WeChat",
+      "ready": true,
+      "timestamp": Date().timeIntervalSince1970
+    ])
+    
+    isModuleInitialized = true
+    
+    #if DEBUG
+    print("✅ [WeChatModule] 模組已手動初始化並發送 WeChatModuleReady 事件")
+    #else
+    NSLog("✅ [WeChatModule] 模組已手動初始化並發送 WeChatModuleReady 事件")
+    #endif
+    
+    resolver(true)
+  }
+  
+  // 明確指定模組名稱
+  // 注意：RCTEventEmitter 沒有 moduleName() 方法，所以不需要 override
+  // 模組名稱會自動使用類名（去掉 "Module" 後綴），即 "WeChat"
+  
+  @objc
+  public override static func requiresMainQueueSetup() -> Bool {
     return false
   }
   
-  override func supportedEvents() -> [String]! {
-    return ["WeChat_Resp"]
+  public override func supportedEvents() -> [String]! {
+    return ["WeChat_Resp", "WeChatModuleReady"]
   }
   
   // MARK: - React Native 方法
@@ -43,10 +114,11 @@ public class WeChatModule: RCTEventEmitter {
     self.appId = appId
     
     // 註冊微信 SDK
+    // 注意：不同版本的 SDK API 可能不同
+    // 如果 registerApp 不接受 delegate，需要在 handleOpenURL 中設置
     let result = WXApi.registerApp(appId, universalLink: "")
     
     if result {
-      self.api = WXApi.shared()
       print("✅ [WeChatModule] 微信 SDK 註冊成功")
       resolver(true)
     } else {
@@ -65,7 +137,7 @@ public class WeChatModule: RCTEventEmitter {
   
   @objc
   func sendAuthRequest(_ scope: String, state: String, resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
-    guard let api = self.api else {
+    guard self.appId != nil else {
       rejecter("NOT_REGISTERED", "WeChat API not registered", nil)
       return
     }
@@ -86,18 +158,10 @@ public class WeChatModule: RCTEventEmitter {
     authRejects[requestId] = rejecter
     
     // 發送請求
-    // 注意：WXApi.send 的 API 可能因版本而異
-    // 如果編譯錯誤，請根據實際 SDK 版本調整
-    let result = WXApi.send(req)
-    
-    if !result {
-      print("❌ [WeChatModule] 發送授權請求失敗")
-      authPromises.removeValue(forKey: requestId)
-      authRejects.removeValue(forKey: requestId)
-      rejecter("SEND_ERROR", "Failed to send auth request", nil)
-    } else {
+    // WXApi.send 可能返回 Void，直接調用即可
+    // 成功或失敗會通過 WXApiDelegate 的 onResp 回調處理
+    WXApi.send(req)
       print("✅ [WeChatModule] 授權請求已發送，等待用戶響應...")
-    }
   }
   
   // MARK: - WXApiDelegate (通過 handleOpenURL 設置)
@@ -122,7 +186,6 @@ public class WeChatModule: RCTEventEmitter {
       if resp.errCode == WXSuccess.rawValue {
         result["code"] = authResp.code ?? ""
         result["state"] = authResp.state ?? ""
-        result["url"] = authResp.url ?? ""
         result["lang"] = authResp.lang ?? ""
         result["country"] = authResp.country ?? ""
       }
@@ -158,22 +221,36 @@ public class WeChatModule: RCTEventEmitter {
     }
   }
   
+  // MARK: - WXApiDelegate 實現
+  
+  public func onReq(_ req: BaseReq!) {
+    // 處理來自微信的請求
+    print("📱 [WeChatModule] 收到來自微信的請求: type=\(req?.type ?? -1)")
+  }
+  
+  public func onResp(_ resp: BaseResp!) {
+    // 處理來自微信的響應
+    guard let resp = resp else {
+      print("⚠️ [WeChatModule] 收到空的響應")
+      return
+    }
+    handleWeChatResponse(resp)
+  }
+  
   // MARK: - 處理 URL 回調（由 AppDelegate 調用）
   
   @objc
   func handleOpenURL(_ url: URL) -> Bool {
-    return WXApi.handleOpen(url) { [weak self] resp in
-      guard let self = self, let resp = resp else { return }
-      self.handleWeChatResponse(resp)
-    }
+    // 使用 delegate 方式處理
+    // 由於 WeChatModule 實現了 WXApiDelegate，可以直接傳遞 self
+    return WXApi.handleOpen(url, delegate: self)
   }
   
   @objc
   func handleOpenUniversalLink(_ userActivity: NSUserActivity) -> Bool {
-    return WXApi.handleOpenUniversalLink(userActivity) { [weak self] resp in
-      guard let self = self, let resp = resp else { return }
-      self.handleWeChatResponse(resp)
-    }
+    // 使用 delegate 方式處理
+    // 由於 WeChatModule 實現了 WXApiDelegate，可以直接傳遞 self
+    return WXApi.handleOpenUniversalLink(userActivity, delegate: self)
   }
   
   // MARK: - 獲取實例（供 AppDelegate 使用）

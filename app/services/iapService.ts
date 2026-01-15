@@ -20,6 +20,7 @@ import {
 } from 'react-native-iap';
 import authApi from '../config/authApiClient';
 import Storage from '../auth/Storage';
+import { verifyIAPReceipt } from '../config/shopApiClient';
 
 // 商品 ID 配置（需要在 App Store Connect 和 Google Play Console 中設定）
 export const PRODUCT_IDS = {
@@ -290,9 +291,9 @@ class IAPService {
             }
           }
           
-          // 驗證收據（可選，建議在後端驗證）
-          // TODO: 在這裡調用後端 API 驗證購買
-          // const receipt = await this.validateReceiptWithBackend(purchase);
+          // 驗證收據（在後端驗證）
+          console.log('[iapService] 開始驗證收據...');
+          const verificationResult = await this.validateReceiptWithBackend(purchase);
           
           // 完成交易（標記為已處理）
           // 重要：必須調用 finishTransaction，否則 Google Play 會認為交易未完成
@@ -300,9 +301,9 @@ class IAPService {
           await finishTransaction({ purchase, isConsumable: true });
           console.log('[iapService] ✓ 交易已完成');
           
-          // 觸發購買成功回調
+          // 觸發購買成功回調（傳遞驗證結果）
           console.log('[iapService] 觸發購買成功回調...');
-          this.onPurchaseSuccess?.(purchase);
+          this.onPurchaseSuccess?.(purchase, verificationResult);
           
           console.log('[iapService] ========== 購買處理完成 ==========');
         } catch (error) {
@@ -1041,8 +1042,110 @@ class IAPService {
     }
   }
 
+  /**
+   * 驗證收據（調用後端 API）
+   * @param purchase - 購買物件
+   * @returns Promise<{ productName: string; coinsAdded: number; message?: string } | undefined> 驗證結果
+   */
+  private async validateReceiptWithBackend(
+    purchase: Purchase
+  ): Promise<{ productName: string; coinsAdded: number; message?: string } | undefined> {
+    try {
+      console.log('[iapService] ========== 開始驗證收據 ==========');
+      console.log('[iapService] 購買物件:', JSON.stringify(purchase, null, 2));
+      
+      const isIOS = purchase.platform === 'ios';
+      const purchaseToken = (purchase as any).purchaseToken;
+      const originalTransactionIdIOS = isIOS ? (purchase as any).originalTransactionIdentifierIOS : null;
+      
+      // 構建驗證請求
+      let verifyRequest: {
+        platform: "GOOGLE" | "APPLE";
+        receipt: string;
+      };
+      
+      if (isIOS) {
+        // iOS: 使用 receipt (originalTransactionIdentifierIOS 或 transactionId)
+        const receipt = originalTransactionIdIOS 
+          ? String(originalTransactionIdIOS) 
+          : (purchase.transactionId || undefined);
+        
+        if (!receipt) {
+          console.warn('[iapService] ⚠️ iOS 購買缺少收據資訊');
+          return undefined;
+        }
+        
+        verifyRequest = {
+          platform: "APPLE",
+          receipt: receipt,
+        };
+        
+        console.log('[iapService] iOS 驗證請求:');
+        console.log('[iapService]   平台: APPLE');
+        console.log('[iapService]   收據:', receipt);
+      } else {
+        // Android: 使用 purchaseToken 作為 receipt
+        if (!purchaseToken) {
+          console.warn('[iapService] ⚠️ Android 購買缺少 purchaseToken');
+          return undefined;
+        }
+        
+        verifyRequest = {
+          platform: "GOOGLE",
+          receipt: String(purchaseToken), // 使用 receipt 欄位傳遞 purchaseToken
+        };
+        
+        console.log('[iapService] Android 驗證請求:');
+        console.log('[iapService]   平台: GOOGLE');
+        console.log('[iapService]   receipt (purchaseToken):', purchaseToken);
+      }
+      
+      console.log('[iapService] 發送驗證請求:', JSON.stringify(verifyRequest, null, 2));
+      
+      // 調用驗證 API
+      const verificationResult = await verifyIAPReceipt(verifyRequest);
+      
+      if (!verificationResult || !verificationResult.success) {
+        console.warn('[iapService] ⚠️ 驗證失敗:', verificationResult?.message || '未知錯誤');
+        return undefined;
+      }
+      
+      console.log('[iapService] ✓ 驗證成功');
+      console.log('[iapService]   平台:', verificationResult.platform);
+      console.log('[iapService]   用戶 ID:', verificationResult.userId);
+      console.log('[iapService]   獲得金幣:', verificationResult.coinsAdded);
+      console.log('[iapService]   訊息:', verificationResult.message);
+      
+      // 獲取商品名稱（從緩存的商品列表中查找）
+      const product = this.cachedProducts.find(
+        (p) => (p as any).productId === purchase.productId || p.id === purchase.productId
+      );
+      const productName = (product as any)?.title || purchase.productId || '商品';
+      
+      console.log('[iapService] ============================================');
+      
+      return {
+        productName,
+        coinsAdded: verificationResult.coinsAdded,
+        message: verificationResult.message,
+      };
+    } catch (error) {
+      console.error('[iapService] ========== 驗證收據時發生錯誤 ==========');
+      console.error('[iapService] 錯誤:', error);
+      if (error instanceof Error) {
+        console.error('[iapService] 錯誤訊息:', error.message);
+        console.error('[iapService] 錯誤堆疊:', error.stack);
+      }
+      console.error('[iapService] ============================================');
+      return undefined;
+    }
+  }
+
   // 回調函數
-  onPurchaseSuccess?: (purchase: Purchase) => void;
+  onPurchaseSuccess?: (
+    purchase: Purchase,
+    verificationResult?: { productName: string; coinsAdded: number; message?: string }
+  ) => void;
   onPurchaseError?: (error: Error | PurchaseError) => void;
 }
 

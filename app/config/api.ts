@@ -48,17 +48,40 @@ export class RestfulApi {
         }
 
         try {
+            console.log(`[RestfulApi] ${method} ${url}`);
             const response = await fetch(url, fetchOptions);
+            
             if (!response.ok) {
                 // 依需求可自訂錯誤格式
                 const errorText = await response.text();
+                console.error(`[RestfulApi] HTTP ${response.status} 錯誤:`, errorText);
                 throw new Error(`HTTP ${response.status}: ${errorText}`);
             }
             // 假設回傳皆為 JSON
             const data = (await response.json()) as T;
             return data;
-        } catch (error) {
+        } catch (error: any) {
             // 可進行額外錯誤處理，例如日誌或通知
+            console.error(`[RestfulApi] 請求失敗:`, {
+                url,
+                method,
+                error: error?.message || error,
+                errorType: error?.constructor?.name,
+                isNetworkError: error?.message?.includes('Network request failed') || 
+                               error?.message?.includes('Failed to fetch') ||
+                               error?.message?.includes('NetworkError'),
+            });
+            
+            // 如果是網路錯誤，提供更詳細的診斷資訊
+            if (error?.message?.includes('Network request failed') || 
+                error?.message?.includes('Failed to fetch')) {
+                console.error(`[RestfulApi] 網路請求失敗，可能的原因：`);
+                console.error(`   1. iOS ATS (App Transport Security) 阻止了 HTTP 請求`);
+                console.error(`   2. 請確認 Info.plist 中已配置 NSExceptionAllowsInsecureHTTPLoads`);
+                console.error(`   3. 當前 URL: ${url}`);
+                console.error(`   4. 是否為 HTTPS: ${url.startsWith('https://')}`);
+            }
+            
             throw error;
         }
     }

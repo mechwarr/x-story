@@ -40,11 +40,10 @@ export function CoinProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // 初始化時從 Storage 載入金幣（快速顯示）
+  // 初始化時只從 Storage 載入金幣（快速顯示）
+  // 不在此時調用 API，讓需要顯示金幣的 UI 組件在適當時機自行調用 refreshCoins()
   useEffect(() => {
     loadCoinsFromStorage();
-    // 然後從 API 獲取最新餘額
-    loadCoinsFromAPI();
   }, []);
 
   // 設定金幣（同時更新 Storage）
