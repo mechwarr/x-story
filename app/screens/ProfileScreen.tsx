@@ -97,7 +97,15 @@ export default function ProfileScreen() {
 
     try {
       setIsSubmitting(true);
-      const result = await updateUserProfile({ name });
+      
+      // 將生日轉換為 ISO 8601 格式字串
+      const birthdayISO = birthday.toISOString().split('T')[0]; // YYYY-MM-DD 格式
+      
+      const result = await updateUserProfile({ 
+        name,
+        birthday: birthdayISO,
+        gender: gender
+      });
       
       if (result.success !== false) {
         Alert.alert('成功', '個人資料已更新！', [

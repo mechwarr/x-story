@@ -1,24 +1,62 @@
 // RootLayout.tsx
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { ActivityIndicator, StyleSheet, AppState, AppStateStatus, Alert } from 'react-native';
 import SafeAreaWrapper from './components/SafeAreaWrapper';
 import AppNavigator from './navigations/AppNavigator';
 import LoginContainer from './auth/LoginContainer';
-import { LoadingProvider } from './screens/LoadingContext';
+import { LoadingProvider, useLoading } from './screens/LoadingContext';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import useInitApp from './hook/useInitApp';
 import * as Linking from "expo-linking";
-import { VerifyMail } from './config/authApiClient';
+import { VerifyMail, tokenRefreshService } from './config/authApiClient';
 import tokenStorage from './auth/Storage';
 import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
 import { AuthProvider } from "./auth/AuthContext";
 import { CoinProvider } from './store/coinContext';
+import { clearAllUserData } from './services/clearUserDataService';
 
-
-export default function RootLayout() {
-  const { checking, isLoggedIn, setIsLoggedIn } = useInitApp();
+// 內部組件，用於訪問 LoadingContext
+function RootLayoutContent() {
+  const { showLoading, hideLoading } = useLoading();
   const [isResetPassword, setIsResetPassword] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const appState = useRef(AppState.currentState);
+
+  // 傳遞 progress callback 給 useInitApp（應用重啟時使用）
+  const handleTokenRefreshProgress = (isProgress: boolean) => {
+    if (isProgress) {
+      showLoading();
+    } else {
+      hideLoading();
+    }
+  };
+
+  const { checking, isLoggedIn, setIsLoggedIn } = useInitApp(
+    handleTokenRefreshProgress
+    // 不傳遞失敗回調，useInitApp 內部會處理應用重啟時的失敗
+  );
+
+  // 處理 token 刷新失敗：顯示 alert 並清除資料（用於應用喚醒場景）
+  const handleTokenRefreshFailed = useCallback(async () => {
+    Alert.alert(
+      '帳戶權限過期',
+      '您的登入權限已過期，請重新登入。',
+      [
+        {
+          text: '確定',
+          onPress: async () => {
+            // 使用共享的清除資料服務
+            await clearAllUserData();
+            
+            // 退出登入
+            setIsLoggedIn(false);
+            console.log('[RootLayout] ✅ 已退出登入，返回登入頁面');
+          },
+        },
+      ],
+      { cancelable: false }
+    );
+  }, [setIsLoggedIn]);
 
   useEffect(() => {
     if (token && token.length > 0) {
@@ -40,6 +78,51 @@ export default function RootLayout() {
 
     return () => subscription.remove(); // 清除事件
   }, []);
+
+  // ✅ 監聽應用狀態變化（喚醒事件）
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      console.log('[RootLayout] 📱 AppState 變化:', {
+        previous: appState.current,
+        next: nextAppState,
+      });
+
+      // 當應用從背景恢復到前景時
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        console.log('[RootLayout] 🔄 應用已喚醒，檢查是否需要刷新 token...');
+        
+        // 檢查是否有登入狀態
+        const existingToken = await tokenStorage.getToken();
+        if (existingToken && isLoggedIn) {
+          console.log('[RootLayout] ✅ 檢測到登入狀態，開始刷新 token...');
+          await tokenRefreshService.refreshToken(
+            (isProgress) => {
+              if (isProgress) {
+                showLoading();
+              } else {
+                hideLoading();
+              }
+            },
+            handleTokenRefreshFailed
+          );
+        } else {
+          console.log('[RootLayout] ⚠️ 未登入或無 token，跳過刷新');
+        }
+      }
+
+      appState.current = nextAppState;
+    };
+
+    // 監聽 AppState 變化
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isLoggedIn, showLoading, hideLoading, handleTokenRefreshFailed, setIsLoggedIn]);
 
   const handleDeepLink = async (url: string) => {
     try {
@@ -108,33 +191,39 @@ export default function RootLayout() {
   }
 
   return (
-    <LoadingProvider>
-      <AuthProvider value={{ isLoggedIn, setIsLoggedIn, logout }}>
-        <CoinProvider>
-          <SafeAreaWrapper style={{ flex: 1 }}>
-          {isLoggedIn ? (
-            // ✅ 已登入：進入主導覽
-            <AppNavigator />
-          ) : isResetPassword && token ? (
-            // 🔐 重設密碼畫面
-            <ResetPasswordScreen
-              token={token}
-              onCancel={() => setIsResetPassword(false)}   // 取消回到登入頁
-              onSuccess={() => setIsResetPassword(false)}  // 成功後回到登入頁（也可改成直接導向登入）
-            />
-          ) : (
-            // 🔑 尚未登入：顯示登入容器
-            <LoginContainer onLoginSuccess={() => setIsLoggedIn(true)} />
-          )}
+    <AuthProvider value={{ isLoggedIn, setIsLoggedIn, logout }}>
+      <CoinProvider>
+        <SafeAreaWrapper style={{ flex: 1 }}>
+        {isLoggedIn ? (
+          // ✅ 已登入：進入主導覽
+          <AppNavigator />
+        ) : isResetPassword && token ? (
+          // 🔐 重設密碼畫面
+          <ResetPasswordScreen
+            token={token}
+            onCancel={() => setIsResetPassword(false)}   // 取消回到登入頁
+            onSuccess={() => setIsResetPassword(false)}  // 成功後回到登入頁（也可改成直接導向登入）
+          />
+        ) : (
+          // 🔑 尚未登入：顯示登入容器
+          <LoginContainer onLoginSuccess={() => setIsLoggedIn(true)} />
+        )}
 
-          {/* 全域載入覆蓋層 */}
-          <LoadingOverlay />
-          </SafeAreaWrapper>
-        </CoinProvider>
-      </AuthProvider>
+        {/* 全域載入覆蓋層 */}
+        <LoadingOverlay />
+        </SafeAreaWrapper>
+      </CoinProvider>
+    </AuthProvider>
+  );
+}
+
+// 導出組件，外層包裹 LoadingProvider
+export default function RootLayout() {
+  return (
+    <LoadingProvider>
+      <RootLayoutContent />
     </LoadingProvider>
   );
-
 }
 
 const styles = StyleSheet.create({

@@ -140,6 +140,8 @@ export async function getUserProfile(): Promise<UserProfile | null> {
  */
 export interface UpdateUserProfileRequest {
   name?: string;
+  birthday?: string; // ISO 8601 格式日期字串
+  gender?: 'female' | 'male' | 'other';
 }
 
 /**

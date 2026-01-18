@@ -4,8 +4,13 @@ import { Alert, Platform, AppState, InteractionManager } from 'react-native';
 import tokenStorage from '../auth/Storage';
 import {initLanguageByLoginStatus} from '../i18n/initLanguage';
 import { initWeChatSDK } from '../../components/utils/wechatAuth';
+import { tokenRefreshService } from '../config/authApiClient';
+import { clearAllUserData } from '../services/clearUserDataService';
 
-export default function useInitApp() {
+export default function useInitApp(
+  onTokenRefreshProgress?: (isProgress: boolean) => void,
+  onTokenRefreshFailed?: () => void
+) {
   const [checking, setChecking] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
@@ -19,6 +24,42 @@ export default function useInitApp() {
 
       // ✅ 初始化語言（根據登入與否判斷從 SecureStore or 裝置）
       await initLanguageByLoginStatus(loggedIn);
+
+      // ✅ 如果已登入，在應用重啟時刷新 token
+      if (loggedIn) {
+        console.log('[useInitApp] 🔄 檢測到登入狀態，開始刷新 token...');
+        
+        // 創建失敗處理函數（可以訪問內部的 setIsLoggedIn）
+        const handleRefreshFailed = async () => {
+          Alert.alert(
+            '帳戶權限過期',
+            '您的登入權限已過期，請重新登入。',
+            [
+              {
+                text: '確定',
+                onPress: async () => {
+                  // 使用共享的清除資料服務
+                  await clearAllUserData();
+                  
+                  // 退出登入
+                  setIsLoggedIn(false);
+                  console.log('[useInitApp] ✅ 已退出登入，返回登入頁面');
+                },
+              },
+            ],
+            { cancelable: false }
+          );
+        };
+        
+        // 如果外部提供了失敗回調，優先使用外部的（用於應用喚醒場景）
+        // 否則使用內部的失敗處理（用於應用重啟場景）
+        const refreshFailedCallback = onTokenRefreshFailed || handleRefreshFailed;
+        
+        await tokenRefreshService.refreshToken(
+          onTokenRefreshProgress,
+          refreshFailedCallback
+        );
+      }
 
       // ✅ 初始化微信 SDK（僅在 iOS 平台）
       // 優先執行 Bridge 初始化，成功後才初始化 WeChatModule
