@@ -107,23 +107,47 @@ public class WeChatModule: RCTEventEmitter, WXApiDelegate {
   
   // MARK: - React Native 方法
   
+  // ⚠️ 重要：必須在微信開放平台配置相同的 Universal Link
+  // 格式：https://你的域名/app/ 或 https://你的域名/wechat/
+  // 同時需要在 Associated Domains 中添加 applinks:你的域名
+  private static let WECHAT_UNIVERSAL_LINK = "https://xstudio-mclub.url.tw/app/"
+  
   @objc
   func registerApp(_ appId: String, resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
+    #if DEBUG
     print("🔧 [WeChatModule] 正在註冊微信應用: \(appId)")
+    print("   Universal Link: \(WeChatModule.WECHAT_UNIVERSAL_LINK)")
+    #else
+    NSLog("🔧 [WeChatModule] 正在註冊微信應用: %@", appId)
+    NSLog("   Universal Link: %@", WeChatModule.WECHAT_UNIVERSAL_LINK)
+    #endif
     
     self.appId = appId
     
     // 註冊微信 SDK
-    // 注意：不同版本的 SDK API 可能不同
-    // 如果 registerApp 不接受 delegate，需要在 handleOpenURL 中設置
-    let result = WXApi.registerApp(appId, universalLink: "")
+    // ⚠️ WechatOpenSDK 1.8.6+ 版本強制要求 Universal Link
+    // 如果 universalLink 為空或無效，registerApp 會返回 false
+    let result = WXApi.registerApp(appId, universalLink: WeChatModule.WECHAT_UNIVERSAL_LINK)
     
     if result {
+      #if DEBUG
       print("✅ [WeChatModule] 微信 SDK 註冊成功")
+      #else
+      NSLog("✅ [WeChatModule] 微信 SDK 註冊成功")
+      #endif
       resolver(true)
     } else {
+      #if DEBUG
       print("❌ [WeChatModule] 微信 SDK 註冊失敗")
-      rejecter("REGISTER_ERROR", "Failed to register WeChat app", nil)
+      print("   可能原因：")
+      print("   1. Universal Link 配置不正確")
+      print("   2. appId 格式錯誤")
+      print("   3. 微信開放平台未配置此 Universal Link")
+      #else
+      NSLog("❌ [WeChatModule] 微信 SDK 註冊失敗")
+      NSLog("   可能原因：Universal Link 配置不正確或微信開放平台未配置")
+      #endif
+      rejecter("REGISTER_ERROR", "Failed to register WeChat app. Check Universal Link configuration.", nil)
     }
   }
   
