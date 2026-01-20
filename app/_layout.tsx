@@ -97,7 +97,27 @@ function RootLayoutContent() {
         // 檢查是否有登入狀態
         const existingToken = await tokenStorage.getToken();
         if (existingToken && isLoggedIn) {
-          console.log('[RootLayout] ✅ 檢測到登入狀態，開始刷新 token...');
+          console.log('[RootLayout] ✅ 檢測到登入狀態，檢查登入時間和刷新 token...');
+          
+          // 創建登入過期處理函數（超過 30 天需要重新登入）
+          const handleLoginExpired = async () => {
+            Alert.alert(
+              '登入已過期',
+              '您的登入已超過 30 天，為了帳戶安全，請重新登入。',
+              [
+                {
+                  text: '確定',
+                  onPress: async () => {
+                    await clearAllUserData();
+                    setIsLoggedIn(false);
+                    console.log('[RootLayout] ✅ 登入已過期，已退出登入');
+                  },
+                },
+              ],
+              { cancelable: false }
+            );
+          };
+          
           await tokenRefreshService.refreshToken(
             (isProgress) => {
               if (isProgress) {
@@ -106,7 +126,8 @@ function RootLayoutContent() {
                 hideLoading();
               }
             },
-            handleTokenRefreshFailed
+            handleTokenRefreshFailed,
+            handleLoginExpired  // 新增：登入過期回調
           );
         } else {
           console.log('[RootLayout] ⚠️ 未登入或無 token，跳過刷新');

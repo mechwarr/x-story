@@ -54,10 +54,18 @@ export default function LoginContainer({ onLoginSuccess }) {
     setShowEmailLogin(false);
   };
 
-  const handleXStoryLoginSuccess = async (token) => {
-    console.log('handleXStoryLoginSuccess token: ' + token);
-    await tokenStorage.setStoreToken(token);
-    if (token) {
+  const handleXStoryLoginSuccess = async (tokenResult) => {
+    console.log('handleXStoryLoginSuccess tokenResult:', {
+      hasAccessToken: !!tokenResult?.accessToken,
+      hasRefreshToken: !!tokenResult?.refreshToken,
+    });
+    
+    if (tokenResult?.accessToken) {
+      // 使用新的 saveLoginData 方法一次存儲所有登入資料
+      await tokenStorage.saveLoginData({
+        accessToken: tokenResult.accessToken,
+        refreshToken: tokenResult.refreshToken,
+      });
       onLoginSuccess();
     }
   };
@@ -124,10 +132,15 @@ export default function LoginContainer({ onLoginSuccess }) {
         hasRawNonce: !!body.rawNonce,
       });
 
-      const serverToken = await facebookLoginWithXStory(body); // 你的 API 呼叫
-      if (serverToken && serverToken.length > 0) {
-        console.log('[Facebook Login] 後端登入成功，token 長度:', serverToken.length);
-        await tokenStorage.setStoreToken(serverToken);
+      const tokenResult = await facebookLoginWithXStory(body); // 你的 API 呼叫
+      if (tokenResult?.accessToken) {
+        console.log('[Facebook Login] 後端登入成功，accessToken 長度:', tokenResult.accessToken.length);
+        console.log('[Facebook Login] 後端登入成功，refreshToken 長度:', tokenResult.refreshToken?.length || 0);
+        // 使用新的 saveLoginData 方法一次存儲所有登入資料
+        await tokenStorage.saveLoginData({
+          accessToken: tokenResult.accessToken,
+          refreshToken: tokenResult.refreshToken,
+        });
         onLoginSuccess();
       } else {
         console.error('[Facebook Login] 後端返回的 accessToken 為空');
@@ -257,17 +270,24 @@ export default function LoginContainer({ onLoginSuccess }) {
 
       // 4) 呼叫你原本的後端 API 換取 server access token
       try {
-        const serverGoogleLoginAccessToken = await googleLoginWithXStory({ idToken });
+        const tokenResult = await googleLoginWithXStory({ idToken });
 
         console.log('[Google Login] 後端 API 回應結果:', {
-          hasToken: !!serverGoogleLoginAccessToken,
-          tokenLength: serverGoogleLoginAccessToken?.length || 0,
-          tokenPreview: serverGoogleLoginAccessToken ? serverGoogleLoginAccessToken.substring(0, 50) + '...' : null,
+          hasAccessToken: !!tokenResult?.accessToken,
+          accessTokenLength: tokenResult?.accessToken?.length || 0,
+          hasRefreshToken: !!tokenResult?.refreshToken,
+          refreshTokenLength: tokenResult?.refreshToken?.length || 0,
+          tokenPreview: tokenResult?.accessToken ? tokenResult.accessToken.substring(0, 50) + '...' : null,
         });
 
-        if (serverGoogleLoginAccessToken && serverGoogleLoginAccessToken.length > 0) {
-          console.log('[Google Login] 後端登入成功，token 長度:', serverGoogleLoginAccessToken.length);
-          await tokenStorage.setStoreToken(serverGoogleLoginAccessToken);
+        if (tokenResult?.accessToken) {
+          console.log('[Google Login] 後端登入成功，accessToken 長度:', tokenResult.accessToken.length);
+          console.log('[Google Login] 後端登入成功，refreshToken 長度:', tokenResult.refreshToken?.length || 0);
+          // 使用新的 saveLoginData 方法一次存儲所有登入資料
+          await tokenStorage.saveLoginData({
+            accessToken: tokenResult.accessToken,
+            refreshToken: tokenResult.refreshToken,
+          });
           onLoginSuccess();
         } else {
           console.error('[Google Login] 後端返回的 accessToken 為空');
@@ -303,10 +323,15 @@ export default function LoginContainer({ onLoginSuccess }) {
 
       console.log('apple appletoken: ' + appletoken);
 
-      const token = await appleLoginWithXStory({ idToken: appletoken });
-      if (token && token.length > 0) {
-        await tokenStorage.setStoreToken(token);
-        console.log('apple login: ' + token);
+      const tokenResult = await appleLoginWithXStory({ idToken: appletoken });
+      if (tokenResult?.accessToken) {
+        console.log('[Apple Login] 後端登入成功，accessToken 長度:', tokenResult.accessToken.length);
+        console.log('[Apple Login] 後端登入成功，refreshToken 長度:', tokenResult.refreshToken?.length || 0);
+        // 使用新的 saveLoginData 方法一次存儲所有登入資料
+        await tokenStorage.saveLoginData({
+          accessToken: tokenResult.accessToken,
+          refreshToken: tokenResult.refreshToken,
+        });
         onLoginSuccess();
       } else {
         alert("token is empty, please try again");
@@ -337,15 +362,23 @@ export default function LoginContainer({ onLoginSuccess }) {
 
         // TODO: 應該要像 Google/Facebook 一樣，調用後端 API 換取 server token
         // 目前暫時直接使用 code，但這不是最佳實踐
-        // const serverToken = await wechatLoginWithXStory({ code });
-        // if (serverToken && serverToken.length > 0) {
-        //   await tokenStorage.setStoreToken(serverToken);
+        // 當後端實現 WeChat 登入 API 後，應改為：
+        // const tokenResult = await wechatLoginWithXStory({ code });
+        // if (tokenResult?.accessToken) {
+        //   await tokenStorage.saveLoginData({
+        //     accessToken: tokenResult.accessToken,
+        //     refreshToken: tokenResult.refreshToken,
+        //   });
         //   onLoginSuccess();
         // } else {
         //   alert("WeChat 登入失敗，請稍後再試");
         // }
 
-        await tokenStorage.setStoreToken(code);
+        // 臨時方案：直接使用 code 作為 token，並記錄登入時間
+        await tokenStorage.saveLoginData({
+          accessToken: code,
+          // 暫時沒有 refreshToken
+        });
         console.log('[WeChat Login] 直接使用 code 作為 token（臨時方案）');
         onLoginSuccess();
       } catch (wechatError) {

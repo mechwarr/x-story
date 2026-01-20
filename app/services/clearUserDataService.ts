@@ -14,10 +14,13 @@ export async function clearAllUserData(): Promise<void> {
     await storage.deleteAllStorage();
     console.log('[clearUserDataService] ✓ AsyncStorage 已清除');
     
-    // 清除 SecureStore 中的 token 和用戶資料
-    await tokenStorage.removeToken();
+    // 清除 SecureStore 中的所有登入相關資料（accessToken、refreshToken、loginTime）
+    await tokenStorage.clearLoginData();
+    console.log('[clearUserDataService] ✓ 登入資料已清除（token、refreshToken、loginTime）');
+    
+    // 清除用戶個人資料
     await tokenStorage.clearUserProfile();
-    console.log('[clearUserDataService] ✓ SecureStore 已清除');
+    console.log('[clearUserDataService] ✓ 用戶個人資料已清除');
     
     console.log('[clearUserDataService] ✅ 所有資料已清除完成');
   } catch (error) {

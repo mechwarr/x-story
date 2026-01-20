@@ -19,17 +19,39 @@ export default function useInitApp(
       const token = await tokenStorage.getToken();
       const loggedIn = !!token;
 
-      console.log("[useInitApp] Token retrieved:", token);
+      console.log("[useInitApp] Token retrieved:", token ? `長度 ${token.length}` : 'null');
       setIsLoggedIn(loggedIn);
 
       // ✅ 初始化語言（根據登入與否判斷從 SecureStore or 裝置）
       await initLanguageByLoginStatus(loggedIn);
 
-      // ✅ 如果已登入，在應用重啟時刷新 token
+      // ✅ 如果已登入，檢查登入是否過期並刷新 token
       if (loggedIn) {
-        console.log('[useInitApp] 🔄 檢測到登入狀態，開始刷新 token...');
+        console.log('[useInitApp] 🔄 檢測到登入狀態，檢查登入時間和刷新 token...');
         
-        // 創建失敗處理函數（可以訪問內部的 setIsLoggedIn）
+        // 創建登入過期處理函數（超過 30 天需要重新登入）
+        const handleLoginExpired = async () => {
+          Alert.alert(
+            '登入已過期',
+            '您的登入已超過 30 天，為了帳戶安全，請重新登入。',
+            [
+              {
+                text: '確定',
+                onPress: async () => {
+                  // 使用共享的清除資料服務
+                  await clearAllUserData();
+                  
+                  // 退出登入
+                  setIsLoggedIn(false);
+                  console.log('[useInitApp] ✅ 登入已過期，已退出登入，返回登入頁面');
+                },
+              },
+            ],
+            { cancelable: false }
+          );
+        };
+        
+        // 創建刷新失敗處理函數（可以訪問內部的 setIsLoggedIn）
         const handleRefreshFailed = async () => {
           Alert.alert(
             '帳戶權限過期',
@@ -55,9 +77,11 @@ export default function useInitApp(
         // 否則使用內部的失敗處理（用於應用重啟場景）
         const refreshFailedCallback = onTokenRefreshFailed || handleRefreshFailed;
         
+        // 調用刷新 token（內部會先檢查是否超過 30 天）
         await tokenRefreshService.refreshToken(
           onTokenRefreshProgress,
-          refreshFailedCallback
+          refreshFailedCallback,
+          handleLoginExpired  // 新增：登入過期回調
         );
       }
 

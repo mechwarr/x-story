@@ -29,6 +29,15 @@ export interface XStoryAuthResponse {
   success: boolean;
   message: string;
   accessToken: string;
+  refreshToken?: string;
+}
+
+/**
+ * 登入成功後的 Token 資料
+ */
+export interface LoginTokenResult {
+  accessToken: string;
+  refreshToken?: string;
 }
 
 /**
@@ -105,24 +114,25 @@ export async function resentRegisterMail(
 
 /**
  * 使用 xStory 登入帳號
+ * @returns 成功時回傳 LoginTokenResult（包含 accessToken 和 refreshToken），失敗時回傳 null
  */
 export async function loginWithXStory(
   payload: XStoryAuthRequest
-): Promise<string | null> {
+): Promise<LoginTokenResult | null> {
   try {
     const res = await authApi.post<XStoryAuthResponse>(
       "api/auth/login",
       payload
     );
 
-    if (res && res.success) {
-      const token = res.accessToken;
-      console.log("登入成功，token:", token);
-      // 這裡可以儲存 token 或進行其他登入後的處理
-      // 例如：AsyncStorage.setItem('xStoryToken', token);
-      // 或者使用 Redux/Context API 儲存登入狀態
+    if (res && res.success && res.accessToken) {
+      console.log("登入成功，accessToken 長度:", res.accessToken.length);
+      console.log("登入成功，refreshToken 長度:", res.refreshToken?.length || 0);
 
-      return token;
+      return {
+        accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
+      };
     } else {
       alert(res?.message || "登入失敗，請稍後再試");
       console.warn("登入失敗:", res?.message);
@@ -326,9 +336,10 @@ export interface XStoryGoogleLoginResponse {
 }
 
 // 使用 xStory Google 登入
+// @returns 成功時回傳 LoginTokenResult（包含 accessToken 和 refreshToken），失敗時回傳 null
 export async function googleLoginWithXStory(
   payload: XStoryGoogleLoginRequest
-): Promise<string> {
+): Promise<LoginTokenResult | null> {
   try {
     const baseUrl = authApi.currentBaseUrl();
     const fullUrl = baseUrl + "api/auth/google-login";
@@ -347,13 +358,19 @@ export async function googleLoginWithXStory(
       success: res?.success,
       hasAccessToken: !!res?.accessToken,
       accessTokenLength: res?.accessToken?.length || 0,
+      hasRefreshToken: !!res?.refreshToken,
+      refreshTokenLength: res?.refreshToken?.length || 0,
       message: res?.message,
       fullResponse: JSON.stringify(res, null, 2),
     });
 
     if (res && res.success && res.accessToken) {
-      console.log("[Google Login API] 登入成功，token 長度:", res.accessToken.length);
-      return res.accessToken;
+      console.log("[Google Login API] 登入成功，accessToken 長度:", res.accessToken.length);
+      console.log("[Google Login API] 登入成功，refreshToken 長度:", res.refreshToken?.length || 0);
+      return {
+        accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
+      };
     } else {
       const errorMsg = res?.message || "Google 登入失敗，請稍後再試";
       console.warn("[Google Login API] 登入失敗:", {
@@ -364,7 +381,7 @@ export async function googleLoginWithXStory(
       });
       // 不在此處 alert，讓呼叫端決定是否要顯示錯誤訊息
       // alert(errorMsg);
-      return "";
+      return null;
     }
   } catch (error) {
     const errorMsg = extractErrorMessage(error);
@@ -375,7 +392,141 @@ export async function googleLoginWithXStory(
     });
     // 不在此處 alert，讓呼叫端決定是否要顯示錯誤訊息
     // alert(errorMsg);
-    return "";
+    return null;
+  }
+}
+
+//=======================================================
+//============== xStory Facebook 登入相關 API ==============
+//=======================================================
+
+// Facebook 登入 Request
+export interface XStoryFacebookLoginRequest {
+  token: string;
+  rawNonce?: string; // iOS Limited Login 需要
+}
+
+// Facebook 登入 Response
+export interface XStoryFacebookLoginResponse {
+  success: boolean;
+  message: string;
+  accessToken?: string;
+  refreshToken?: string;
+}
+
+// 使用 xStory Facebook 登入
+// @returns 成功時回傳 LoginTokenResult（包含 accessToken 和 refreshToken），失敗時回傳 null
+export async function facebookLoginWithXStory(
+  payload: XStoryFacebookLoginRequest
+): Promise<LoginTokenResult | null> {
+  try {
+    console.log("[Facebook Login API] 準備發送請求:");
+    console.log("[Facebook Login API]   token 長度:", payload.token?.length || 0);
+    console.log("[Facebook Login API]   hasRawNonce:", !!payload.rawNonce);
+    
+    const res = await authApi.post<XStoryFacebookLoginResponse>(
+      "api/auth/facebook-login",
+      payload
+    );
+
+    console.log("[Facebook Login API] 後端回應:", {
+      success: res?.success,
+      hasAccessToken: !!res?.accessToken,
+      accessTokenLength: res?.accessToken?.length || 0,
+      hasRefreshToken: !!res?.refreshToken,
+      refreshTokenLength: res?.refreshToken?.length || 0,
+      message: res?.message,
+    });
+
+    if (res && res.success && res.accessToken) {
+      console.log("[Facebook Login API] 登入成功，accessToken 長度:", res.accessToken.length);
+      console.log("[Facebook Login API] 登入成功，refreshToken 長度:", res.refreshToken?.length || 0);
+      return {
+        accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
+      };
+    } else {
+      const errorMsg = res?.message || "Facebook 登入失敗，請稍後再試";
+      console.warn("[Facebook Login API] 登入失敗:", {
+        success: res?.success,
+        hasAccessToken: !!res?.accessToken,
+        message: errorMsg,
+      });
+      return null;
+    }
+  } catch (error) {
+    const errorMsg = extractErrorMessage(error);
+    console.error("[Facebook Login API] 請求發生錯誤:", {
+      message: errorMsg,
+      error: error,
+    });
+    return null;
+  }
+}
+
+//=======================================================
+//============== xStory Apple 登入相關 API ==============
+//=======================================================
+
+// Apple 登入 Request
+export interface XStoryAppleLoginRequest {
+  idToken: string;
+}
+
+// Apple 登入 Response
+export interface XStoryAppleLoginResponse {
+  success: boolean;
+  message: string;
+  accessToken?: string;
+  refreshToken?: string;
+}
+
+// 使用 xStory Apple 登入
+// @returns 成功時回傳 LoginTokenResult（包含 accessToken 和 refreshToken），失敗時回傳 null
+export async function appleLoginWithXStory(
+  payload: XStoryAppleLoginRequest
+): Promise<LoginTokenResult | null> {
+  try {
+    console.log("[Apple Login API] 準備發送請求:");
+    console.log("[Apple Login API]   idToken 長度:", payload.idToken?.length || 0);
+    
+    const res = await authApi.post<XStoryAppleLoginResponse>(
+      "api/auth/apple-login",
+      payload
+    );
+
+    console.log("[Apple Login API] 後端回應:", {
+      success: res?.success,
+      hasAccessToken: !!res?.accessToken,
+      accessTokenLength: res?.accessToken?.length || 0,
+      hasRefreshToken: !!res?.refreshToken,
+      refreshTokenLength: res?.refreshToken?.length || 0,
+      message: res?.message,
+    });
+
+    if (res && res.success && res.accessToken) {
+      console.log("[Apple Login API] 登入成功，accessToken 長度:", res.accessToken.length);
+      console.log("[Apple Login API] 登入成功，refreshToken 長度:", res.refreshToken?.length || 0);
+      return {
+        accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
+      };
+    } else {
+      const errorMsg = res?.message || "Apple 登入失敗，請稍後再試";
+      console.warn("[Apple Login API] 登入失敗:", {
+        success: res?.success,
+        hasAccessToken: !!res?.accessToken,
+        message: errorMsg,
+      });
+      return null;
+    }
+  } catch (error) {
+    const errorMsg = extractErrorMessage(error);
+    console.error("[Apple Login API] 請求發生錯誤:", {
+      message: errorMsg,
+      error: error,
+    });
+    return null;
   }
 }
 
@@ -459,14 +610,26 @@ class TokenRefreshService {
   private isRefreshing = false;
 
   /**
+   * 檢查登入是否過期（超過 30 天）
+   * @returns true 表示已過期需要重新登入
+   */
+  async checkLoginExpired(): Promise<boolean> {
+    return await tokenStorage.isLoginExpired(30);
+  }
+
+  /**
    * 刷新 Token
    * @param onProgress - 可選的回調函數，用於通知進度狀態變化
    * @param onRefreshFailed - 可選的回調函數，當刷新失敗時調用（用於清除資料和登出）
+   * @param onLoginExpired - 可選的回調函數，當登入已過期時調用（超過 30 天需要重新登入）
+   * @param forceRefresh - 是否強制刷新（忽略 1 小時間隔限制），預設 false
    * @returns Promise<boolean> 表示是否成功
    */
   async refreshToken(
     onProgress?: (isProgress: boolean) => void,
-    onRefreshFailed?: () => void
+    onRefreshFailed?: () => void,
+    onLoginExpired?: () => void,
+    forceRefresh: boolean = false
   ): Promise<boolean> {
     // 防止重複刷新
     if (this.isRefreshing) {
@@ -477,35 +640,68 @@ class TokenRefreshService {
     this.isRefreshing = true;
 
     try {
-      console.log('[TokenRefreshService] 🔄 開始刷新 Token...');
+      console.log('[TokenRefreshService] 🔄 開始檢查 Token 刷新...');
+
+      // 1. 檢查登入時間是否已過期（超過 30 天）
+      const isExpired = await tokenStorage.isLoginExpired(30);
+      if (isExpired) {
+        console.log('[TokenRefreshService] ⚠️ 登入已超過 30 天，需要重新登入');
+        this.isRefreshing = false;
+        
+        // 調用登入過期回調
+        if (onLoginExpired) {
+          onLoginExpired();
+        }
+        
+        return false;
+      }
+
+      // 2. 檢查是否需要刷新（距離上次刷新是否超過 1 小時）
+      if (!forceRefresh) {
+        const shouldRefresh = await tokenStorage.shouldRefreshToken(1); // 1 小時
+        if (!shouldRefresh) {
+          console.log('[TokenRefreshService] ⏰ 距離上次刷新未超過 1 小時，跳過刷新');
+          this.isRefreshing = false;
+          return true; // 不需要刷新，視為成功
+        }
+      } else {
+        console.log('[TokenRefreshService] 🔄 強制刷新模式，忽略時間間隔限制');
+      }
       
       // 進入 progress state
       onProgress?.(true);
 
-      // 檢查是否有現有的 token（這裡假設 accessToken 就是 refreshToken，或需要從其他地方獲取）
-      // 如果後端需要單獨的 refreshToken，需要從存儲中獲取
-      const existingToken = await tokenStorage.getToken();
+      // 3. 獲取 refreshToken（而非 accessToken）
+      const refreshToken = await tokenStorage.getRefreshToken();
       
-      if (!existingToken) {
-        console.log('[TokenRefreshService] ⚠️ 沒有找到現有的 token，跳過刷新');
+      if (!refreshToken) {
+        console.log('[TokenRefreshService] ⚠️ 沒有找到 refreshToken，跳過刷新');
         onProgress?.(false);
         this.isRefreshing = false;
+        
+        // 沒有 refreshToken 視為需要重新登入
+        if (onRefreshFailed) {
+          onRefreshFailed();
+        }
+        
         return false;
       }
 
-      console.log('[TokenRefreshService] ✓ 找到現有 token，長度:', existingToken.length);
-      console.log('[TokenRefreshService] 📝 Token 前 20 字元:', existingToken.substring(0, 20) + '...');
+      console.log('[TokenRefreshService] ✓ 找到 refreshToken，長度:', refreshToken.length);
+      console.log('[TokenRefreshService] 📝 RefreshToken 前 20 字元:', refreshToken.substring(0, 20) + '...');
 
-      // 調用實際的刷新 API
-      // 注意：這裡假設現有的 token 就是 refreshToken
-      // 如果後端需要單獨的 refreshToken，需要從存儲中獲取
+      // 4. 調用刷新 API，使用正確的 refreshToken
       const newAccessToken = await refreshXStoryToken({
-        refreshToken: existingToken,
+        refreshToken: refreshToken,
       });
 
       if (newAccessToken) {
-        // 保存新的 accessToken
+        // 保存新的 accessToken（refreshToken 保持不變）
         await tokenStorage.setStoreToken(newAccessToken);
+        
+        // 記錄本次刷新時間
+        await tokenStorage.setLastRefreshTime();
+        
         console.log('[TokenRefreshService] ✅ Token 刷新完成並已保存');
         
         // 離開 progress state

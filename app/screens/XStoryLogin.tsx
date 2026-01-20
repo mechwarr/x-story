@@ -10,10 +10,10 @@ import {
 } from "react-native";
 import { XStoryForgetPassword } from "./XStoryForgetPassword";
 import { translate } from "../i18n/i18n";
-import { loginWithXStory } from "../config/authApiClient";
+import { loginWithXStory, LoginTokenResult } from "../config/authApiClient";
 
 interface Props {
-    onLoginSuccess: (token: string) => void;
+    onLoginSuccess: (tokenResult: LoginTokenResult) => void;
     onCancel: () => void;
 }
 
@@ -24,9 +24,9 @@ export function XStoryLogin({ onLoginSuccess, onCancel }: Props) {
     const [showPassword, setShowPassword] = useState(false);
 
     const handleLogin = async () => {
-        const requestSignIn = await loginWithXStory({ email, password });
-        // TODO: 依你的 API 回傳格式調整：我先假設 requestSignIn 是 token 字串
-        if (requestSignIn) onLoginSuccess(requestSignIn);
+        const tokenResult = await loginWithXStory({ email, password });
+        // tokenResult 包含 accessToken 和 refreshToken
+        if (tokenResult) onLoginSuccess(tokenResult);
     };
 
     return (
