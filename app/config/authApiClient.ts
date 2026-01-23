@@ -465,6 +465,72 @@ export async function facebookLoginWithXStory(
 }
 
 //=======================================================
+//============== xStory WeChat 登入相關 API ==============
+//=======================================================
+
+// WeChat 登入 Request
+export interface XStoryWeChatLoginRequest {
+  code: string;
+}
+
+// WeChat 登入 Response
+export interface XStoryWeChatLoginResponse {
+  success: boolean;
+  message: string;
+  accessToken?: string;
+  refreshToken?: string;
+}
+
+// 使用 xStory WeChat 登入
+// @returns 成功時回傳 LoginTokenResult（包含 accessToken 和 refreshToken），失敗時回傳 null
+export async function wechatLoginWithXStory(
+  payload: XStoryWeChatLoginRequest
+): Promise<LoginTokenResult | null> {
+  try {
+    console.log("[WeChat Login API] 準備發送請求:");
+    console.log("[WeChat Login API]   code 長度:", payload.code?.length || 0);
+    
+    const res = await authApi.post<XStoryWeChatLoginResponse>(
+      "api/auth/wechat-login",
+      payload
+    );
+
+    console.log("[WeChat Login API] 後端回應:", {
+      success: res?.success,
+      hasAccessToken: !!res?.accessToken,
+      accessTokenLength: res?.accessToken?.length || 0,
+      hasRefreshToken: !!res?.refreshToken,
+      refreshTokenLength: res?.refreshToken?.length || 0,
+      message: res?.message,
+    });
+
+    if (res && res.success && res.accessToken) {
+      console.log("[WeChat Login API] 登入成功，accessToken 長度:", res.accessToken.length);
+      console.log("[WeChat Login API] 登入成功，refreshToken 長度:", res.refreshToken?.length || 0);
+      return {
+        accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
+      };
+    } else {
+      const errorMsg = res?.message || "WeChat 登入失敗，請稍後再試";
+      console.warn("[WeChat Login API] 登入失敗:", {
+        success: res?.success,
+        hasAccessToken: !!res?.accessToken,
+        message: errorMsg,
+      });
+      return null;
+    }
+  } catch (error) {
+    const errorMsg = extractErrorMessage(error);
+    console.error("[WeChat Login API] 請求發生錯誤:", {
+      message: errorMsg,
+      error: error,
+    });
+    return null;
+  }
+}
+
+//=======================================================
 //============== xStory Apple 登入相關 API ==============
 //=======================================================
 

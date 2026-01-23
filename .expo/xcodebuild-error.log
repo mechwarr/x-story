@@ -1,0 +1,10 @@
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:ABF461C1-EA3C-46FA-8A88-AF5BF145CAD1, OS:18.5, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:x86_64, id:ABF461C1-EA3C-46FA-8A88-AF5BF145CAD1, OS:18.5, name:iPhone 16 Pro }
+** BUILD FAILED **
+
+
+The following build commands failed:
+	Ld /Users/gary/Library/Developer/Xcode/DerivedData/storyappv2-craoynjstejpnqblezwtehtvyyjx/Build/Products/Debug-iphonesimulator/xStory.app/xStory.debug.dylib normal (in target 'storyappv2' from project 'storyappv2')
+	Building workspace storyappv2 with scheme storyappv2 and configuration Debug
+(2 failures)

@@ -18,7 +18,8 @@ import { translate } from "../i18n/i18n";
 import {
   facebookLoginWithXStory,
   googleLoginWithXStory,
-  appleLoginWithXStory
+  appleLoginWithXStory,
+  wechatLoginWithXStory
 } from '../config/authApiClient';
 
 export default function LoginContainer({ onLoginSuccess }) {
@@ -349,6 +350,7 @@ export default function LoginContainer({ onLoginSuccess }) {
       
       // 添加詳細的錯誤診斷
       try {
+        // 1. 從 WeChat SDK 獲取授權碼 code
         const code = await wechatLogin();
         
         // 若使用者取消或未回傳 code，不提示，直接返回
@@ -358,29 +360,50 @@ export default function LoginContainer({ onLoginSuccess }) {
         }
 
         console.log('[WeChat Login] 取得授權碼 code，長度:', code.length);
-        console.log('[WeChat Login] ⚠️ 注意：WeChat 登入目前直接使用 code 作為 token，建議改為調用後端 API 換取 server token');
+        console.log('[WeChat Login] 準備調用後端 API 換取 server token...');
 
-        // TODO: 應該要像 Google/Facebook 一樣，調用後端 API 換取 server token
-        // 目前暫時直接使用 code，但這不是最佳實踐
-        // 當後端實現 WeChat 登入 API 後，應改為：
-        // const tokenResult = await wechatLoginWithXStory({ code });
-        // if (tokenResult?.accessToken) {
-        //   await tokenStorage.saveLoginData({
-        //     accessToken: tokenResult.accessToken,
-        //     refreshToken: tokenResult.refreshToken,
-        //   });
-        //   onLoginSuccess();
-        // } else {
-        //   alert("WeChat 登入失敗，請稍後再試");
-        // }
-
-        // 臨時方案：直接使用 code 作為 token，並記錄登入時間
-        await tokenStorage.saveLoginData({
-          accessToken: code,
-          // 暫時沒有 refreshToken
+        // 2. 調用後端 API 換取真正的 token
+        console.log('[WeChat Login] 調用後端 API，code 長度:', code.length);
+        const tokenResult = await wechatLoginWithXStory({ code });
+        
+        console.log('[WeChat Login] 後端 API 回應:', {
+          hasTokenResult: !!tokenResult,
+          hasAccessToken: !!tokenResult?.accessToken,
+          accessTokenLength: tokenResult?.accessToken?.length || 0,
+          hasRefreshToken: !!tokenResult?.refreshToken,
+          refreshTokenLength: tokenResult?.refreshToken?.length || 0,
         });
-        console.log('[WeChat Login] 直接使用 code 作為 token（臨時方案）');
-        onLoginSuccess();
+        
+        if (tokenResult?.accessToken) {
+          console.log('[WeChat Login] ✅ 成功取得 server token');
+          console.log('[WeChat Login]   accessToken 長度:', tokenResult.accessToken.length);
+          console.log('[WeChat Login]   refreshToken 長度:', tokenResult.refreshToken?.length || 0);
+          
+          // 3. 保存真正的 token
+          try {
+            await tokenStorage.saveLoginData({
+              accessToken: tokenResult.accessToken,
+              refreshToken: tokenResult.refreshToken,
+            });
+            console.log('[WeChat Login] ✅ Token 已保存，登入成功');
+            onLoginSuccess();
+          } catch (saveError) {
+            console.error('[WeChat Login] ❌ Token 保存失敗:', saveError);
+            Alert.alert(
+              "微信登入錯誤",
+              "Token 保存失敗，請重試。\n\n錯誤: " + (saveError?.message || String(saveError)),
+              [{ text: "確定" }]
+            );
+          }
+        } else {
+          console.error('[WeChat Login] ❌ 後端 API 未返回有效的 token');
+          console.error('[WeChat Login] tokenResult 內容:', JSON.stringify(tokenResult, null, 2));
+          Alert.alert(
+            "微信登入失敗",
+            "無法從伺服器取得登入憑證，請稍後再試。\n\n如果問題持續，請聯繫客服。",
+            [{ text: "確定" }]
+          );
+        }
       } catch (wechatError) {
         // 檢查是否為用戶取消
         if (isUserCancelError(wechatError)) {

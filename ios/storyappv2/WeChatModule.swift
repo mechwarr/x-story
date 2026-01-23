@@ -64,7 +64,7 @@ public class WeChatModule: RCTEventEmitter, WXApiDelegate {
     }
     
     // 檢查 Bridge 是否可用
-    guard let bridge = self.bridge else {
+    guard self.bridge != nil else {
       #if DEBUG
       print("❌ [WeChatModule] Bridge 未就緒，無法初始化模組")
       #else
@@ -96,9 +96,11 @@ public class WeChatModule: RCTEventEmitter, WXApiDelegate {
   // 注意：RCTEventEmitter 沒有 moduleName() 方法，所以不需要 override
   // 模組名稱會自動使用類名（去掉 "Module" 後綴），即 "WeChat"
   
+  // ⚠️ 重要：返回 YES 確保模組在主線程上初始化
+  // 這對於與 Bridge 的正確交互至關重要
   @objc
   public override static func requiresMainQueueSetup() -> Bool {
-    return false
+    return true
   }
   
   public override func supportedEvents() -> [String]! {
@@ -185,17 +187,33 @@ public class WeChatModule: RCTEventEmitter, WXApiDelegate {
     // WXApi.send 可能返回 Void，直接調用即可
     // 成功或失敗會通過 WXApiDelegate 的 onResp 回調處理
     WXApi.send(req)
-      print("✅ [WeChatModule] 授權請求已發送，等待用戶響應...")
+    
+    #if DEBUG
+    print("✅ [WeChatModule] 授權請求已發送，等待用戶響應...")
+    #else
+    NSLog("✅ [WeChatModule] 授權請求已發送，等待用戶響應...")
+    #endif
   }
   
   // MARK: - WXApiDelegate (通過 handleOpenURL 設置)
   
   private func handleWeChatResponse(_ resp: BaseResp) {
+    // 確保在主執行緒上執行
+    assert(Thread.isMainThread, "handleWeChatResponse 必須在主執行緒上調用")
+    
+    #if DEBUG
     print("📱 [WeChatModule] 收到微信響應: errCode=\(resp.errCode), type=\(resp.type)")
+    #else
+    NSLog("📱 [WeChatModule] 收到微信響應: errCode=%d, type=%d", resp.errCode, resp.type)
+    #endif
     
     // 處理請求（如果需要）
     if resp.type == 0 {
+      #if DEBUG
       print("📱 [WeChatModule] 收到微信請求: type=\(resp.type)")
+      #else
+      NSLog("📱 [WeChatModule] 收到微信請求: type=%d", resp.type)
+      #endif
     }
     
     // 創建響應字典
@@ -215,66 +233,208 @@ public class WeChatModule: RCTEventEmitter, WXApiDelegate {
       }
     }
     
+    // 確保 Bridge 可用後再發送事件
+    guard self.bridge != nil else {
+      #if DEBUG
+      print("⚠️ [WeChatModule] Bridge 未就緒，無法發送事件，將延遲處理")
+      #else
+      NSLog("⚠️ [WeChatModule] Bridge 未就緒，無法發送事件，將延遲處理")
+      #endif
+      
+      // 延遲處理，等待 Bridge 就緒
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        guard let self = self, self.bridge != nil else {
+          #if DEBUG
+          print("❌ [WeChatModule] 延遲處理失敗，Bridge 仍未就緒")
+          #else
+          NSLog("❌ [WeChatModule] 延遲處理失敗，Bridge 仍未就緒")
+          #endif
+          return
+        }
+        self.sendEvent(withName: "WeChat_Resp", body: result)
+        self.resolveAuthPromise(for: resp, with: result)
+      }
+      return
+    }
+    
     // 發送事件到 JavaScript
     sendEvent(withName: "WeChat_Resp", body: result)
     
     // 處理 Promise
-    if let state = (resp as? SendAuthResp)?.state ?? result["state"] as? String {
-      if resp.errCode == WXSuccess.rawValue {
-        // 成功
-        if let resolver = authPromises[state] {
-          resolver(result)
-          authPromises.removeValue(forKey: state)
-          authRejects.removeValue(forKey: state)
-        }
-      } else if resp.errCode == WXErrCodeUserCancel.rawValue {
-        // 用戶取消
-        if let rejecter = authRejects[state] {
-          rejecter("USER_CANCEL", "User cancelled", nil)
-          authPromises.removeValue(forKey: state)
-          authRejects.removeValue(forKey: state)
-        }
+    resolveAuthPromise(for: resp, with: result)
+  }
+  
+  // 分離 Promise 處理邏輯，提高可讀性和可維護性
+  private func resolveAuthPromise(for resp: BaseResp, with result: [String: Any]) {
+    // 嘗試從多個來源獲取 state
+    var state: String? = nil
+    
+    if let authResp = resp as? SendAuthResp {
+      state = authResp.state
+    }
+    
+    if state == nil || state?.isEmpty == true {
+      state = result["state"] as? String
+    }
+    
+    // 如果仍然沒有 state，嘗試從所有保存的 Promise 中找到匹配的（可能是最後一個）
+    if state == nil || state?.isEmpty == true {
+      // 如果是授權響應（type == 1），嘗試使用第一個可用的 Promise
+      if resp.type == 1 && !authPromises.isEmpty {
+        state = authPromises.keys.first
+        #if DEBUG
+        print("⚠️ [WeChatModule] 無法從響應中獲取 state，使用第一個可用的 Promise key: \(state ?? "nil")")
+        #else
+        NSLog("⚠️ [WeChatModule] 無法從響應中獲取 state，使用第一個可用的 Promise key")
+        #endif
       } else {
-        // 其他錯誤
-        if let rejecter = authRejects[state] {
-          rejecter("AUTH_ERROR", resp.errStr ?? "Unknown error", nil)
-          authPromises.removeValue(forKey: state)
-          authRejects.removeValue(forKey: state)
+        #if DEBUG
+        print("❌ [WeChatModule] 無法解析 state，無法處理 Promise。響應類型: \(resp.type), errCode: \(resp.errCode)")
+        print("   當前保存的 Promise keys: \(Array(authPromises.keys))")
+        #else
+        NSLog("❌ [WeChatModule] 無法解析 state，無法處理 Promise")
+        #endif
+        
+        // 如果無法匹配 state，但還有待處理的 Promise，嘗試處理第一個
+        if !authPromises.isEmpty, let firstState = authPromises.keys.first, let rejecter = authRejects[firstState] {
+          rejecter("STATE_MISMATCH", "無法匹配授權請求的 state，可能是回調延遲或應用重啟", nil)
+          authPromises.removeValue(forKey: firstState)
+          authRejects.removeValue(forKey: firstState)
         }
+        return
+      }
+    }
+    
+    guard let validState = state, !validState.isEmpty else {
+      #if DEBUG
+      print("❌ [WeChatModule] state 為空，無法處理 Promise")
+      #else
+      NSLog("❌ [WeChatModule] state 為空，無法處理 Promise")
+      #endif
+      return
+    }
+    
+    if resp.errCode == WXSuccess.rawValue {
+      // 成功
+      if let resolver = authPromises[validState] {
+        resolver(result)
+        authPromises.removeValue(forKey: validState)
+        authRejects.removeValue(forKey: validState)
+        #if DEBUG
+        print("✅ [WeChatModule] Promise 已 resolve，state: \(validState)")
+        #else
+        NSLog("✅ [WeChatModule] Promise 已 resolve")
+        #endif
+      } else {
+        #if DEBUG
+        print("⚠️ [WeChatModule] 找不到對應的 resolver，state: \(validState)")
+        print("   當前保存的 Promise keys: \(Array(authPromises.keys))")
+        #else
+        NSLog("⚠️ [WeChatModule] 找不到對應的 resolver")
+        #endif
+      }
+    } else if resp.errCode == WXErrCodeUserCancel.rawValue {
+      // 用戶取消
+      if let rejecter = authRejects[validState] {
+        rejecter("USER_CANCEL", "User cancelled", nil)
+        authPromises.removeValue(forKey: validState)
+        authRejects.removeValue(forKey: validState)
+      }
+    } else {
+      // 其他錯誤
+      if let rejecter = authRejects[validState] {
+        let errorMessage = (resp.errStr ?? "").isEmpty ? "Unknown error" : (resp.errStr ?? "")
+        rejecter("AUTH_ERROR", errorMessage, nil)
+        authPromises.removeValue(forKey: validState)
+        authRejects.removeValue(forKey: validState)
       }
     }
   }
   
   // MARK: - WXApiDelegate 實現
+  // 注意：Objective-C 協議定義為 BaseReq* 和 BaseResp*，在 Swift 中對應可選類型 BaseReq? 和 BaseResp?
   
-  public func onReq(_ req: BaseReq!) {
+  public func onReq(_ req: BaseReq?) {
     // 處理來自微信的請求
-    print("📱 [WeChatModule] 收到來自微信的請求: type=\(req?.type ?? -1)")
-  }
-  
-  public func onResp(_ resp: BaseResp!) {
-    // 處理來自微信的響應
-    guard let resp = resp else {
-      print("⚠️ [WeChatModule] 收到空的響應")
+    guard let req = req else {
+      print("⚠️ [WeChatModule] 收到空的請求")
       return
     }
-    handleWeChatResponse(resp)
+    print("📱 [WeChatModule] 收到來自微信的請求: type=\(req.type)")
+  }
+  
+  public func onResp(_ resp: BaseResp?) {
+    // 處理來自微信的響應
+    guard let resp = resp else {
+      #if DEBUG
+      print("⚠️ [WeChatModule] 收到空的響應")
+      #else
+      NSLog("⚠️ [WeChatModule] 收到空的響應")
+      #endif
+      return
+    }
+    
+    // 確保在主執行緒上處理響應，特別是發送事件到 JavaScript
+    if Thread.isMainThread {
+      handleWeChatResponse(resp)
+    } else {
+      DispatchQueue.main.async { [weak self] in
+        guard let self = self else { return }
+        self.handleWeChatResponse(resp)
+      }
+    }
   }
   
   // MARK: - 處理 URL 回調（由 AppDelegate 調用）
   
   @objc
   func handleOpenURL(_ url: URL) -> Bool {
+    // 確保在主執行緒上執行
+    guard Thread.isMainThread else {
+      var result = false
+      DispatchQueue.main.sync {
+        result = self.handleOpenURL(url)
+      }
+      return result
+    }
+    
     // 使用 delegate 方式處理
     // 由於 WeChatModule 實現了 WXApiDelegate，可以直接傳遞 self
-    return WXApi.handleOpen(url, delegate: self)
+    // 確保實例被正確保留，避免在回調過程中被釋放
+    let result = WXApi.handleOpen(url, delegate: self)
+    
+    #if DEBUG
+    print("📱 [WeChatModule] handleOpenURL 結果: \(result)")
+    #else
+    NSLog("📱 [WeChatModule] handleOpenURL 結果: %@", result ? "YES" : "NO")
+    #endif
+    
+    return result
   }
   
   @objc
   func handleOpenUniversalLink(_ userActivity: NSUserActivity) -> Bool {
+    // 確保在主執行緒上執行
+    guard Thread.isMainThread else {
+      var result = false
+      DispatchQueue.main.sync {
+        result = self.handleOpenUniversalLink(userActivity)
+      }
+      return result
+    }
+    
     // 使用 delegate 方式處理
     // 由於 WeChatModule 實現了 WXApiDelegate，可以直接傳遞 self
-    return WXApi.handleOpenUniversalLink(userActivity, delegate: self)
+    // 確保實例被正確保留，避免在回調過程中被釋放
+    let result = WXApi.handleOpenUniversalLink(userActivity, delegate: self)
+    
+    #if DEBUG
+    print("📱 [WeChatModule] handleOpenUniversalLink 結果: \(result)")
+    #else
+    NSLog("📱 [WeChatModule] handleOpenUniversalLink 結果: %@", result ? "YES" : "NO")
+    #endif
+    
+    return result
   }
   
   // MARK: - 獲取實例（供 AppDelegate 使用）

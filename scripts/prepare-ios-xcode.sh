@@ -42,6 +42,45 @@ VERSION_NAME=$(node -p "require('./app.json').expo.version")
 echo -e "   版本名稱: ${VERSION_NAME}"
 echo ""
 
+# 步驟 2.5: 檢查 Xcode 和 iOS SDK 版本
+echo -e "${BLUE}🔍 步驟 2.5: 檢查 Xcode 和 iOS SDK 版本...${NC}"
+
+# 檢查 Xcode 是否安裝
+if ! command -v xcodebuild &> /dev/null; then
+    echo -e "${RED}❌ Xcode 未安裝或未在 PATH 中${NC}"
+    echo -e "${YELLOW}   請從 App Store 安裝 Xcode${NC}"
+    exit 1
+fi
+
+# 獲取 Xcode 版本
+XCODE_VERSION=$(xcodebuild -version | head -n 1 | sed 's/Xcode //')
+XCODE_BUILD=$(xcodebuild -version | tail -n 1 | sed 's/Build version //')
+
+# 獲取 iOS SDK 版本
+IOS_SDK_VERSION=$(xcodebuild -showsdks | grep -i "iphoneos" | tail -n 1 | sed 's/.*iphoneos\([0-9.]*\).*/\1/')
+
+if [ -z "$IOS_SDK_VERSION" ]; then
+    # 如果上面的方法失敗，嘗試另一種方法
+    IOS_SDK_VERSION=$(xcodebuild -showsdks | grep -i "iphoneos" | awk '{print $NF}' | tail -n 1)
+fi
+
+echo -e "   Xcode 版本: ${GREEN}${XCODE_VERSION}${NC} (Build ${XCODE_BUILD})"
+if [ -n "$IOS_SDK_VERSION" ]; then
+    echo -e "   iOS SDK 版本: ${GREEN}${IOS_SDK_VERSION}${NC}"
+else
+    echo -e "   ${YELLOW}⚠️  無法確定 iOS SDK 版本${NC}"
+fi
+
+# 檢查是否為較舊的 Xcode 版本（警告）
+XCODE_MAJOR_VERSION=$(echo "$XCODE_VERSION" | cut -d. -f1)
+if [ "$XCODE_MAJOR_VERSION" -lt 16 ]; then
+    echo -e "   ${YELLOW}⚠️  警告: 您使用的是較舊的 Xcode 版本${NC}"
+    echo -e "   ${YELLOW}   建議更新到最新版本的 Xcode 以使用最新的 iOS SDK${NC}"
+    echo -e "   ${YELLOW}   從 2026 年 4 月開始，需要 iOS 26 SDK (Xcode 26)${NC}"
+fi
+
+echo ""
+
 # 步驟 3: 清理舊的 jsbundle
 echo -e "${BLUE}🧹 步驟 3: 清理舊的 jsbundle...${NC}"
 if [ -f "ios/main.jsbundle" ]; then
@@ -185,11 +224,19 @@ echo -e "   2. 在 Xcode 中："
 echo -e "      - 選擇正確的 Team 和 Provisioning Profile"
 echo -e "      - 選擇 Product → Scheme → storyappv2"
 echo -e "      - 選擇 Product → Destination → Any iOS Device (arm64)"
+echo -e "      - ${YELLOW}重要: 確認使用最新版本的 Xcode 進行構建${NC}"
 echo -e "      - 點擊 Product → Archive 來建置"
 echo ""
 echo -e "   3. 建置完成後："
 echo -e "      - 在 Organizer 中選擇 Archive"
 echo -e "      - 點擊 'Distribute App' 上傳到 App Store"
+echo ""
+echo -e "   ${YELLOW}📌 關於 iOS SDK 版本：${NC}"
+echo -e "      - 當前使用的 iOS SDK 版本取決於您本地安裝的 Xcode 版本"
+echo -e "      - 如果收到 ITMS-90725 警告，請確保使用最新版本的 Xcode"
+echo -e "      - 從 2026 年 4 月開始，需要 iOS 26 SDK (Xcode 26)"
+echo -e "      - 檢查 Xcode 版本: ${GREEN}xcodebuild -version${NC}"
+echo -e "      - 檢查 iOS SDK 版本: ${GREEN}xcodebuild -showsdks | grep iphoneos${NC}"
 echo ""
 
 # 詢問是否要打開 Xcode

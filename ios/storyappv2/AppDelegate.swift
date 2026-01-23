@@ -40,30 +40,45 @@ public class AppDelegate: ExpoAppDelegate {
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
     // 處理 WeChat 回調
-    // 使用 Objective-C 運行時動態調用，避免編譯時找不到類
+    // 確保在主執行緒上執行，避免記憶體管理問題
     if url.scheme == "wx277826ce3d9510c6" {
-      if let weChatModuleClass = NSClassFromString("WeChatModule") as? NSObject.Type {
-        // 調用 shared() 方法
-        let sharedSelector = NSSelectorFromString("shared")
-        if weChatModuleClass.responds(to: sharedSelector) {
-          if let sharedMethod = weChatModuleClass.perform(sharedSelector) {
-            if let weChatModule = sharedMethod.takeUnretainedValue() as? NSObject {
-              // 調用 handleOpenURL: 方法
-              let handleSelector = NSSelectorFromString("handleOpenURL:")
-              if weChatModule.responds(to: handleSelector) {
-                if let handleMethod = weChatModule.perform(handleSelector, with: url) {
-                  if let result = handleMethod.takeUnretainedValue() as? Bool, result {
-                    return true
-                  }
-                }
-              }
-            }
-          }
+      // 使用主執行緒確保執行緒安全
+      if Thread.isMainThread {
+        return handleWeChatURL(url)
+      } else {
+        var result = false
+        DispatchQueue.main.sync {
+          result = handleWeChatURL(url)
+        }
+        if result {
+          return true
         }
       }
     }
     
     return super.application(app, open: url, options: options) || RCTLinkingManager.application(app, open: url, options: options)
+  }
+  
+  // 安全的 WeChat URL 處理方法
+  private func handleWeChatURL(_ url: URL) -> Bool {
+    // 使用更安全的方式獲取 WeChatModule 實例
+    guard let weChatModule = WeChatModule.shared() else {
+      print("⚠️ [AppDelegate] WeChatModule 實例未找到，可能尚未初始化")
+      return false
+    }
+    
+    // 確保 Bridge 已就緒
+    guard weChatModule.bridge != nil else {
+      print("⚠️ [AppDelegate] React Native Bridge 尚未就緒，延遲處理 URL")
+      // 延遲處理，等待 Bridge 就緒
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        _ = weChatModule.handleOpenURL(url)
+      }
+      return true // 返回 true 表示已處理（延遲處理）
+    }
+    
+    // 安全地調用 handleOpenURL
+    return weChatModule.handleOpenURL(url)
   }
 
   // Universal Links
@@ -73,29 +88,50 @@ public class AppDelegate: ExpoAppDelegate {
     restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
   ) -> Bool {
     // 處理 WeChat Universal Links
-    // 使用 Objective-C 運行時動態調用，避免編譯時找不到類
-    if let weChatModuleClass = NSClassFromString("WeChatModule") as? NSObject.Type {
-      // 調用 shared() 方法
-      let sharedSelector = NSSelectorFromString("shared")
-      if weChatModuleClass.responds(to: sharedSelector) {
-        if let sharedMethod = weChatModuleClass.perform(sharedSelector) {
-          if let weChatModule = sharedMethod.takeUnretainedValue() as? NSObject {
-            // 調用 handleOpenUniversalLink: 方法
-            let handleSelector = NSSelectorFromString("handleOpenUniversalLink:")
-            if weChatModule.responds(to: handleSelector) {
-              if let handleMethod = weChatModule.perform(handleSelector, with: userActivity) {
-                if let result = handleMethod.takeUnretainedValue() as? Bool, result {
-                  return true
-                }
-              }
-            }
-          }
+    // 檢查是否為 WeChat Universal Link
+    if userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+       let url = userActivity.webpageURL,
+       url.absoluteString.contains("xstudio-mclub.url.tw/app/") {
+      // 確保在主執行緒上執行
+      if Thread.isMainThread {
+        if handleWeChatUniversalLink(userActivity) {
+          return true
+        }
+      } else {
+        var result = false
+        DispatchQueue.main.sync {
+          result = handleWeChatUniversalLink(userActivity)
+        }
+        if result {
+          return true
         }
       }
     }
     
     let result = RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
     return super.application(application, continue: userActivity, restorationHandler: restorationHandler) || result
+  }
+  
+  // 安全的 WeChat Universal Link 處理方法
+  private func handleWeChatUniversalLink(_ userActivity: NSUserActivity) -> Bool {
+    // 使用更安全的方式獲取 WeChatModule 實例
+    guard let weChatModule = WeChatModule.shared() else {
+      print("⚠️ [AppDelegate] WeChatModule 實例未找到，可能尚未初始化")
+      return false
+    }
+    
+    // 確保 Bridge 已就緒
+    guard weChatModule.bridge != nil else {
+      print("⚠️ [AppDelegate] React Native Bridge 尚未就緒，延遲處理 Universal Link")
+      // 延遲處理，等待 Bridge 就緒
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        _ = weChatModule.handleOpenUniversalLink(userActivity)
+      }
+      return true // 返回 true 表示已處理（延遲處理）
+    }
+    
+    // 安全地調用 handleOpenUniversalLink
+    return weChatModule.handleOpenUniversalLink(userActivity)
   }
 }
 

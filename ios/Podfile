@@ -63,5 +63,17 @@ target 'storyappv2' do
         end
       end
     end
+
+    # 強制為 Hermes 相關的 target 開啟 dSYM 生成
+    installer.pods_project.targets.each do |target|
+      # 針對所有與 Hermes 相關的 target 強制開啟 dSYM
+      if target.name.include?('hermes')
+        target.build_configurations.each do |build_config|
+          build_config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+          # 強制包含所有架構的符號
+          build_config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'NO'
+        end
+      end
+    end
   end
 end
