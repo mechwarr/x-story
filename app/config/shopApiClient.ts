@@ -22,6 +22,13 @@ export interface CoinPack {
   price: number;
   platform: "GOOGLE" | "APPLE";
   productId: string; // IAP 商品 ID（用於 Google Play / App Store）
+  amount: number; // 金幣數量
+  bonusAmount: number; // Bonus 金幣數量
+  currency: string; // 貨幣代碼（如 "TWD"）
+  isActive: boolean; // 是否啟用
+  sortOrder: number; // 排序順序
+  createdAt?: string; // 建立時間（ISO 8601）
+  updatedAt?: string; // 更新時間（ISO 8601）
 }
 
 /**
@@ -301,6 +308,7 @@ export interface VerifyIAPReceiptRequest {
   platform: "GOOGLE" | "APPLE";
   receipt?: string; // iOS 收據或 Android purchaseToken
   purchaseToken?: string; // Android purchaseToken (與 receipt 二選一)
+  productId?: string; // 商品 ID（可選，用於伺服器端驗證）
 }
 
 /**
@@ -309,11 +317,15 @@ export interface VerifyIAPReceiptRequest {
 export interface VerifyIAPReceiptResponse {
   success: boolean;
   platform: "GOOGLE" | "APPLE";
-  userId: string; // "123" 或 "system"
+  userId: number; // 用戶 ID（數字類型）
   coinsAdded: number;
   message: string;
   raw?: {
-    raw?: string; // 原始回應資料
+    success?: boolean;
+    userId?: number;
+    receiptId?: number;
+    coinsAdded?: number;
+    balance?: number;
     [key: string]: any;
   };
 }
@@ -389,6 +401,27 @@ export async function verifyIAPReceipt(
 //=======================================================
 //============== 購買歷史相關 API ==============
 //=======================================================
+
+/**
+ * IAP 收據項目
+ */
+export interface IapReceipt {
+  receiptId: string;
+  platform: "GOOGLE" | "APPLE";
+  productId: string;
+  totalCoins: number;
+  baseCoins: number;
+  bonusCoins: number;
+  status: string;
+  createdAt: string; // ISO 8601 格式
+}
+
+/**
+ * 獲取 IAP 收據列表 Response
+ */
+export interface GetIapReceiptsResponse {
+  items: IapReceipt[];
+}
 
 /**
  * 購買記錄

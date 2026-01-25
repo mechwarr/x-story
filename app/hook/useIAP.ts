@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Alert, Platform } from 'react-native';
 import { iapService, PRODUCT_IDS, type ProductId } from '../services/iapService';
+import { useCoins } from '../store/coinContext';
 import type { Product, Purchase, PurchaseError } from 'react-native-iap';
 
 interface UseIAPReturn {
@@ -23,6 +24,7 @@ export function useIAP(): UseIAPReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const { refreshCoins } = useCoins();
 
   // 初始化並載入商品
   const loadProducts = useCallback(async () => {
@@ -175,6 +177,16 @@ export function useIAP(): UseIAPReturn {
           );
         }
 
+        // 購買成功後，刷新金幣餘額
+        console.log('[useIAP] 購買成功，開始刷新金幣餘額...');
+        try {
+          await refreshCoins();
+          console.log('[useIAP] ✓ 金幣餘額已刷新');
+        } catch (refreshError) {
+          console.error('[useIAP] ⚠️ 刷新金幣餘額失敗:', refreshError);
+          // 不影響購買成功的流程，只記錄錯誤
+        }
+
         setIsPurchasing(false);
         console.log('[useIAP] =================================');
       };
@@ -213,7 +225,7 @@ export function useIAP(): UseIAPReturn {
       setIsPurchasing(false);
       Alert.alert('購買失敗', error.message);
     }
-  }, [products]);
+  }, [products, refreshCoins]);
 
   // 恢復購買
   const restorePurchases = useCallback(async () => {

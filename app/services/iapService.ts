@@ -20,7 +20,7 @@ import {
 } from 'react-native-iap';
 import authApi from '../config/authApiClient';
 import Storage from '../auth/Storage';
-import { verifyIAPReceipt } from '../config/shopApiClient';
+import { verifyIAPReceipt, type IapReceipt, type GetIapReceiptsResponse } from '../config/shopApiClient';
 
 // 商品 ID 配置（需要在 App Store Connect 和 Google Play Console 中設定）
 export const PRODUCT_IDS = {
@@ -43,6 +43,16 @@ export const PRODUCT_MAP: Record<string, { coins: number; bonus: number }> = {
   [PRODUCT_IDS.PACK_4]: { coins: 590, bonus: 120 },
   [PRODUCT_IDS.PACK_5]: { coins: 1190, bonus: 280 },
   [PRODUCT_IDS.PACK_6]: { coins: 1790, bonus: 460 },
+};
+
+// 商品 ID 到商品名稱的映射（用於顯示）
+export const PRODUCT_NAMES: Record<string, string> = {
+  [PRODUCT_IDS.PACK_1]: '入門基本包',
+  [PRODUCT_IDS.PACK_2]: '熱門推薦包',
+  [PRODUCT_IDS.PACK_3]: '高效閱讀包',
+  [PRODUCT_IDS.PACK_4]: '文青超值包',
+  [PRODUCT_IDS.PACK_5]: 'VIP獨享包',
+  [PRODUCT_IDS.PACK_6]: '尊爵贊助包',
 };
 
 class IAPService {
@@ -1000,7 +1010,7 @@ class IAPService {
    * 獲取用戶的 IAP 收據列表
    * @returns Promise<IapReceipt[]> 返回 IAP 收據列表
    */
-  async getIapReceipts(): Promise<any[]> {
+  async getIapReceipts(): Promise<IapReceipt[]> {
     try {
       console.log('[iapService] ========== 開始獲取 IAP 收據列表 ==========');
       
@@ -1020,14 +1030,18 @@ class IAPService {
 
       console.log('[iapService] 調用 API: GET /api/me/iap-receipts');
       
-      // 調用 API
-      const receipts = await authApi.get<any[]>('api/me/iap-receipts', headers);
+      // 調用 API - 返回格式為 { items: IapReceipt[] }
+      const response = await authApi.get<GetIapReceiptsResponse>('api/me/iap-receipts', headers);
+      
+      // 解析 response，提取 items 陣列
+      const receipts = response?.items || [];
       
       console.log('[iapService] ✓ 成功獲取 IAP 收據列表');
-      console.log('[iapService] 收據數量:', receipts?.length || 0);
+      console.log('[iapService] 收據數量:', receipts.length);
+      console.log('[iapService] 收據列表:', JSON.stringify(receipts, null, 2));
       console.log('[iapService] ============================================');
       
-      return receipts || [];
+      return receipts;
     } catch (error) {
       console.error('[iapService] ========== 獲取 IAP 收據列表失敗 ==========');
       console.error('[iapService] 錯誤:', error);
@@ -1062,6 +1076,7 @@ class IAPService {
       let verifyRequest: {
         platform: "GOOGLE" | "APPLE";
         receipt: string;
+        productId?: string;
       };
       
       if (isIOS) {
@@ -1078,11 +1093,13 @@ class IAPService {
         verifyRequest = {
           platform: "APPLE",
           receipt: receipt,
+          productId: purchase.productId, // 添加 productId
         };
         
         console.log('[iapService] iOS 驗證請求:');
         console.log('[iapService]   平台: APPLE');
         console.log('[iapService]   收據:', receipt);
+        console.log('[iapService]   商品 ID:', purchase.productId);
       } else {
         // Android: 使用 purchaseToken 作為 receipt
         if (!purchaseToken) {
@@ -1093,11 +1110,13 @@ class IAPService {
         verifyRequest = {
           platform: "GOOGLE",
           receipt: String(purchaseToken), // 使用 receipt 欄位傳遞 purchaseToken
+          productId: purchase.productId, // 添加 productId
         };
         
         console.log('[iapService] Android 驗證請求:');
         console.log('[iapService]   平台: GOOGLE');
         console.log('[iapService]   receipt (purchaseToken):', purchaseToken);
+        console.log('[iapService]   商品 ID:', purchase.productId);
       }
       
       console.log('[iapService] 發送驗證請求:', JSON.stringify(verifyRequest, null, 2));
@@ -1116,11 +1135,8 @@ class IAPService {
       console.log('[iapService]   獲得金幣:', verificationResult.coinsAdded);
       console.log('[iapService]   訊息:', verificationResult.message);
       
-      // 獲取商品名稱（從緩存的商品列表中查找）
-      const product = this.cachedProducts.find(
-        (p) => (p as any).productId === purchase.productId || p.id === purchase.productId
-      );
-      const productName = (product as any)?.title || purchase.productId || '商品';
+      // 獲取商品名稱（優先使用中文名稱映射）
+      const productName = PRODUCT_NAMES[purchase.productId] || purchase.productId || '商品';
       
       console.log('[iapService] ============================================');
       

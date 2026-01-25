@@ -44,12 +44,20 @@ export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style,
   }, [data.id]);
 
   // 根據產品 ID 獲取 coins 和 bonus
+  // 優先使用 data 中的值（從 API 獲取），如果沒有或為 0，則使用硬編碼的 fallback
   const { coins, bonus } = useMemo(() => {
+    // 優先使用 data 中的值（從 API 獲取）
+    if (data.coins && data.coins > 0) {
+      return { coins: data.coins, bonus: data.bonus || 0 };
+    }
+    
+    // 如果 data 中沒有值或為 0，使用硬編碼的 fallback（向後兼容）
     const productInfo = PRODUCT_COINS_BONUS_MAP[productId];
     if (productInfo) {
       return { coins: productInfo.coins, bonus: productInfo.bonus };
     }
-    // 如果找不到對應的產品 ID，使用 data 中的值（向後兼容）
+    
+    // 最後的 fallback：使用 data 中的值（即使為 0）
     return { coins: data.coins || 0, bonus: data.bonus || 0 };
   }, [productId, data.coins, data.bonus]);
 

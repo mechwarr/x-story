@@ -225,3 +225,81 @@ export async function getUserCoinBalance(): Promise<number> {
   }
 }
 
+//=======================================================
+//============== 訂單相關 API ==============
+//=======================================================
+
+/**
+ * 使用金幣購買故事 Request
+ */
+export interface PurchaseStoryWithCoinsRequest {
+  storyListId: number;
+  idempotencyKey: string; // 用於防止重複購買的唯一鍵
+}
+
+/**
+ * 使用金幣購買故事 Response
+ */
+export interface PurchaseStoryWithCoinsResponse {
+  success?: boolean;
+  message?: string;
+  orderId?: number;
+  storyListId?: number;
+  coinsSpent?: number;
+  balance?: number; // 購買後的金幣餘額
+  [key: string]: any; // 允許其他欄位
+}
+
+/**
+ * 使用金幣購買故事
+ * @param payload - 購買資訊（包含 storyListId 和 idempotencyKey）
+ * @returns Promise<PurchaseStoryWithCoinsResponse | null> 購買結果
+ */
+export async function purchaseStoryWithCoins(
+  payload: PurchaseStoryWithCoinsRequest
+): Promise<PurchaseStoryWithCoinsResponse | null> {
+  try {
+    const endpoint = "api/orders/coin-purchase";
+    
+    // 獲取 token 並添加到 header
+    const token = await tokenStorage.getToken();
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    console.log("[userApiClient] ========== 開始使用金幣購買故事 ==========");
+    console.log("[userApiClient] 請求資料:", JSON.stringify(payload, null, 2));
+    
+    const res = await userApi.post<PurchaseStoryWithCoinsResponse>(endpoint, payload, headers);
+
+    console.log("[userApiClient] ✓ API 響應:", JSON.stringify(res, null, 2));
+    
+    if (res) {
+      console.log("[userApiClient] ✓ 購買成功");
+      if (res.coinsSpent !== undefined) {
+        console.log("[userApiClient]   花費金幣:", res.coinsSpent);
+      }
+      if (res.balance !== undefined) {
+        console.log("[userApiClient]   剩餘金幣:", res.balance);
+      }
+      return res;
+    } else {
+      console.warn("[userApiClient] ✗ 購買失敗，響應為空");
+      return null;
+    }
+  } catch (error) {
+    console.error("[userApiClient] ========== 使用金幣購買故事時發生錯誤 ==========");
+    console.error("[userApiClient] 錯誤:", error);
+    if (error instanceof Error) {
+      console.error("[userApiClient] 錯誤訊息:", error.message);
+      console.error("[userApiClient] 錯誤堆疊:", error.stack);
+    }
+    console.error("[userApiClient] ============================================");
+    return null;
+  }
+}
+

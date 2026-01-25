@@ -1,6 +1,7 @@
 // services/clearUserDataService.ts
 import tokenStorage from '../auth/Storage';
 import storage from '../storage/storage';
+import { clearAllIdempotencyKeys } from '../config/idempotencyKeyCache';
 
 /**
  * 清除所有用戶資料的服務
@@ -13,6 +14,10 @@ export async function clearAllUserData(): Promise<void> {
     // 清除 AsyncStorage
     await storage.deleteAllStorage();
     console.log('[clearUserDataService] ✓ AsyncStorage 已清除');
+    
+    // 清除所有 idempotencyKey 緩存
+    await clearAllIdempotencyKeys();
+    console.log('[clearUserDataService] ✓ idempotencyKey 緩存已清除');
     
     // 清除 SecureStore 中的所有登入相關資料（accessToken、refreshToken、loginTime）
     await tokenStorage.clearLoginData();

@@ -1,5 +1,5 @@
 // app/screens/ShopScreen.tsx
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import {
   SafeAreaView, View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator, Platform,
 } from 'react-native';
@@ -9,6 +9,7 @@ import PackCard, { PackItem } from '../components/Purchase/PackCard';
 import { useIAP } from '../hook/useIAP';
 import { type ProductId } from '../services/iapService';
 import { useCoins } from '../store/coinContext';
+import { getCoinPacks, type CoinPack } from '../config/shopApiClient';
 
 const RIGHT_COLORS = ['#F2D4AE', '#F4B86F', '#F3A55D', '#F18F52', '#EF7D47', '#EA6A3E'];
 
@@ -33,9 +34,12 @@ export default function ShopScreen() {
   const navigation = useNavigation();
   const { products, isLoading: isIAPLoading, isPurchasing, purchaseProduct, error, refreshProducts } = useIAP();
   const { coins, refreshCoins } = useCoins();
+  const [coinPacks, setCoinPacks] = useState<CoinPack[]>([]);
+  const [isLoadingCoinPacks, setIsLoadingCoinPacks] = useState(true);
   
-  // 根據平台獲取對應的平台名稱
+  // 根據平台獲取對應的平台名稱和平台代碼
   const platformName = Platform.OS === 'ios' ? 'App Store' : 'Google Play';
+  const platformCode: 'GOOGLE' | 'APPLE' = Platform.OS === 'ios' ? 'APPLE' : 'GOOGLE';
 
   // 當畫面獲得焦點時，刷新金幣餘額
   useFocusEffect(
@@ -44,8 +48,30 @@ export default function ShopScreen() {
     }, [refreshCoins])
   );
 
-  // 將 IAP 商品轉換為 PackItem 格式
-  // 注意：coins 和 bonus 資訊應從後端 API 獲取，目前暫時設為 0
+  // 從 API 獲取金幣包資料
+  useEffect(() => {
+    const loadCoinPacks = async () => {
+      try {
+        setIsLoadingCoinPacks(true);
+        console.log('[ShopScreen] 開始從 API 獲取金幣包資料...');
+        const packs = await getCoinPacks();
+        console.log('[ShopScreen] ✓ 成功獲取金幣包資料，數量:', packs.length);
+        // 根據當前平台過濾資料
+        const filteredPacks = packs.filter(pack => pack.platform === platformCode);
+        console.log('[ShopScreen] 過濾後的金幣包數量（平台:', platformCode, '）:', filteredPacks.length);
+        setCoinPacks(filteredPacks);
+      } catch (error) {
+        console.error('[ShopScreen] 獲取金幣包資料失敗:', error);
+        setCoinPacks([]);
+      } finally {
+        setIsLoadingCoinPacks(false);
+      }
+    };
+
+    loadCoinPacks();
+  }, [platformCode]);
+
+  // 將 IAP 商品轉換為 PackItem 格式，並合併 API 資料
   const packsWithPrice = useMemo(() => {
     return products.map((product) => {
       // 使用 IAP 的價格（優先使用 displayPrice，否則使用 price）
@@ -53,18 +79,21 @@ export default function ShopScreen() {
         ? parseFloat(product.displayPrice.replace(/[^0-9.]/g, ''))
         : (product.price || 0);
 
+      // 從 API 資料中查找對應的金幣包資料
+      const coinPackData = coinPacks.find(pack => pack.productId === product.id);
+      
       return {
         id: `iap-${product.id}`,
         title: product.title, // 保留原始標題（向後兼容）
-        name: extractProductName(product.title), // 提取純名稱（不含括號和描述）
-        coins: 0, // TODO: 從後端 API 獲取（CoinPack 接口需要擴展）
-        bonus: 0, // TODO: 從後端 API 獲取（CoinPack 接口需要擴展）
+        name: coinPackData?.name || extractProductName(product.title), // 優先使用 API 的 name，否則提取純名稱
+        coins: coinPackData?.amount || 0, // 從 API 獲取 amount，如果沒有則為 0（PackCard 會使用 fallback）
+        bonus: coinPackData?.bonusAmount || 0, // 從 API 獲取 bonusAmount，如果沒有則為 0（PackCard 會使用 fallback）
         priceUsd: price, // 使用 IAP 的價格
         productId: product.id as ProductId,
         isAvailable: true, // IAP 商品已載入，標記為可用
       } as PackItem & { productId?: ProductId; isAvailable?: boolean };
     });
-  }, [products]);
+  }, [products, coinPacks]);
 
   const handlePressPack = async (p: PackItem & { productId?: ProductId; isAvailable?: boolean }) => {
     if (!p.productId) {

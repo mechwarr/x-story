@@ -1,30 +1,96 @@
 // app/screens/PurchaseHistoryScreen.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  SafeAreaView, View, Text, StyleSheet, ScrollView, Image, Pressable, Platform,
+  SafeAreaView, View, Text, StyleSheet, ScrollView, Image, Pressable, Platform, ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import routes from '../navigations/routes';
+import { iapService } from '../services/iapService';
+import { PRODUCT_NAMES } from '../services/iapService';
+import type { IapReceipt } from '../config/shopApiClient';
 
 type Purchase = {
   id: string;          // 收據編號
-  amountNTD: number;   // 交易額度（NTD）
+  amountNTD: number;   // 交易額度（NTD）- 暫時顯示為 0，需要從後端獲取價格
   productName: string; // 交易商品名稱
   purchasedAt: string; // 交易時間（yyyy.MM.dd HH:mm）
+  totalCoins: number;  // 總金幣數
+  baseCoins: number;   // 基礎金幣
+  bonusCoins: number;  // 贈送金幣
+  status: string;      // 狀態
 };
 
-// 範例資料
-const PURCHASES: Purchase[] = [
-  { id: 'GPA.1234-5678-9012-34567', amountNTD: 300, productName: '高效閱讀包', purchasedAt: '2025.07.15 14:31' },
-  { id: 'GPA.9876-5432-1098-76543', amountNTD: 590, productName: '文青超值包', purchasedAt: '2025.07.15 14:45' },
-  { id: 'GPA.0000-1111-2222-33333', amountNTD: 1790, productName: '尊爵贊助包', purchasedAt: '2025.07.20 10:08' },
-];
+// 格式化日期時間：從 ISO 8601 轉換為 yyyy.MM.dd HH:mm
+function formatDateTime(isoString: string): string {
+  try {
+    const date = new Date(isoString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}.${month}.${day} ${hours}:${minutes}`;
+  } catch (error) {
+    return isoString;
+  }
+}
+
+// 將 IAP 收據轉換為 UI 顯示格式
+function convertReceiptToPurchase(receipt: IapReceipt): Purchase {
+  return {
+    id: receipt.receiptId,
+    amountNTD: 0, // TODO: 需要從後端獲取實際價格，或根據 productId 查詢
+    productName: PRODUCT_NAMES[receipt.productId] || receipt.productId,
+    purchasedAt: formatDateTime(receipt.createdAt),
+    totalCoins: receipt.totalCoins,
+    baseCoins: receipt.baseCoins,
+    bonusCoins: receipt.bonusCoins,
+    status: receipt.status,
+  };
+}
 
 export default function PurchaseHistoryScreen({ embedded = false }: { embedded?: boolean }) {
   const Wrapper: any = embedded ? View : SafeAreaView;
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // 載入收據列表
+  const loadReceipts = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const receipts = await iapService.getIapReceipts();
+      
+      // 按時間倒序排列（最新的在前）
+      receipts.sort((a, b) => {
+        const dateA = new Date(a.createdAt);
+        const dateB = new Date(b.createdAt);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      const convertedPurchases = receipts.map(convertReceiptToPurchase);
+      setPurchases(convertedPurchases);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '載入購買記錄失敗';
+      console.error('[PurchaseHistoryScreen] 載入收據失敗:', err);
+      setError(errorMessage);
+      setPurchases([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 當畫面獲得焦點時重新載入
+  useFocusEffect(
+    React.useCallback(() => {
+      loadReceipts();
+    }, [])
+  );
 
   return (
     <Wrapper style={styles.safe}>
@@ -41,16 +107,39 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
         <Text style={styles.title}>購買記錄</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.list}>
-        {PURCHASES.map((p) => (
-          <View key={p.id} style={styles.card}>
-            <Row label="收據編號" value={p.id} mono />
-            <Row label="交易額度 (NTD)" value={`$${p.amountNTD}`} strong />
-            <Row label="交易商品名稱" value={p.productName} />
-            <Row label="交易時間" value={p.purchasedAt} />
-          </View>
-        ))}
-      </ScrollView>
+      {isLoading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#F7BA7E" />
+          <Text style={styles.loadingText}>載入中...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.centerContainer}>
+          <Text style={styles.errorText}>載入失敗</Text>
+          <Text style={styles.errorDetail}>{error}</Text>
+          <Pressable onPress={loadReceipts} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>重試</Text>
+          </Pressable>
+        </View>
+      ) : purchases.length === 0 ? (
+        <View style={styles.centerContainer}>
+          <Text style={styles.emptyText}>暫無購買記錄</Text>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.list}>
+          {purchases.map((p) => (
+            <View key={p.id} style={styles.card}>
+              <Row label="收據編號" value={p.id} mono />
+              {p.amountNTD > 0 && (
+                <Row label="交易額度 (NTD)" value={`$${p.amountNTD}`} strong />
+              )}
+              <Row label="交易商品名稱" value={p.productName} />
+              <Row label="獲得金幣" value={`${p.totalCoins} (基礎 ${p.baseCoins} + 贈送 ${p.bonusCoins})`} />
+              <Row label="交易時間" value={p.purchasedAt} />
+              <Row label="狀態" value={p.status} />
+            </View>
+          ))}
+        </ScrollView>
+      )}
     </Wrapper>
   );
 }
@@ -91,6 +180,45 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     gap: 10,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    color: '#9aa3ad',
+    marginTop: 12,
+    fontSize: 14,
+  },
+  errorText: {
+    color: '#ff6b6b',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  errorDetail: {
+    color: '#9aa3ad',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 32,
+  },
+  retryButton: {
+    backgroundColor: '#F7BA7E',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#2b2f33',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyText: {
+    color: '#9aa3ad',
+    fontSize: 14,
   },
 });
 

@@ -13,6 +13,9 @@ import AppText from '../AppText';
 import colors from '../../config/colors';
 import apiclient  from '../../config/apiClient';
 import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
+import { purchaseStoryWithCoins } from '../../config/userApiClient';
+import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../../config/idempotencyKeyCache';
+import { useCoins } from '../../store/coinContext';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -42,8 +45,10 @@ function Book(props) {
     author = '',
     id,
     lang,
+    priceCoins, // 從 HomeScreen 傳入的價格資訊
   } = storyData;
   const navigation = useGuardedNavigate();
+  const { coins, refreshCoins } = useCoins();
   const imageUri =
     apiclient.currentBaseUrl() + 'images/update/' + main_menu_image;
   const hasChapter = chapter_type === '章節';
@@ -72,6 +77,118 @@ function Book(props) {
     read_range_end: read_range_end ?? chapter?.read_range_end,
   };
 
+  // 處理購買故事
+  const handlePurchaseStory = async () => {
+    if (!id) {
+      Alert.alert('錯誤', '找不到故事 ID');
+      return;
+    }
+
+    // 檢查是否有價格資訊
+    if (!priceCoins || priceCoins <= 0) {
+      Alert.alert('提示', '此故事無法購買');
+      return;
+    }
+
+    // 檢查金幣餘額
+    if (coins < priceCoins) {
+      Alert.alert(
+        '金幣不足',
+        `此故事需要 ${priceCoins} 金幣，您目前有 ${coins} 金幣。\n請前往商城購買更多金幣。`,
+        [
+          { text: '取消', style: 'cancel' },
+          {
+            text: '前往商城',
+            onPress: () => {
+              navigation.navigate(routes.HOME, {
+                screen: routes.SHOP,
+              });
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // 確認購買
+    Alert.alert(
+      '確認購買',
+      `確定要使用 ${priceCoins} 金幣購買「${main_menu_name}」嗎？`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '確認購買',
+          onPress: async () => {
+            try {
+              // 獲取或創建 idempotencyKey（如果緩存中存在，使用緩存的；否則創建新的）
+              const idempotencyKey = await getOrCreateIdempotencyKey(id);
+              
+              console.log('[Book] ========== 開始購買故事 ==========');
+              console.log('[Book] storyListId:', id);
+              console.log('[Book] idempotencyKey (使用緩存或新建):', idempotencyKey);
+              console.log('[Book] 價格:', priceCoins, '金幣');
+              
+              // 調用購買 API
+              const result = await purchaseStoryWithCoins({
+                storyListId: id,
+                idempotencyKey,
+              });
+
+              if (result) {
+                console.log('[Book] ✓ 購買成功');
+                
+                // 購買成功後，清除 idempotencyKey 緩存
+                await clearIdempotencyKey(id);
+                console.log('[Book] ✓ 已清除 idempotencyKey 緩存');
+                
+                // 刷新金幣餘額
+                await refreshCoins();
+                
+                Alert.alert(
+                  '購買成功',
+                  `您已成功購買「${main_menu_name}」！\n\n花費 ${result.coinsSpent || priceCoins} 金幣`,
+                  [
+                    {
+                      text: '確定',
+                      onPress: () => {
+                        // 購買成功後，導航到故事頁面
+                        if (hasChapter) {
+                          navigation.navigate(routes.HOME, {
+                            screen: routes.CHAPTER,
+                            params: {
+                              name: main_menu_name,
+                              author,
+                              storyId: id,
+                              storyData: { ...storyData, open: '公開' },
+                            },
+                          });
+                        } else {
+                          navigation.navigate(routes.HOME, {
+                            screen: routes.STORY,
+                            params: { ...storyPayload, storyData: { ...storyData, open: '公開' } },
+                          });
+                        }
+                      },
+                    },
+                  ]
+                );
+              } else {
+                // 購買失敗，保留 idempotencyKey 緩存，以便重試時使用同一個 key
+                console.log('[Book] ⚠️ 購買失敗，保留 idempotencyKey 緩存以便重試');
+                Alert.alert('購買失敗', '請稍後再試');
+              }
+            } catch (error) {
+              // 發生錯誤，保留 idempotencyKey 緩存，以便重試時使用同一個 key
+              console.error('[Book] ❌ 購買失敗:', error);
+              console.log('[Book] ⚠️ 發生錯誤，保留 idempotencyKey 緩存以便重試');
+              Alert.alert('購買失敗', error?.message || '發生錯誤，請稍後再試');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (lang !== '繁體中文') return;
 
   return (
@@ -80,6 +197,12 @@ function Book(props) {
       <Pressable
         style={styles.container}
         onPress={() => {
+          // 如果故事未開放且有價格，顯示購買選項
+          if (!isOpen && priceCoins && priceCoins > 0) {
+            handlePurchaseStory();
+            return;
+          }
+          
           if (!isOpen) return;
 
           if (showIcon) {
