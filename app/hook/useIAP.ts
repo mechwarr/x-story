@@ -144,38 +144,29 @@ export function useIAP(): UseIAPReturn {
         console.log('[useIAP] 購買物件:', purchase);
         console.log('[useIAP] 驗證結果:', verificationResult);
         
-        // 驗證結果應該已經包含商品名稱和金幣額度（從後端 API 返回）
-        if (verificationResult) {
-          const { productName, coinsAdded, message } = verificationResult;
-          
-          console.log('[useIAP] 商品名稱:', productName);
-          console.log('[useIAP] 獲取金幣:', coinsAdded);
-          console.log('[useIAP] 訊息:', message);
-          
-          // 顯示購買成功訊息（包含商品名稱和金幣額度）
-          Alert.alert(
-            '購買成功',
-            `您已成功購買 ${productName}！\n\n獲得 ${coinsAdded} 金幣`,
-            [{ text: '確定' }]
-          );
-        } else {
-          // 如果沒有驗證結果，使用備選方案
-          const purchasedProduct = products.find((p: any) => 
-            (p as any).productId === purchase.productId || 
-            p.id === purchase.productId ||
-            (p as any).productId === productId || 
-            p.id === productId
-          );
-          
-          const productTitle = purchasedProduct?.title || purchase.productId || productId;
-          
-          console.warn('[useIAP] ⚠️ 沒有驗證結果，使用備選方案');
-          Alert.alert(
-            '購買成功',
-            `您已成功購買 ${productTitle}！`,
-            [{ text: '確定' }]
-          );
-        }
+        // 從平台產品列表取得產品名稱（支援多國語系）
+        const purchasedProduct = products.find((p: any) => 
+          (p as any).productId === purchase.productId || 
+          p.id === purchase.productId ||
+          (p as any).productId === productId || 
+          p.id === productId
+        );
+        
+        // 優先使用平台產品名稱（支援多國語系），否則使用 productId
+        const productName = purchasedProduct?.title || purchase.productId || productId;
+        
+        // 從驗證結果取得金幣額度
+        const coinsAdded = verificationResult?.coinsAdded || 0;
+        
+        console.log('[useIAP] 商品名稱（從平台取得）:', productName);
+        console.log('[useIAP] 獲取金幣:', coinsAdded);
+        
+        // 顯示購買成功訊息（使用平台產品名稱以支援多國語系）
+        Alert.alert(
+          '購買成功',
+          `您已成功購買 ${productName}！\n\n獲得 ${coinsAdded} 金幣`,
+          [{ text: '確定' }]
+        );
 
         // 購買成功後，刷新金幣餘額
         console.log('[useIAP] 購買成功，開始刷新金幣餘額...');

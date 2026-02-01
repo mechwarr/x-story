@@ -1,6 +1,7 @@
 // shopApiClient.ts
 import { RestfulApi } from "./api";
 import { portURL, devBaseUrl } from "./apiClient";
+import tokenStorage from "../auth/Storage";
 
 // 創建使用 portURL 的 API 實例（用於商城相關 API）
 const shopApi = new RestfulApi({
@@ -358,6 +359,7 @@ export async function verifyPurchase(
 
 /**
  * 驗證 IAP 收據 (新版 API - api/iap/verify)
+ * 需要登入態，帶上 account token（401 為未帶/無效 token）
  * @param payload - 收據資訊
  * @returns Promise<VerifyIAPReceiptResponse | null> 驗證結果
  */
@@ -367,10 +369,18 @@ export async function verifyIAPReceipt(
   try {
     console.log("[shopApiClient] ========== 開始驗證 IAP 收據 ==========");
     console.log("[shopApiClient] 請求資料:", JSON.stringify(payload, null, 2));
-    
+
+    const token = await tokenStorage.getToken();
+    if (!token) {
+      console.warn("[shopApiClient] 無法驗證 IAP 收據：未登入（無 account token）");
+      return null;
+    }
+    const headers = { Authorization: `Bearer ${token}` };
+
     const res = await shopApi.post<VerifyIAPReceiptResponse>(
       "api/iap/verify",
-      payload
+      payload,
+      headers
     );
 
     console.log("[shopApiClient] API 回應:", JSON.stringify(res, null, 2));

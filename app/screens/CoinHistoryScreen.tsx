@@ -1,61 +1,133 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  SafeAreaView, View, Text, StyleSheet, Image, ScrollView,
+  SafeAreaView,
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
-type CoinLog = {
-  id: string;
-  title: string;
-  date: string;
-  amount: number;
-  note?: string;
+import { getUserCoinBalance } from '../config/userApiClient';
+import {
+  getCoinHistory,
+  CoinLog as ApiCoinLog,
+  CoinLogType,
+} from '../config/shopApiClient';
+
+const TYPE_LABELS: Record<CoinLogType, string> = {
+  purchase: '購買獲得',
+  bonus: '獎勵獲得',
+  spent: '消費',
+  refund: '退款',
+  expired: '過期',
 };
 
-const COIN_BALANCE = 50;
-
-const COIN_LOGS: CoinLog[] = [
-  { id: 'c1', title: '小鎮失蹤手冊一解鎖', date: '2025.07.17', amount: -89 },
-  { id: 'c2', title: '高效閱讀包（￥68）', date: '2025.07.15', amount: +300, note: 'Bonus +55' },
-  { id: 'c3', title: '帳號升級獎勵', date: '2025.07.15', amount: +50 },
-];
+function formatDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}.${m}.${day}`;
+  } catch {
+    return iso;
+  }
+}
 
 export default function CoinHistoryScreen({ embedded = false }: { embedded?: boolean }) {
   const Wrapper: any = embedded ? View : SafeAreaView;
 
+  const [balance, setBalance] = useState<number>(0);
+  const [logs, setLogs] = useState<ApiCoinLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [balanceRes, logsRes] = await Promise.all([
+        getUserCoinBalance(),
+        getCoinHistory(),
+      ]);
+      setBalance(balanceRes);
+      setLogs(logsRes);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '載入失敗');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
+
   return (
     <Wrapper style={styles.safe}>
-
       <View style={styles.header}>
         <Text style={styles.title}>金幣紀錄</Text>
-        <View style={styles.balanceRow}>
-          <Image style={styles.coin} source={require('../../assets/coin.png')} />
-          <Text style={styles.balanceText}>{COIN_BALANCE}</Text>
-        </View>
+        {loading && !balance && !logs.length ? (
+          <View style={styles.balanceRow}>
+            <ActivityIndicator size="small" color="#f0ad57" />
+          </View>
+        ) : (
+          <View style={styles.balanceRow}>
+            <Image style={styles.coin} source={require('../../assets/coin.png')} />
+            <Text style={styles.balanceText}>{balance}</Text>
+          </View>
+        )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.list}>
-        {COIN_LOGS.map((log) => (
-          <View key={log.id} style={styles.row}>
-            <View style={styles.left}>
-              <Text style={styles.rowTitle}>{log.title}</Text>
-              {!!log.note && <Text style={styles.note}>{log.note}</Text>}
-              <Text style={styles.date}>{log.date}</Text>
-            </View>
+      {error ? (
+        <View style={styles.errorWrap}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
 
-            <View style={styles.right}>
-              <Text
-                style={[
-                  styles.amount,
-                  log.amount >= 0 ? styles.plus : styles.minus,
-                ]}
-              >
-                {log.amount >= 0 ? `+${log.amount}` : `${log.amount}`}
-              </Text>
-              <Image style={styles.coinMini} source={require('../../assets/coin.png')} />
+      {loading && (balance > 0 || logs.length > 0) ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="small" color="#f0ad57" />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.list}>
+          {logs.length === 0 ? (
+            <Text style={styles.emptyText}>尚無金幣紀錄</Text>
+          ) : (
+            logs.map((log) => (
+            <View key={log.id} style={styles.row}>
+              <View style={styles.left}>
+                <Text style={styles.rowTitle}>{log.description}</Text>
+                {log.type ? (
+                  <Text style={styles.note}>{TYPE_LABELS[log.type]}</Text>
+                ) : null}
+                <Text style={styles.date}>{formatDate(log.createdAt)}</Text>
+              </View>
+
+              <View style={styles.right}>
+                <Text
+                  style={[
+                    styles.amount,
+                    log.amount >= 0 ? styles.plus : styles.minus,
+                  ]}
+                >
+                  {log.amount >= 0 ? `+${log.amount}` : `${log.amount}`}
+                </Text>
+                <Image style={styles.coinMini} source={require('../../assets/coin.png')} />
+              </View>
             </View>
-          </View>
-        ))}
-      </ScrollView>
+          ))}
+        </ScrollView>
+      )}
     </Wrapper>
   );
 }
@@ -63,7 +135,6 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#2b2f33' },
 
-  // 右上角 eye 容器
   topBar: {
     width: '100%',
     paddingHorizontal: 10,
@@ -78,9 +149,14 @@ const styles = StyleSheet.create({
   title: { color: '#e7eef6', fontWeight: '700', fontSize: 18, marginBottom: 6 },
   balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   coin: { width: 18, height: 18 },
-  balanceText: { color: "#f0ad57", fontWeight: '700' },
+  balanceText: { color: '#f0ad57', fontWeight: '700' },
 
+  errorWrap: { paddingHorizontal: 16, paddingVertical: 8 },
+  errorText: { color: '#e57373', fontSize: 14 },
+
+  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 24 },
   list: { paddingTop: 6, paddingHorizontal: 16, paddingBottom: 24, gap: 18 },
+  emptyText: { color: '#a6afba', fontSize: 14, textAlign: 'center', marginTop: 24 },
 
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   left: { flexShrink: 1, paddingRight: 8 },

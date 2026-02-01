@@ -84,8 +84,8 @@ export default function ShopScreen() {
       
       return {
         id: `iap-${product.id}`,
-        title: product.title, // 保留原始標題（向後兼容）
-        name: coinPackData?.name || extractProductName(product.title), // 優先使用 API 的 name，否則提取純名稱
+        title: product.title, // 平台顯示名稱（多國語系）
+        name: extractProductName(product.title) || product.title, // 僅用平台產品名稱，不用後端回傳
         coins: coinPackData?.amount || 0, // 從 API 獲取 amount，如果沒有則為 0（PackCard 會使用 fallback）
         bonus: coinPackData?.bonusAmount || 0, // 從 API 獲取 bonusAmount，如果沒有則為 0（PackCard 會使用 fallback）
         priceUsd: price, // 使用 IAP 的價格

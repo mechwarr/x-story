@@ -609,25 +609,35 @@ export interface XStoryRefreshTokenRequest {
 
 /**
  * Token 刷新 Response 資料格式
+ * 後端若實作 Refresh Token 輪換，會回傳新的 refreshToken 並使舊的失效（refreshed: true）。
  */
 export interface XStoryRefreshTokenResponse {
   success: boolean;
   message: string;
   accessToken?: string;
   refreshToken?: string;
+  /** 新 accessToken 剩餘有效時間（秒），例如 3600 = 1 小時 */
+  expiresIn?: number;
+  /** true = 後端已輪換 refreshToken，客戶端必須儲存回應中的新 refreshToken */
+  refreshed?: boolean;
+}
+
+export interface RefreshTokenResult {
+  accessToken: string;
+  refreshToken?: string;
 }
 
 /**
  * 使用 refreshToken 刷新 accessToken
  * @param payload - 包含 refreshToken
- * @returns 成功回傳新的 accessToken，失敗則為 null
+ * @returns 成功回傳 { accessToken, refreshToken? }，失敗則為 null。若後端回傳 refreshToken（refreshed: true），必須一併儲存否則下次刷新會授權失敗。
  */
 export async function refreshXStoryToken(
   payload: XStoryRefreshTokenRequest
-): Promise<string | null> {
+): Promise<RefreshTokenResult | null> {
   try {
     console.log('[RefreshToken API] 發送刷新請求，refreshToken 長度:', payload.refreshToken?.length || 0);
-    
+
     const res = await authApi.post<XStoryRefreshTokenResponse>(
       "api/auth/refresh",
       payload
@@ -638,12 +648,20 @@ export async function refreshXStoryToken(
       hasAccessToken: !!res?.accessToken,
       accessTokenLength: res?.accessToken?.length || 0,
       hasRefreshToken: !!res?.refreshToken,
+      refreshed: res?.refreshed,
+      expiresIn: res?.expiresIn,
       message: res?.message,
     });
 
     if (res && res.success && res.accessToken) {
       console.log('[RefreshToken API] ✅ Token 刷新成功，新 token 長度:', res.accessToken.length);
-      return res.accessToken;
+      if (res.refreshToken) {
+        console.log('[RefreshToken API] 後端已輪換 refreshToken，需儲存新 refreshToken');
+      }
+      return {
+        accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
+      };
     } else {
       const errorMsg = res?.message || "Token 刷新失敗，請稍後再試";
       console.warn('[RefreshToken API] ❌ Token 刷新失敗:', {
@@ -757,17 +775,22 @@ class TokenRefreshService {
       console.log('[TokenRefreshService] 📝 RefreshToken 前 20 字元:', refreshToken.substring(0, 20) + '...');
 
       // 4. 調用刷新 API，使用正確的 refreshToken
-      const newAccessToken = await refreshXStoryToken({
+      const result = await refreshXStoryToken({
         refreshToken: refreshToken,
       });
 
-      if (newAccessToken) {
-        // 保存新的 accessToken（refreshToken 保持不變）
-        await tokenStorage.setStoreToken(newAccessToken);
-        
+      if (result) {
+        // 保存新的 accessToken
+        await tokenStorage.setStoreToken(result.accessToken);
+        // 若後端實作 Refresh Token 輪換（refreshed: true），會回傳新 refreshToken，必須儲存否則下次刷新會授權失敗
+        if (result.refreshToken) {
+          await tokenStorage.setRefreshToken(result.refreshToken);
+          console.log('[TokenRefreshService] ✅ 已儲存後端回傳的新 refreshToken');
+        }
+
         // 記錄本次刷新時間
         await tokenStorage.setLastRefreshTime();
-        
+
         console.log('[TokenRefreshService] ✅ Token 刷新完成並已保存');
         
         // 離開 progress state

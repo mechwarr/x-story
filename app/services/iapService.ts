@@ -1057,6 +1057,19 @@ class IAPService {
   }
 
   /**
+   * 根據產品 ID 取得產品名稱（從平台產品列表，支援多國語系）
+   * @param productId - 產品 ID
+   * @returns 產品名稱，如果找不到則返回產品 ID
+   */
+  getProductName(productId: string): string {
+    const product = this.cachedProducts.find(
+      (p) => (p as any).productId === productId || p.id === productId
+    );
+    // 僅回傳平台顯示名稱，不使用後端或本地硬編碼名稱
+    return product?.title ?? productId;
+  }
+
+  /**
    * 驗證收據（調用後端 API）
    * @param purchase - 購買物件
    * @returns Promise<{ productName: string; coinsAdded: number; message?: string } | undefined> 驗證結果
@@ -1135,9 +1148,13 @@ class IAPService {
       console.log('[iapService]   獲得金幣:', verificationResult.coinsAdded);
       console.log('[iapService]   訊息:', verificationResult.message);
       
-      // 獲取商品名稱（優先使用中文名稱映射）
-      const productName = PRODUCT_NAMES[purchase.productId] || purchase.productId || '商品';
+      // 僅從緩存的平台產品列表取得產品名稱（不使用後端回傳）
+      const cachedProduct = this.cachedProducts.find(
+        (p) => (p as any).productId === purchase.productId || p.id === purchase.productId
+      );
+      const productName = cachedProduct?.title ?? purchase.productId ?? '商品';
       
+      console.log('[iapService] 商品名稱（從平台取得）:', productName);
       console.log('[iapService] ============================================');
       
       return {

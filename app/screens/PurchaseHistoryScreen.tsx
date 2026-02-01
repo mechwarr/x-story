@@ -6,8 +6,7 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import routes from '../navigations/routes';
-import { iapService } from '../services/iapService';
-import { PRODUCT_NAMES } from '../services/iapService';
+import { iapService, PRODUCT_IDS } from '../services/iapService';
 import type { IapReceipt } from '../config/shopApiClient';
 
 type Purchase = {
@@ -36,12 +35,14 @@ function formatDateTime(isoString: string): string {
   }
 }
 
-// 將 IAP 收據轉換為 UI 顯示格式
+// 將 IAP 收據轉換為 UI 顯示格式（僅用平台顯示名稱）
 function convertReceiptToPurchase(receipt: IapReceipt): Purchase {
+  const productName = iapService.getProductName(receipt.productId);
+  
   return {
     id: receipt.receiptId,
     amountNTD: 0, // TODO: 需要從後端獲取實際價格，或根據 productId 查詢
-    productName: PRODUCT_NAMES[receipt.productId] || receipt.productId,
+    productName,
     purchasedAt: formatDateTime(receipt.createdAt),
     totalCoins: receipt.totalCoins,
     baseCoins: receipt.baseCoins,
@@ -58,11 +59,19 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 載入收據列表
+  // 載入收據列表（先載入 IAP 產品列表以取得平台顯示名稱）
   const loadReceipts = async () => {
     try {
       setIsLoading(true);
       setError(null);
+      
+      // 先載入平台產品列表，讓 getProductName 能回傳平台顯示名稱
+      try {
+        await iapService.initialize();
+        await iapService.getProductList(Object.values(PRODUCT_IDS));
+      } catch (e) {
+        // IAP 未就緒時仍可顯示收據，名稱會顯示 productId
+      }
       
       const receipts = await iapService.getIapReceipts();
       
