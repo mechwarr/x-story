@@ -197,13 +197,29 @@ function Book(props) {
       <Pressable
         style={styles.container}
         onPress={() => {
-          // 如果故事未開放且有價格，顯示購買選項
-          if (!isOpen && priceCoins && priceCoins > 0) {
-            handlePurchaseStory();
+          // 未擁有：先判斷是否可試閱章節，否則再判斷是否需付費購買
+          if (!isOpen) {
+            // 有章節結構 → 進入章節列表，用戶可試閱 free_open 章節、付費章節顯示鎖頭
+            if (hasChapter) {
+              navigation.navigate(routes.HOME, {
+                screen: routes.CHAPTER,
+                params: {
+                  name: main_menu_name,
+                  author,
+                  storyId: id,
+                  storyData,
+                  nochapter,
+                },
+              });
+              return;
+            }
+            // 無章節且需要付費 → 顯示購買視窗
+            if (priceCoins && priceCoins > 0) {
+              handlePurchaseStory();
+              return;
+            }
             return;
           }
-          
-          if (!isOpen) return;
 
           if (showIcon) {
             // 繼續觀看
