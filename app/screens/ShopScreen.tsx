@@ -118,12 +118,18 @@ export default function ShopScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* 左上角 blueeye（純展示，不占版面高度） */}
-      <Image
-        source={require('../../assets/blueeye.png')}
+      {/* 左上角 blueeye（點擊回到首頁，與其他頁一致） */}
+      <Pressable
+        onPress={() => navigation.navigate(routes.MAIN as never)}
+        hitSlop={8}
         style={[styles.leftIcon, { top: 8 }]}
-        resizeMode="contain"
-      />
+      >
+        <Image
+          source={require('../../assets/blueeye.png')}
+          style={styles.leftIconImage}
+          resizeMode="contain"
+        />
+      </Pressable>
 
       {/* 右上角 Profile（點擊跳個人頁） */}
       <Pressable
@@ -221,13 +227,15 @@ export default function ShopScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#2b2f33' },
 
-  // --- 左上角 blueeye（絕對定位，不佔版面高度）---
+  // --- 左上角 blueeye（絕對定位，點擊回到首頁）---
   leftIcon: {
     position: 'absolute',
     left: 12,
+    zIndex: 10,
+  },
+  leftIconImage: {
     width: 32,
     height: 32,
-    zIndex: 10,
   },
 
   // --- 右上角 Profile（絕對定位）---
