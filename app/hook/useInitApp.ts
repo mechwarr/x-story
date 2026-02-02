@@ -77,11 +77,12 @@ export default function useInitApp(
         // 否則使用內部的失敗處理（用於應用重啟場景）
         const refreshFailedCallback = onTokenRefreshFailed || handleRefreshFailed;
         
-        // 調用刷新 token（內部會先檢查是否超過 30 天）
+        // 調用刷新 token（內部會先檢查是否超過 30 天）；網路異常時不登出
         await tokenRefreshService.refreshToken(
           onTokenRefreshProgress,
           refreshFailedCallback,
-          handleLoginExpired  // 新增：登入過期回調
+          handleLoginExpired,
+          undefined // onNetworkError：應用重啟時可選提示，此處不額外處理
         );
       }
 

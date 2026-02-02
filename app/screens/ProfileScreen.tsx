@@ -13,7 +13,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import { useCoins } from '../store/coinContext';
 import { getUserProfile, updateUserProfile } from '../config/userApiClient';
@@ -23,7 +23,7 @@ import { Picker } from '@react-native-picker/picker';
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
-  const { coins, refreshCoins } = useCoins();
+  const { coins } = useCoins();
 
   // ---- 狀態 ----
   const [name, setName] = useState<string>('');
@@ -75,13 +75,6 @@ export default function ProfileScreen() {
 
     loadUserProfile();
   }, []);
-
-  // 當畫面獲得焦點時，刷新金幣餘額
-  useFocusEffect(
-    React.useCallback(() => {
-      refreshCoins();
-    }, [refreshCoins])
-  );
 
   // ---- 事件：日期變更 ----
   const onChangeBirthday = (e: DateTimePickerEvent, date?: Date) => {

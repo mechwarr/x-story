@@ -57,4 +57,38 @@ const deleteAllStorage = async () => {
   AsyncStorage.clear();
 };
 
-export default { storeStory, getStorys, deleteStory, deleteAllStorage };
+// 本地購買書籍 ID 清單（API 失敗時仍可隱藏購買按鈕）
+const LOCAL_PURCHASED_STORY_IDS_KEY = 'localPurchasedStoryIds';
+
+const getLocalPurchasedStoryIds = async () => {
+  try {
+    const value = await AsyncStorage.getItem(LOCAL_PURCHASED_STORY_IDS_KEY);
+    if (!value || value === null) return [];
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+};
+
+const addLocalPurchasedStoryId = async (storyId) => {
+  try {
+    const ids = await getLocalPurchasedStoryIds();
+    const id = Number(storyId);
+    if (Number.isNaN(id) || ids.includes(id)) return;
+    ids.push(id);
+    await AsyncStorage.setItem(LOCAL_PURCHASED_STORY_IDS_KEY, JSON.stringify(ids));
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+export default {
+  storeStory,
+  getStorys,
+  deleteStory,
+  deleteAllStorage,
+  getLocalPurchasedStoryIds,
+  addLocalPurchasedStoryId,
+};

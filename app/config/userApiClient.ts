@@ -225,6 +225,52 @@ export async function getUserCoinBalance(): Promise<number> {
   }
 }
 
+/**
+ * 金幣帳本單筆紀錄（api/me/coins/ledger 回傳格式）
+ */
+export interface CoinLedgerItem {
+  id: number;
+  amount: number;
+  balance: number;
+  type: string;
+  source: string;
+  createdAt: string;
+}
+
+/**
+ * 獲取金幣帳本 Response
+ */
+export interface GetCoinLedgerResponse {
+  items: CoinLedgerItem[];
+}
+
+/**
+ * 獲取金幣帳本（歷史紀錄）
+ * @returns Promise<CoinLedgerItem[]> 金幣紀錄列表，失敗時返回 []
+ */
+export async function getCoinLedger(): Promise<CoinLedgerItem[]> {
+  try {
+    const endpoint = "api/me/coins/ledger";
+
+    const token = await tokenStorage.getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await userApi.get<GetCoinLedgerResponse>(endpoint, headers);
+
+    if (res && Array.isArray(res.items)) {
+      return res.items;
+    }
+    console.warn("[userApiClient] ✗ 獲取金幣帳本失敗，響應格式不正確:", res);
+    return [];
+  } catch (error) {
+    console.error("[userApiClient] 獲取金幣帳本時發生錯誤:", error);
+    return [];
+  }
+}
+
 //=======================================================
 //============== 訂單相關 API ==============
 //=======================================================

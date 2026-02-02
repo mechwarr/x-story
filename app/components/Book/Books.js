@@ -18,7 +18,7 @@ function Books({ type, config, storyList, storyCache, nochapter }) {
     [storyList]
   );
 
-  if (!listData?.length || type?.lang !== '繁體中文') return;
+  if (!listData?.length) return;
   
   return (
     <View style={styles.container}>

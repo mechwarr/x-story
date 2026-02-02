@@ -93,7 +93,9 @@ function RootLayoutContent() {
         nextAppState === 'active'
       ) {
         console.log('[RootLayout] 🔄 應用已喚醒，檢查是否需要刷新 token...');
-        
+        // 短暫延遲再刷新，避免剛喚醒時網路尚未就緒導致請求失敗
+        await new Promise((r) => setTimeout(r, 400));
+
         // 檢查是否有登入狀態
         const existingToken = await tokenStorage.getToken();
         if (existingToken && isLoggedIn) {
@@ -117,7 +119,16 @@ function RootLayoutContent() {
               { cancelable: false }
             );
           };
-          
+
+          // 網路異常時僅提示、不登出（超過一小時回來若網路未就緒常會觸發）
+          const handleNetworkError = () => {
+            Alert.alert(
+              '網路異常',
+              '無法連線更新登入狀態，請檢查網路後再試。您可繼續使用，下次回到 App 時會再嘗試更新。',
+              [{ text: '確定' }]
+            );
+          };
+
           await tokenRefreshService.refreshToken(
             (isProgress) => {
               if (isProgress) {
@@ -127,7 +138,8 @@ function RootLayoutContent() {
               }
             },
             handleTokenRefreshFailed,
-            handleLoginExpired  // 新增：登入過期回調
+            handleLoginExpired,
+            handleNetworkError
           );
         } else {
           console.log('[RootLayout] ⚠️ 未登入或無 token，跳過刷新');

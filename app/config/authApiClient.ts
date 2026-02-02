@@ -601,10 +601,12 @@ export async function appleLoginWithXStory(
 //=======================================================
 
 /**
- * Token 刷新 Request 資料格式
+ * Token 刷新 Request 資料格式（與後端 API 一致）
+ * 後端要求同時傳送 refreshToken 與舊的 accessToken。
  */
 export interface XStoryRefreshTokenRequest {
   refreshToken: string;
+  accessToken: string;
 }
 
 /**
@@ -628,15 +630,38 @@ export interface RefreshTokenResult {
 }
 
 /**
- * 使用 refreshToken 刷新 accessToken
- * @param payload - 包含 refreshToken
- * @returns 成功回傳 { accessToken, refreshToken? }，失敗則為 null。若後端回傳 refreshToken（refreshed: true），必須一併儲存否則下次刷新會授權失敗。
+ * 刷新 API 的「客戶端結果」型別（不是後端的 success 欄位）。
+ * 後端只回傳 success / accessToken / expiresIn / refreshed；
+ * 我們用 ok + reason 區分「成功 / 權限過期 / 網路錯誤」，方便只對權限過期登出、網路錯誤不登出。
+ */
+export type RefreshApiResult =
+  | { ok: true; accessToken: string; refreshToken?: string }
+  | { ok: false; reason: 'token_invalid' }
+  | { ok: false; reason: 'network_error' };
+
+function isNetworkError(error: unknown): boolean {
+  const msg = typeof error === 'object' && error !== null && 'message' in error
+    ? String((error as any).message)
+    : '';
+  return (
+    msg.includes('Network request failed') ||
+    msg.includes('Failed to fetch') ||
+    msg.includes('NetworkError') ||
+    msg.includes('timeout') ||
+    msg.includes('TIMEOUT')
+  );
+}
+
+/**
+ * 使用 refreshToken + 舊 accessToken 刷新 accessToken
+ * @param payload - 包含 refreshToken 與 accessToken（與後端 API 規格一致）
+ * @returns 成功回傳 ok:true + token；失敗區分 token_invalid（權限過期）與 network_error（網路異常），僅前者應觸發登出。
  */
 export async function refreshXStoryToken(
   payload: XStoryRefreshTokenRequest
-): Promise<RefreshTokenResult | null> {
+): Promise<RefreshApiResult> {
   try {
-    console.log('[RefreshToken API] 發送刷新請求，refreshToken 長度:', payload.refreshToken?.length || 0);
+    console.log('[RefreshToken API] 發送刷新請求，refreshToken 長度:', payload.refreshToken?.length || 0, 'accessToken 長度:', payload.accessToken?.length || 0);
 
     const res = await authApi.post<XStoryRefreshTokenResponse>(
       "api/auth/refresh",
@@ -659,26 +684,29 @@ export async function refreshXStoryToken(
         console.log('[RefreshToken API] 後端已輪換 refreshToken，需儲存新 refreshToken');
       }
       return {
+        ok: true,
         accessToken: res.accessToken,
         refreshToken: res.refreshToken,
       };
     } else {
       const errorMsg = res?.message || "Token 刷新失敗，請稍後再試";
-      console.warn('[RefreshToken API] ❌ Token 刷新失敗:', {
+      console.warn('[RefreshToken API] ❌ Token 刷新失敗（權限過期或無效）:', {
         success: res?.success,
         hasAccessToken: !!res?.accessToken,
         message: errorMsg,
       });
-      return null;
+      return { ok: false, reason: 'token_invalid' };
     }
   } catch (error) {
     const errorMsg = extractErrorMessage(error);
+    const networkErr = isNetworkError(error);
     console.error('[RefreshToken API] ❌ 請求發生錯誤:', {
       message: errorMsg,
+      isNetworkError: networkErr,
       error: error,
       stack: (error as any)?.stack,
     });
-    return null;
+    return { ok: false, reason: networkErr ? 'network_error' : 'token_invalid' };
   }
 }
 
@@ -704,8 +732,9 @@ class TokenRefreshService {
   /**
    * 刷新 Token
    * @param onProgress - 可選的回調函數，用於通知進度狀態變化
-   * @param onRefreshFailed - 可選的回調函數，當刷新失敗時調用（用於清除資料和登出）
+   * @param onRefreshFailed - 可選的回調函數，當「權限過期」時調用（用於清除資料和登出）
    * @param onLoginExpired - 可選的回調函數，當登入已過期時調用（超過 30 天需要重新登入）
+   * @param onNetworkError - 可選的回調函數，當「網路異常」時調用（不登出，可提示用戶稍後再試）
    * @param forceRefresh - 是否強制刷新（忽略 1 小時間隔限制），預設 false
    * @returns Promise<boolean> 表示是否成功
    */
@@ -713,6 +742,7 @@ class TokenRefreshService {
     onProgress?: (isProgress: boolean) => void,
     onRefreshFailed?: () => void,
     onLoginExpired?: () => void,
+    onNetworkError?: () => void,
     forceRefresh: boolean = false
   ): Promise<boolean> {
     // 防止重複刷新
@@ -755,9 +785,10 @@ class TokenRefreshService {
       // 進入 progress state
       onProgress?.(true);
 
-      // 3. 獲取 refreshToken（而非 accessToken）
+      // 3. 獲取 refreshToken 與目前的 accessToken（後端 API 要求兩者都傳）
       const refreshToken = await tokenStorage.getRefreshToken();
-      
+      const accessToken = await tokenStorage.getToken();
+
       if (!refreshToken) {
         console.log('[TokenRefreshService] ⚠️ 沒有找到 refreshToken，跳過刷新');
         onProgress?.(false);
@@ -771,15 +802,26 @@ class TokenRefreshService {
         return false;
       }
 
+      if (!accessToken) {
+        console.log('[TokenRefreshService] ⚠️ 沒有找到 accessToken，跳過刷新');
+        onProgress?.(false);
+        this.isRefreshing = false;
+        if (onRefreshFailed) {
+          onRefreshFailed();
+        }
+        return false;
+      }
+
       console.log('[TokenRefreshService] ✓ 找到 refreshToken，長度:', refreshToken.length);
       console.log('[TokenRefreshService] 📝 RefreshToken 前 20 字元:', refreshToken.substring(0, 20) + '...');
 
-      // 4. 調用刷新 API，使用正確的 refreshToken
+      // 4. 調用刷新 API（後端要求傳 refreshToken + accessToken）
       const result = await refreshXStoryToken({
-        refreshToken: refreshToken,
+        refreshToken,
+        accessToken,
       });
 
-      if (result) {
+      if (result.ok) {
         // 保存新的 accessToken
         await tokenStorage.setStoreToken(result.accessToken);
         // 若後端實作 Refresh Token 輪換（refreshed: true），會回傳新 refreshToken，必須儲存否則下次刷新會授權失敗
@@ -797,28 +839,34 @@ class TokenRefreshService {
         onProgress?.(false);
         this.isRefreshing = false;
         return true;
-      } else {
-        console.error('[TokenRefreshService] ❌ Token 刷新失敗，未獲得新的 token');
-        onProgress?.(false);
-        this.isRefreshing = false;
-        
-        // 調用失敗回調，顯示 alert 並清除資料
-        if (onRefreshFailed) {
-          onRefreshFailed();
+      }
+
+      // 區分「權限過期」與「網路錯誤」：僅權限過期時登出，網路錯誤不登出
+      onProgress?.(false);
+      this.isRefreshing = false;
+
+      if (result.reason === 'network_error') {
+        console.warn('[TokenRefreshService] ⚠️ 刷新因網路異常失敗，不登出，可稍後再試');
+        if (onNetworkError) {
+          onNetworkError();
         }
-        
         return false;
       }
+
+      // token_invalid：權限過期或 refreshToken 無效
+      console.error('[TokenRefreshService] ❌ Token 刷新失敗（權限過期），未獲得新的 token');
+      if (onRefreshFailed) {
+        onRefreshFailed();
+      }
+      return false;
     } catch (error) {
       console.error('[TokenRefreshService] ❌ Token 刷新失敗:', error);
       onProgress?.(false);
       this.isRefreshing = false;
-      
-      // 調用失敗回調，顯示 alert 並清除資料
+      // 捕獲到的異常（如非 API 回傳的錯誤）保守視為權限問題，仍觸發登出
       if (onRefreshFailed) {
         onRefreshFailed();
       }
-      
       return false;
     }
   }

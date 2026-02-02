@@ -268,5 +268,10 @@
         "zh-TW": "註冊帳號",
         "zh-CN": "注册账号",
         "en": "Register Account"
+    },
+    "purchase": {
+        "zh-TW": "購買",
+        "zh-CN": "购买",
+        "en": "Purchase"
     }
 }

@@ -3,7 +3,7 @@ import React, { useMemo, useEffect, useState } from 'react';
 import {
   SafeAreaView, View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator, Platform,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import PackCard, { PackItem } from '../components/Purchase/PackCard';
 import { useIAP } from '../hook/useIAP';
@@ -33,20 +33,13 @@ function extractProductName(title: string): string {
 export default function ShopScreen() {
   const navigation = useNavigation();
   const { products, isLoading: isIAPLoading, isPurchasing, purchaseProduct, error, refreshProducts } = useIAP();
-  const { coins, refreshCoins } = useCoins();
+  const { coins } = useCoins();
   const [coinPacks, setCoinPacks] = useState<CoinPack[]>([]);
   const [isLoadingCoinPacks, setIsLoadingCoinPacks] = useState(true);
   
   // 根據平台獲取對應的平台名稱和平台代碼
   const platformName = Platform.OS === 'ios' ? 'App Store' : 'Google Play';
   const platformCode: 'GOOGLE' | 'APPLE' = Platform.OS === 'ios' ? 'APPLE' : 'GOOGLE';
-
-  // 當畫面獲得焦點時，刷新金幣餘額
-  useFocusEffect(
-    React.useCallback(() => {
-      refreshCoins();
-    }, [refreshCoins])
-  );
 
   // 從 API 獲取金幣包資料
   useEffect(() => {

@@ -10,20 +10,48 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
-import { getUserCoinBalance } from '../config/userApiClient';
-import {
-  getCoinHistory,
-  CoinLog as ApiCoinLog,
-  CoinLogType,
-} from '../config/shopApiClient';
+import { getCoinLedger, CoinLedgerItem } from '../config/userApiClient';
+import { useCoins } from '../store/coinContext';
+import { PRODUCT_NAMES } from '../services/iapService';
 
-const TYPE_LABELS: Record<CoinLogType, string> = {
+/** 後端 type 對應顯示文字（api/me/coins/ledger 的 type 欄位） */
+const TYPE_LABELS: Record<string, string> = {
+  IAP: '購買獲得',
+  IAP_BONUS: '獎勵獲得',
   purchase: '購買獲得',
   bonus: '獎勵獲得',
   spent: '消費',
   refund: '退款',
   expired: '過期',
 };
+
+/**
+ * 從 source 字串解析出第一行（產品名稱／BONUS）與第二行（ORDER 字串）。
+ * source 格式範例: "ORDER:xxx|PROD:item_003" 或 "ORDER:xxx|PROD:BONUS" 或 "ORDER:xxx|PROD:item_003_BONUS"
+ * 若 PROD 值含 '_BONUS'，則取對應的 item_xxx 平台名稱，第一行顯示為「平台名稱 BONUS」。
+ */
+function parseSourceDisplay(source: string): { line1: string; line2: string } {
+  let line1 = '';
+  let line2 = '';
+  const parts = source.split('|').map((p) => p.trim());
+  for (const p of parts) {
+    if (p.toUpperCase().startsWith('ORDER:')) {
+      line2 = p; // 第二行：整段 ORDER: 字串
+    } else if (p.toUpperCase().startsWith('PROD:')) {
+      const prodValue = p.slice(5).trim(); // 'PROD:' 後面
+      if (prodValue.toUpperCase().includes('_BONUS')) {
+        const baseId = prodValue.replace(/_BONUS$/i, '');
+        const platformName = PRODUCT_NAMES[baseId] ?? baseId;
+        line1 = `${platformName} BONUS`;
+      } else if (prodValue.toUpperCase() === 'BONUS') {
+        line1 = 'BONUS';
+      } else {
+        line1 = PRODUCT_NAMES[prodValue] ?? prodValue;
+      }
+    }
+  }
+  return { line1, line2 };
+}
 
 function formatDate(iso: string): string {
   try {
@@ -39,9 +67,9 @@ function formatDate(iso: string): string {
 
 export default function CoinHistoryScreen({ embedded = false }: { embedded?: boolean }) {
   const Wrapper: any = embedded ? View : SafeAreaView;
+  const { coins: balance, refreshCoins } = useCoins();
 
-  const [balance, setBalance] = useState<number>(0);
-  const [logs, setLogs] = useState<ApiCoinLog[]>([]);
+  const [logs, setLogs] = useState<CoinLedgerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,11 +77,7 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
     setLoading(true);
     setError(null);
     try {
-      const [balanceRes, logsRes] = await Promise.all([
-        getUserCoinBalance(),
-        getCoinHistory(),
-      ]);
-      setBalance(balanceRes);
+      const logsRes = await getCoinLedger();
       setLogs(logsRes);
     } catch (e) {
       setError(e instanceof Error ? e.message : '載入失敗');
@@ -68,15 +92,16 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
 
   useFocusEffect(
     useCallback(() => {
+      refreshCoins();
       fetchData();
-    }, [fetchData])
+    }, [refreshCoins, fetchData])
   );
 
   return (
     <Wrapper style={styles.safe}>
       <View style={styles.header}>
         <Text style={styles.title}>金幣紀錄</Text>
-        {loading && !balance && !logs.length ? (
+        {loading && !logs.length ? (
           <View style={styles.balanceRow}>
             <ActivityIndicator size="small" color="#f0ad57" />
           </View>
@@ -103,29 +128,39 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
           {logs.length === 0 ? (
             <Text style={styles.emptyText}>尚無金幣紀錄</Text>
           ) : (
-            logs.map((log) => (
-            <View key={log.id} style={styles.row}>
-              <View style={styles.left}>
-                <Text style={styles.rowTitle}>{log.description}</Text>
-                {log.type ? (
-                  <Text style={styles.note}>{TYPE_LABELS[log.type]}</Text>
-                ) : null}
-                <Text style={styles.date}>{formatDate(log.createdAt)}</Text>
-              </View>
+            logs.map((log) => {
+              const { line1, line2 } = log.source ? parseSourceDisplay(log.source) : { line1: '', line2: '' };
+              const rowTitle = line1 || (TYPE_LABELS[log.type] ?? log.type);
+              const rowNote = line2 || log.source;
+              return (
+              <View key={log.id} style={styles.row}>
+                <View style={styles.left}>
+                  <Text style={styles.rowTitle}>
+                    {rowTitle}
+                  </Text>
+                  {rowNote ? (
+                    <Text style={styles.note} numberOfLines={1} ellipsizeMode="middle">
+                      {rowNote}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.date}>{formatDate(log.createdAt)}</Text>
+                </View>
 
-              <View style={styles.right}>
-                <Text
-                  style={[
-                    styles.amount,
-                    log.amount >= 0 ? styles.plus : styles.minus,
-                  ]}
-                >
-                  {log.amount >= 0 ? `+${log.amount}` : `${log.amount}`}
-                </Text>
-                <Image style={styles.coinMini} source={require('../../assets/coin.png')} />
+                <View style={styles.right}>
+                  <Text
+                    style={[
+                      styles.amount,
+                      log.amount >= 0 ? styles.plus : styles.minus,
+                    ]}
+                  >
+                    {log.amount >= 0 ? `+${log.amount}` : `${log.amount}`}
+                  </Text>
+                  <Image style={styles.coinMini} source={require('../../assets/coin.png')} />
+                </View>
               </View>
-            </View>
-          ))}
+            );
+            })
+          )}
         </ScrollView>
       )}
     </Wrapper>

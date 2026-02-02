@@ -1,21 +1,27 @@
 // app/store/coinContext.tsx
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import tokenStorage from '../auth/Storage';
 import { getUserCoinBalance } from '../config/userApiClient';
+
+/** 同一時段內重複呼叫 refresh 的最小間隔（ms），避免轉場/連鎖造成重複打 API */
+const MIN_REFRESH_INTERVAL_MS = 30_000;
 
 interface CoinContextType {
   coins: number;
   setCoins: (coins: number) => Promise<void>;
-  refreshCoins: () => Promise<void>;
+  /** 從 API 刷新餘額；force 為 true 時略過短時間防抖（例如 IAP/購買成功後應傳 true） */
+  refreshCoins: (force?: boolean) => Promise<void>;
 }
 
 const CoinContext = createContext<CoinContextType | undefined>(undefined);
 
 export function CoinProvider({ children }: { children: ReactNode }) {
   const [coins, setCoinsState] = useState<number>(0);
+  const lastRefreshAt = useRef<number>(0);
+  const isLoadingRef = useRef<boolean>(false);
 
   // 從 Storage 載入金幣（初始化時使用）
-  const loadCoinsFromStorage = async () => {
+  const loadCoinsFromStorage = useCallback(async () => {
     try {
       const storedCoins = await tokenStorage.getUserCoin();
       setCoinsState(storedCoins ?? 0);
@@ -23,43 +29,52 @@ export function CoinProvider({ children }: { children: ReactNode }) {
       console.error('載入金幣失敗:', error);
       setCoinsState(0);
     }
-  };
+  }, []);
 
-  // 從 API 獲取最新的金幣餘額
-  const loadCoinsFromAPI = async () => {
+  // 從 API 獲取最新的金幣餘額（內部實作；並發呼叫時只執行一次）
+  const loadCoinsFromAPI = useCallback(async () => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     try {
       const balance = await getUserCoinBalance();
       setCoinsState(balance);
-      // 同時更新本地 Storage
       await tokenStorage.setUserCoin(balance);
+      lastRefreshAt.current = Date.now();
       console.log('[coinContext] ✓ 從 API 刷新金幣餘額:', balance);
     } catch (error) {
       console.error('[coinContext] 從 API 獲取金幣餘額失敗:', error);
-      // 如果 API 失敗，嘗試從本地 Storage 載入
       await loadCoinsFromStorage();
+    } finally {
+      isLoadingRef.current = false;
     }
-  };
+  }, [loadCoinsFromStorage]);
 
   // 初始化時只從 Storage 載入金幣（快速顯示）
-  // 不在此時調用 API，讓需要顯示金幣的 UI 組件在適當時機自行調用 refreshCoins()
   useEffect(() => {
     loadCoinsFromStorage();
-  }, []);
+  }, [loadCoinsFromStorage]);
 
   // 設定金幣（同時更新 Storage）
-  const setCoins = async (newCoins: number) => {
+  const setCoins = useCallback(async (newCoins: number) => {
     try {
       setCoinsState(newCoins);
       await tokenStorage.setUserCoin(newCoins);
     } catch (error) {
       console.error('設定金幣失敗:', error);
     }
-  };
+  }, []);
 
-  // 刷新金幣（從 API 重新獲取最新餘額）
-  const refreshCoins = async () => {
+  /**
+   * 刷新金幣（從 API 重新獲取最新餘額）。
+   * 短時間內重複呼叫會略過 API；傳入 force === true 時強制打 API（例如 IAP/購買成功後）。
+   */
+  const refreshCoins = useCallback(async (force?: boolean) => {
+    const now = Date.now();
+    if (!force && now - lastRefreshAt.current < MIN_REFRESH_INTERVAL_MS) {
+      return;
+    }
     await loadCoinsFromAPI();
-  };
+  }, [loadCoinsFromAPI]);
 
   return (
     <CoinContext.Provider value={{ coins, setCoins, refreshCoins }}>

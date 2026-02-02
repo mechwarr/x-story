@@ -168,10 +168,10 @@ export function useIAP(): UseIAPReturn {
           [{ text: '確定' }]
         );
 
-        // 購買成功後，刷新金幣餘額
+        // 購買成功後強制刷新金幣餘額（略過 30s 防抖）
         console.log('[useIAP] 購買成功，開始刷新金幣餘額...');
         try {
-          await refreshCoins();
+          await refreshCoins(true);
           console.log('[useIAP] ✓ 金幣餘額已刷新');
         } catch (refreshError) {
           console.error('[useIAP] ⚠️ 刷新金幣餘額失敗:', refreshError);

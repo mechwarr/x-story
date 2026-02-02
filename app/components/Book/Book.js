@@ -16,6 +16,7 @@ import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins } from '../../config/userApiClient';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../../config/idempotencyKeyCache';
 import { useCoins } from '../../store/coinContext';
+import storage from '../../storage/storage';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -140,9 +141,11 @@ function Book(props) {
                 // 購買成功後，清除 idempotencyKey 緩存
                 await clearIdempotencyKey(id);
                 console.log('[Book] ✓ 已清除 idempotencyKey 緩存');
+                // 本地記錄已購買，章節頁可據此隱藏購買按鈕
+                await storage.addLocalPurchasedStoryId(id);
                 
-                // 刷新金幣餘額
-                await refreshCoins();
+                // 購買成功後強制刷新金幣餘額
+                await refreshCoins(true);
                 
                 Alert.alert(
                   '購買成功',
@@ -189,17 +192,14 @@ function Book(props) {
     );
   };
 
-  if (lang !== '繁體中文') return;
-
   return (
     <View style={[styles.container]}>
 
       <Pressable
         style={styles.container}
         onPress={() => {
-          // 未擁有：先判斷是否可試閱章節，否則再判斷是否需付費購買
+          // 未擁有（鎖頭）：僅允許有章節的書進入章節列表（顯示購買按鈕），無章節則不反應
           if (!isOpen) {
-            // 有章節結構 → 進入章節列表，用戶可試閱 free_open 章節、付費章節顯示鎖頭
             if (hasChapter) {
               navigation.navigate(routes.HOME, {
                 screen: routes.CHAPTER,
@@ -211,12 +211,6 @@ function Book(props) {
                   nochapter,
                 },
               });
-              return;
-            }
-            // 無章節且需要付費 → 顯示購買視窗
-            if (priceCoins && priceCoins > 0) {
-              handlePurchaseStory();
-              return;
             }
             return;
           }
