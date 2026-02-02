@@ -232,12 +232,29 @@ export async function VerifyMail(payload: XStoryVerifyRequest): Promise<boolean>
 }
 
 /**
+ * 登出 API Request 格式（讓後端將 token 失效）
+ */
+export interface LogoutRequest {
+  refreshToken: string;
+  accessToken: string;
+}
+
+/**
  * 使用 xStory 登出帳號
+ * 從 Storage 取得 refreshToken、accessToken 送給後端失效
  * @returns Promise<boolean> 表示是否成功登出
  */
 export async function logoutWithXStory(): Promise<boolean> {
   try {
-    const res = await authApi.post<XStoryAuthResponse>("api/auth/logout", {});
+    const accessToken = await tokenStorage.getToken();
+    const refreshToken = await tokenStorage.getRefreshToken();
+
+    const payload: LogoutRequest = {
+      refreshToken: refreshToken ?? "",
+      accessToken: accessToken ?? "",
+    };
+
+    const res = await authApi.post<XStoryAuthResponse>("api/auth/logout", payload);
 
     if (res && res.message === '登出成功') {
       return true;

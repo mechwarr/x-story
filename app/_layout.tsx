@@ -8,7 +8,7 @@ import { LoadingProvider, useLoading } from './screens/LoadingContext';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import useInitApp from './hook/useInitApp';
 import * as Linking from "expo-linking";
-import { VerifyMail, tokenRefreshService } from './config/authApiClient';
+import { VerifyMail, tokenRefreshService, logoutWithXStory } from './config/authApiClient';
 import tokenStorage from './auth/Storage';
 import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
 import { AuthProvider } from "./auth/AuthContext";
@@ -212,6 +212,8 @@ function RootLayoutContent() {
   };
 
   const logout = async () => {
+    await logoutWithXStory(); // 帶上 refreshToken、accessToken 讓後端失效
+    await clearAllUserData();
     setIsLoggedIn(false);
   };
 
