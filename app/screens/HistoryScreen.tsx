@@ -13,30 +13,29 @@ import { useNavigation } from '@react-navigation/native';
 import CoinHistoryScreen from './CoinHistoryScreen';
 import PurchaseHistoryScreen from './PurchaseHistoryScreen';
 import routes from '../navigations/routes';
+import useResponsive from '../hook/useResponsive';
 
 type TabKey = 'coin' | 'purchase';
 
 export default function HistoryScreen() {
   const [tab, setTab] = useState<TabKey>('coin');
   const navigation = useNavigation();
+  const { isTablet, maxContentWidth, horizontalPadding, scale } = useResponsive();
+  const iconSize = Math.round(36 * scale);
 
   return (
     <SafeAreaView style={styles.safe}>
-
-      <View style={[styles.topBar, { paddingTop: 8 }]}>
-        {/* 左上：eye */}
+      <View style={[styles.topBar, { paddingTop: 8, paddingHorizontal: horizontalPadding }]}>
         <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
-          <Image style={styles.eyeIcon} source={require('../../assets/blueeye.png')} />
+          <Image style={[styles.eyeIcon, { width: iconSize, height: iconSize }]} source={require('../../assets/blueeye.png')} />
         </Pressable>
-
-        {/* 右上：profile */}
         <Pressable onPress={() => navigation.navigate(routes.PROFILE as never)} hitSlop={8}>
-          <Image style={styles.profileIcon} source={require('../../assets/profile.png')} />
+          <Image style={[styles.profileIcon, { width: iconSize * 0.9, height: iconSize * 0.9, borderRadius: (iconSize * 0.9) / 2 }]} source={require('../../assets/profile.png')} />
         </Pressable>
       </View>
 
 
-      {/* Segmented 控制列 */}
+      <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%', paddingHorizontal: horizontalPadding }]}>
       <View style={styles.segmentBar}>
         <SegmentButton
           label="金幣紀錄"
@@ -50,13 +49,13 @@ export default function HistoryScreen() {
         />
       </View>
 
-      {/* 內容區 */}
       <View style={styles.content}>
         {tab === 'coin' ? (
           <CoinHistoryScreen embedded />
         ) : (
           <PurchaseHistoryScreen embedded />
         )}
+      </View>
       </View>
     </SafeAreaView>
   );
@@ -88,19 +87,19 @@ function SegmentButton({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#2b2f33' },
 
-  // 右上角 eye 容器
   topBar: {
     width: '100%',
-    paddingHorizontal: 10,
     marginBottom: 6,
     flexDirection: 'row',
-    justifyContent: 'space-between',  // ⬅️ 左右分散
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  eyeIcon: { width: 40, height: 40 },
-  profileIcon: { width: 32, height: 32, borderRadius: 16 },
+  eyeIcon: {},
+  profileIcon: {},
 
-
+  contentWrap: {
+    flex: 1,
+  },
   segmentBar: {
     flexDirection: 'row',
     gap: 10,

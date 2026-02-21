@@ -15,6 +15,9 @@ buildscript {
   }
 }
 
+// 鎖定 Google Sign-In 使用的 play-services-auth 版本，避免與其他依賴衝突導致閃退
+ext.googlePlayServicesAuthVersion = '21.3.0'
+
 // React Native Android AAR 來源（直接用相對路徑，不使用 settings.gradle 的 providers.exec）
 def reactNativeAndroidDir = file("$rootDir/../node_modules/react-native/android")
 

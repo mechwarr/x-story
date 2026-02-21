@@ -57,15 +57,16 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
 
+    // Facebook SDK 18：Manifest 已有 ApplicationId/ClientToken 會自動初始化。
+    // 僅在尚未初始化時手動設定，避免重複初始化導致閃退（與 build.gradle 鎖定 18.0.2 一致）。
     try {
-      val appId = getString(R.string.facebook_app_id)
-      val clientToken = getString(R.string.facebook_client_token)
-      Log.e("tag", "appId: $appId")
-      Log.e("tag", "clientToken: $clientToken")
-
-      FacebookSdk.setApplicationId(appId)
-      FacebookSdk.setClientToken(clientToken)
-      FacebookSdk.sdkInitialize(applicationContext)
+      if (!FacebookSdk.isInitialized()) {
+        val appId = getString(R.string.facebook_app_id)
+        val clientToken = getString(R.string.facebook_client_token)
+        FacebookSdk.setApplicationId(appId)
+        FacebookSdk.setClientToken(clientToken)
+        FacebookSdk.sdkInitialize(applicationContext)
+      }
       AppEventsLogger.activateApp(this)
     } catch (e: Exception) {
       Log.e("MainApplication", "Error initializing Facebook SDK: ${e.message}", e)

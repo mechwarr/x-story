@@ -14,6 +14,7 @@ import colors from "../config/colors";
 import VersionScreen from "../screens/VersionScreen";
 import {ResetScreen} from "../screens/ResetScreen";
 import ShopScreen from "../screens/ShopScreen";
+import useResponsive from "../hook/useResponsive";
 
 const Drawer = createDrawerNavigator();
 
@@ -21,6 +22,10 @@ export default function AppNavigator() {
   const [currentStory, setCurrentStory] = useState({});
   const [currentChatIdx, setCurrentChatIdx] = useState(-1);
   const [currentBackIdx, setCurrentBackIdx] = useState(0);
+  const { isTablet, scale } = useResponsive();
+  const drawerWidth = isTablet ? 260 : 180;
+  const drawerIconSize = Math.round(40 * scale);
+
   return (
     <StoryContext.Provider
       value={{
@@ -37,10 +42,10 @@ export default function AppNavigator() {
           headerShown: false,
           drawerStyle: {
             backgroundColor: colors.homeBackground,
-            width: 180,
+            width: drawerWidth,
           },
           drawerLabelStyle: {
-            fontSize: 20,
+            fontSize: isTablet ? 22 : 20,
             fontWeight: "bold",
             color: colors.white,
           },
@@ -51,19 +56,10 @@ export default function AppNavigator() {
         <Drawer.Screen
           options={{
             drawerIcon: () => (
-              //這個size是react navigation建議的
-              // <View>
-              // <MaterialCommunityIcons
-              //   name="eye-outline"
-              //   size={30}
-              //   color={colors.white}
-              // />
-              // <Text>123</Text>
-              // </View>
               <Image
                 style={{
-                  width: 40,
-                  height: 40,
+                  width: drawerIconSize,
+                  height: drawerIconSize,
                 }}
                 source={require("../../assets/blueeye.png")}
               />

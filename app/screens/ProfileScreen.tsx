@@ -9,7 +9,6 @@ import {
   TextInput,
   Pressable,
   Platform,
-  Dimensions,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -17,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import { useCoins } from '../store/coinContext';
 import { getUserProfile, updateUserProfile } from '../config/userApiClient';
+import useResponsive from '../hook/useResponsive';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
@@ -32,8 +32,9 @@ export default function ProfileScreen() {
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const { width: screenWidth } = Dimensions.get('window');
-  const avatarSize = Math.round(screenWidth / 4);
+  const { contentWidth, isTablet, maxContentWidth, horizontalPadding, scale } = useResponsive();
+  const avatarSize = Math.min(Math.round(contentWidth / 4), 120);
+  const iconSize = Math.round(42 * scale);
 
   // ---- 載入用戶資料 ----
   useEffect(() => {
@@ -119,12 +120,12 @@ export default function ProfileScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safe}>
-        <View style={[styles.topBar, { paddingTop: 8 }]}>
+        <View style={[styles.topBar, { paddingTop: 8, paddingHorizontal: horizontalPadding }]}>
           <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
-            <Image style={styles.profileIconTop} source={require('../../assets/blueeye.png')} />
+            <Image style={[styles.profileIconTop, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]} source={require('../../assets/blueeye.png')} />
           </Pressable>
         </View>
-        <View style={[styles.container, styles.loadingContainer]}>
+        <View style={[styles.container, styles.loadingContainer, { paddingHorizontal: horizontalPadding }]}>
           <ActivityIndicator size="large" color="#00a99d" />
           <Text style={styles.loadingText}>載入中...</Text>
         </View>
@@ -134,13 +135,14 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={[styles.topBar, { paddingTop: 8 }]}>
+      <View style={[styles.topBar, { paddingTop: 8, paddingHorizontal: horizontalPadding }]}>
         <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
-          <Image style={styles.profileIconTop} source={require('../../assets/blueeye.png')} />
+          <Image style={[styles.profileIconTop, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]} source={require('../../assets/blueeye.png')} />
         </Pressable>
       </View>
 
-      <View style={styles.container}>
+      <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
+      <View style={[styles.container, { paddingHorizontal: horizontalPadding }]}>
         {/* 頭像 */}
         <Image
           style={[
@@ -230,6 +232,7 @@ export default function ProfileScreen() {
           </View>
         </Pressable>
       </View>
+      </View>
 
       {/* 日期選擇器 */}
       {showDatePicker && (
@@ -249,20 +252,20 @@ const styles = StyleSheet.create({
   // ---- 全域底色 ----
   safe: { flex: 1, backgroundColor: '#2b2f33' },
 
-  // ---- 左上角 TopBar ----
   topBar: {
     width: '100%',
-    paddingHorizontal: 10,
     marginBottom: 6,
     flexDirection: 'row',
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
   },
-  profileIconTop: { width: 42, height: 42, borderRadius: 16 },
+  profileIconTop: {},
   title: { color: '#e7eef6', fontWeight: '700', fontSize: 18, marginBottom: 6, textAlign: 'center' },
 
-  // ---- 內容 ----
-  container: { flex: 1, paddingHorizontal: 16 },
+  contentWrap: {
+    flex: 1,
+  },
+  container: { flex: 1 },
 
   // ---- 頭像 ----
   avatar: {

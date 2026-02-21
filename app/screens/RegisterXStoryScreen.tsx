@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { translate } from "../i18n/i18n";
 import { registerWithXStory, resentRegisterMail, ResentRegisterMailRequest } from "../config/authApiClient";
+import useResponsive from "../hook/useResponsive";
 
 interface Props {
   onCancel: () => void;
@@ -72,13 +73,15 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
     }
   };
 
+  const { isTablet, maxContentWidth } = useResponsive();
+
   return (
-    <View style={styles.container}>
-      {/* 左上角圖示（保持） */}
+    <View style={[styles.container, isTablet && { paddingHorizontal: 24 }]}>
       <View style={styles.logoContainer}>
         <Image style={styles.imgIcon} source={require("../../assets/blueeye.png")} />
       </View>
 
+      <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
       <Text style={styles.title}>{translate("registerAccount")}</Text>
 
       {!waitingVerification ? (
@@ -172,6 +175,7 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
       ) : (
         <Text style={styles.waitingText}>{translate("verificationSent")}</Text>
       )}
+      </View>
 
       {/* 覆蓋層：顯示重發驗證信表單（不使用 Modal / navigation） */}
       {showResendOverlay && (
@@ -221,6 +225,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 30,
+  },
+  formWrap: {
+    width: "100%",
   },
   title: {
     fontSize: 24,

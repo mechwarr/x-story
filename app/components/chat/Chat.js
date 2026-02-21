@@ -3,6 +3,7 @@ import { View, StyleSheet, Dimensions, Image, Pressable, Platform } from 'react-
 
 
 import colors from '../../config/colors';
+import { isTabletWidth } from '../../config/responsive';
 import ChatImageArea from './ChatImageArea';
 import ChatSoundArea from './ChatSoundArea';
 
@@ -14,6 +15,7 @@ import apiclient  from '../../config/apiClient';
 
 const domain = apiclient.currentBaseUrl() + 'images/update/';
 const screenWidth = Dimensions.get('window').width;
+const isTablet = isTabletWidth(screenWidth);
 
 function Chat({
   textContentColor,
@@ -43,9 +45,9 @@ function Chat({
     const imageUrl = domain + imgMsg;
     Image.getSize(imageUrl, (width, height) => {
       let resizeRate =
-        screenWidth > 500 ? (screenWidth * 0.6) / width : 256 / width;
+        isTablet ? (screenWidth * 0.6) / width : 256 / width;
       const newImage = {
-        width: screenWidth > 500 ? screenWidth * 0.6 : 256,
+        width: isTablet ? screenWidth * 0.6 : 256,
         height: height * resizeRate,
       };
       setImgSize(newImage);

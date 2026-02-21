@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import ChapterItem from '../components/ChapterItem';
+import useResponsive from '../hook/useResponsive';
 import StoryHeader from '../components/StoryHeader';
 import AppText from '../components/AppText';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -161,6 +162,8 @@ const ChapterScreen = () => {
     return () => { mounted = false; };
   }, []);
 
+  const { isTablet, maxContentWidth } = useResponsive();
+
   return (
     <SafeAreaView
       style={{
@@ -168,6 +171,7 @@ const ChapterScreen = () => {
         backgroundColor: queryInfo?.config?.[0]?.view_color ?? '#fff',
       }}
     >
+      <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
       <StoryHeader
         storyName={name}
         author={author}
@@ -200,11 +204,15 @@ const ChapterScreen = () => {
         renderItem={renderItem}
         contentContainerStyle={{ flexDirection: 'column', padding: 20 }}
       />
+      </View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  contentWrap: {
+    flex: 1,
+  },
   purchaseButtonWrap: {
     width: wp('90%'),
     alignSelf: 'center',

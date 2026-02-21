@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, useWindowDimensions } from 'react-native';
+import { ScrollView } from 'react-native';
 import RenderHtml from 'react-native-render-html';
 
 import AppHeader from '../components/AppHeader';
 import Content from './Content';
 import Screen from './Screen';
 import apiclient from '../config/apiClient';
+import useResponsive from '../hook/useResponsive';
 
 function VersionScreen() {
   const [quote, setQuote] = useState('');
-  const { width } = useWindowDimensions();
+  const { contentWidth } = useResponsive();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,7 +41,7 @@ function VersionScreen() {
       <AppHeader />
       <Content>
         <ScrollView>
-          <RenderHtml contentWidth={width} source={{ html: quote }} />
+          <RenderHtml contentWidth={contentWidth} source={{ html: quote }} />
         </ScrollView>
       </Content>
     </Screen>

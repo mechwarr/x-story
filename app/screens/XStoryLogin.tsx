@@ -6,11 +6,12 @@ import {
     TouchableOpacity,
     StyleSheet,
     Image,
-    Modal,            // ← 新增
+    Modal,
 } from "react-native";
 import { XStoryForgetPassword } from "./XStoryForgetPassword";
 import { translate } from "../i18n/i18n";
 import { loginWithXStory, LoginTokenResult } from "../config/authApiClient";
+import useResponsive from "../hook/useResponsive";
 
 interface Props {
     onLoginSuccess: (tokenResult: LoginTokenResult) => void;
@@ -22,20 +23,20 @@ export function XStoryLogin({ onLoginSuccess, onCancel }: Props) {
     const [password, setPassword] = useState("");
     const [showForgetPassword, setShowForgetPassword] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const { isTablet, maxContentWidth } = useResponsive();
 
     const handleLogin = async () => {
         const tokenResult = await loginWithXStory({ email, password });
-        // tokenResult 包含 accessToken 和 refreshToken
         if (tokenResult) onLoginSuccess(tokenResult);
     };
 
     return (
-        <View style={styles.container}>
-            {/* 左上角 Logo */}
+        <View style={[styles.container, isTablet && { paddingHorizontal: 24 }]}>
             <View style={styles.logoContainer}>
                 <Image style={styles.imgIcon} source={require("../../assets/blueeye.png")} />
             </View>
 
+            <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
             <Text style={styles.title}>{translate("signInTitle")}</Text>
 
             <TextInput
@@ -83,8 +84,8 @@ export function XStoryLogin({ onLoginSuccess, onCancel }: Props) {
             <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
                 <Text style={styles.cancelButtonText}>{translate("cancel")}</Text>
             </TouchableOpacity>
+            </View>
 
-            {/* === 忘記密碼：使用 Modal 完整遮擋與阻擋點擊 === */}
             <Modal
                 visible={showForgetPassword}
                 animationType="slide"                 // 你可改 "fade" / "none"
@@ -109,6 +110,9 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         paddingHorizontal: 30,
+    },
+    formWrap: {
+        width: "100%",
     },
     title: {
         fontSize: 24,

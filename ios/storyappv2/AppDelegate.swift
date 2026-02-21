@@ -33,14 +33,13 @@ public class AppDelegate: ExpoAppDelegate {
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  // Linking API
+  // Linking API（WeChat / Google Sign-In / 其他 deep link）
   public override func application(
     _ app: UIApplication,
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
-    // 處理 WeChat 回調
-    // 確保在主執行緒上執行，避免記憶體管理問題
+    // 僅攔截 WeChat；Google Sign-In 回調 (com.googleusercontent.apps.*) 交給 super → Expo → GoogleSignInAppDelegate
     if url.scheme == "wx277826ce3d9510c6" {
       // 使用主執行緒確保執行緒安全
       if Thread.isMainThread {
@@ -55,7 +54,7 @@ public class AppDelegate: ExpoAppDelegate {
         }
       }
     }
-    
+    // super 會轉給 Expo 的 GoogleSignInAppDelegate → GIDSignIn.sharedInstance.handle(url)；再 fallback 到 RCTLinkingManager
     return super.application(app, open: url, options: options) || RCTLinkingManager.application(app, open: url, options: options)
   }
   

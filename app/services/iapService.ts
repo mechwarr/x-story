@@ -134,8 +134,13 @@ class IAPService {
 
       console.log('[iapService] ========== 開始初始化 IAP 連線 ==========');
       console.log('[iapService] 平台:', Platform.OS);
-      
-      // 檢測是否為模擬器
+
+      if (Platform.OS === 'ios') {
+        console.log('[iapService] 🍎 iOS：正在初始化 App Store (StoreKit) 連線...');
+        console.log('[iapService]    建議在真實設備上測試；模擬器部分情境可能無法完成購買');
+      }
+
+      // 檢測是否為模擬器（僅 Android）
       if (Platform.OS === 'android') {
         const isEmulator = await this.checkIfEmulator();
         if (isEmulator) {
@@ -146,11 +151,11 @@ class IAPService {
           console.log('[iapService] ✓ 檢測到真實設備');
         }
       }
-      
+
       console.log('[iapService] 調用 initConnection()...');
       const result = await initConnection();
       console.log('[iapService] initConnection() 返回結果:', result);
-      
+
       this.isInitialized = result;
 
       if (result) {
@@ -159,15 +164,25 @@ class IAPService {
         this.setupPurchaseListeners();
       } else {
         console.warn('[iapService] ✗ IAP 初始化失敗，result 為 false');
-        console.warn('[iapService] 這通常表示 responseCode: -1 (BILLING_UNAVAILABLE)');
-        console.warn('[iapService]');
-        console.warn('[iapService] ⚠️ 如果看到 "Phenotype API error" 或 "Stale snapshot" 錯誤：');
-        console.warn('[iapService]    這表示 Google Play Services 配置過期');
-        console.warn('[iapService]    解決方法：');
-        console.warn('[iapService]    1. 更新 Google Play Services 到最新版本');
-        console.warn('[iapService]    2. 清除 Google Play Services 緩存');
-        console.warn('[iapService]    3. 重啟設備');
-        console.warn('[iapService]    詳細指南請查看：GOOGLE_PLAY_SERVICES_ERROR_ANALYSIS.md');
+        if (Platform.OS === 'ios') {
+          console.warn('[iapService]');
+          console.warn('[iapService] 🍎 iOS / App Store 常見原因：');
+          console.warn('[iapService]    1. 未登入 App Store 帳號（設定 → [您的名稱] → 媒體與購買項目）');
+          console.warn('[iapService]    2. 沙盒測試請使用 App Store Connect 的沙盒測試帳號');
+          console.warn('[iapService]    3. App Store Connect 未設定應用內購買項目或商品未啟用');
+          console.warn('[iapService]    4. Bundle ID 與 App Store Connect 不一致');
+          console.warn('[iapService]    5. 網路或 App Store 服務異常');
+        } else {
+          console.warn('[iapService] 這通常表示 responseCode: -1 (BILLING_UNAVAILABLE)');
+          console.warn('[iapService]');
+          console.warn('[iapService] ⚠️ 如果看到 "Phenotype API error" 或 "Stale snapshot" 錯誤：');
+          console.warn('[iapService]    這表示 Google Play Services 配置過期');
+          console.warn('[iapService]    解決方法：');
+          console.warn('[iapService]    1. 更新 Google Play Services 到最新版本');
+          console.warn('[iapService]    2. 清除 Google Play Services 緩存');
+          console.warn('[iapService]    3. 重啟設備');
+          console.warn('[iapService]    詳細指南請查看：GOOGLE_PLAY_SERVICES_ERROR_ANALYSIS.md');
+        }
       }
 
       return result;
@@ -229,34 +244,53 @@ class IAPService {
         }
       }
       
-      // 根據 responseCode 提供診斷資訊
+      // 根據平台與錯誤碼提供診斷資訊
       if (responseCode === -1 || errorCode === 'init-connection') {
         console.error('[iapService] ========== 診斷資訊 ==========');
-        console.error('[iapService] responseCode: -1 表示 BILLING_UNAVAILABLE');
-        console.error('[iapService]');
-        console.error('[iapService] 可能的原因：');
-        console.error('[iapService] 1. ❌ 在模擬器上運行（最常見）');
-        console.error('[iapService]    → Google Play Billing 不支持模擬器');
-        console.error('[iapService]    → 解決方案：在真實 Android 設備上測試');
-        console.error('[iapService]');
-        console.error('[iapService] 2. ❌ 設備沒有 Google Play 服務');
-        console.error('[iapService]    → 某些設備或自訂 ROM 可能沒有 Google Play 服務');
-        console.error('[iapService]    → 解決方案：確保設備已安裝並更新 Google Play 服務');
-        console.error('[iapService]');
-        console.error('[iapService] 3. ❌ 應用未在 Google Play Console 中正確配置');
-        console.error('[iapService]    → 商品未建立或應用未發布到測試軌道');
-        console.error('[iapService]    → 解決方案：');
-        console.error('[iapService]      a. 在 Google Play Console 中建立商品（item_001, item_002 等）');
-        console.error('[iapService]      b. 將應用發布到 Alpha/Beta/Internal Testing');
-        console.error('[iapService]      c. 將測試帳號加入測試人員名單');
-        console.error('[iapService]');
-        console.error('[iapService] 4. ❌ 網絡連接問題');
-        console.error('[iapService]    → 無法連接到 Google Play 服務器');
-        console.error('[iapService]    → 解決方案：檢查網絡連接');
-        console.error('[iapService]');
-        console.error('[iapService] 5. ❌ Google Play 服務版本過舊');
-        console.error('[iapService]    → 更新 Google Play 服務到最新版本');
-        console.error('[iapService] =================================');
+        if (Platform.OS === 'ios') {
+          console.error('[iapService] 🍎 iOS / App Store 初始化失敗，可能的原因：');
+          console.error('[iapService]');
+          console.error('[iapService] 1. ❌ 未登入 App Store 或沙盒帳號');
+          console.error('[iapService]    → 設定 → [您的名稱] → 媒體與購買項目 → 檢視帳號');
+          console.error('[iapService]    → 沙盒測試需在 App Store Connect 建立沙盒測試帳號');
+          console.error('[iapService]');
+          console.error('[iapService] 2. ❌ App Store Connect 未設定應用內購買');
+          console.error('[iapService]    → 應用內購買項目需已建立且狀態為「準備提交」或「已批准」');
+          console.error('[iapService]    → 商品 ID 需與程式碼一致（如 item_001～item_006）');
+          console.error('[iapService]');
+          console.error('[iapService] 3. ❌ Bundle ID 不一致');
+          console.error('[iapService]    → Xcode 的 Bundle Identifier 需與 App Store Connect 相同');
+          console.error('[iapService]');
+          console.error('[iapService] 4. ❌ 網路或 App Store 服務異常');
+          console.error('[iapService]    → 檢查網路，必要時重啟設備或稍後再試');
+          console.error('[iapService] =================================');
+        } else {
+          console.error('[iapService] responseCode: -1 表示 BILLING_UNAVAILABLE');
+          console.error('[iapService]');
+          console.error('[iapService] 可能的原因：');
+          console.error('[iapService] 1. ❌ 在模擬器上運行（最常見）');
+          console.error('[iapService]    → Google Play Billing 不支持模擬器');
+          console.error('[iapService]    → 解決方案：在真實 Android 設備上測試');
+          console.error('[iapService]');
+          console.error('[iapService] 2. ❌ 設備沒有 Google Play 服務');
+          console.error('[iapService]    → 某些設備或自訂 ROM 可能沒有 Google Play 服務');
+          console.error('[iapService]    → 解決方案：確保設備已安裝並更新 Google Play 服務');
+          console.error('[iapService]');
+          console.error('[iapService] 3. ❌ 應用未在 Google Play Console 中正確配置');
+          console.error('[iapService]    → 商品未建立或應用未發布到測試軌道');
+          console.error('[iapService]    → 解決方案：');
+          console.error('[iapService]      a. 在 Google Play Console 中建立商品（item_001, item_002 等）');
+          console.error('[iapService]      b. 將應用發布到 Alpha/Beta/Internal Testing');
+          console.error('[iapService]      c. 將測試帳號加入測試人員名單');
+          console.error('[iapService]');
+          console.error('[iapService] 4. ❌ 網絡連接問題');
+          console.error('[iapService]    → 無法連接到 Google Play 服務器');
+          console.error('[iapService]    → 解決方案：檢查網絡連接');
+          console.error('[iapService]');
+          console.error('[iapService] 5. ❌ Google Play 服務版本過舊');
+          console.error('[iapService]    → 更新 Google Play 服務到最新版本');
+          console.error('[iapService] =================================');
+        }
       }
       
       return false;
@@ -416,6 +450,11 @@ class IAPService {
 
   /**
    * 獲取商品列表
+   * 對應 Apple StoreKit 的 productsRequest 流程：
+   * 1. 建立清單：傳入要查詢的 Product IDs (skus)
+   * 2. 發送請求：fetchProducts({ skus }) → 底層透過 OpenIAP/StoreKit 2 向 App Store 請求
+   * 3. App Store 驗證：ID 是否存在、是否準備銷售、Bundle ID / 付費協議等
+   * 4. 回傳結果：有效商品在 products 陣列；無效 ID 會透過日誌 invalidProductIdentifiers 列出
    * @param productIds - 可選的商品 ID 列表，如果不提供則使用預設的 PRODUCT_IDS
    */
   async getProductList(productIds?: string[]): Promise<Product[]> {
@@ -429,8 +468,9 @@ class IAPService {
         ? productIds 
         : Object.values(PRODUCT_IDS);
       
+      // 傳給平台的資料：skus 陣列會原樣傳給 App Store / Google Play，須與後台設定的商品 ID 完全一致
       console.log('[iapService] ========== 開始獲取商品列表 ==========');
-      console.log('[iapService] 使用的商品 ID 列表:', JSON.stringify(skus, null, 2));
+      console.log('[iapService] 傳給平台的 skus (商品 ID 列表):', JSON.stringify(skus, null, 2));
       console.log('[iapService] 商品 ID 數量:', skus.length);
       console.log('[iapService] 平台:', Platform.OS);
       
@@ -456,6 +496,16 @@ class IAPService {
       }
       
       console.log('[iapService] ✓ 成功獲取商品數量:', products.length);
+
+      // 比對「請求的 skus」與「回傳的有效商品」→ 未出現在回傳裡的即為無效 ID（等同 StoreKit response.invalidProductIdentifiers）
+      const returnedIds = new Set(products.map((p: any) => (p.productId ?? p.id ?? '').toString()));
+      const invalidProductIdentifiers = skus.filter(sku => !returnedIds.has(sku));
+      if (invalidProductIdentifiers.length > 0) {
+        console.warn('[iapService] ⚠️ 無效商品 ID（平台未回傳，請檢查 App Store Connect / Google Play 設定）:', invalidProductIdentifiers);
+      }
+      if (returnedIds.size > 0) {
+        console.log('[iapService] 有效商品 ID (response.products):', Array.from(returnedIds));
+      }
       
       // 顯示原始返回的商品結構（用於調試）
       if (products.length > 0) {
@@ -713,7 +763,10 @@ class IAPService {
         console.log('[iapService] IAP 未初始化，開始初始化...');
         const initialized = await this.initialize();
         if (!initialized) {
-          throw new Error('無法初始化 IAP 服務。請確保：1) 在真實設備上運行 2) 已安裝 Google Play 服務 3) 應用已正確配置');
+          const initHint = Platform.OS === 'ios'
+            ? '無法初始化 IAP 服務。請確保：1) 已登入 App Store 或沙盒帳號 2) App Store Connect 已設定應用內購買 3) 應用已正確配置'
+            : '無法初始化 IAP 服務。請確保：1) 在真實設備上運行 2) 已安裝 Google Play 服務 3) 應用已正確配置';
+          throw new Error(initHint);
         }
       }
 
@@ -751,7 +804,8 @@ class IAPService {
       const productIdValue = product ? ((product as any).productId || product.id) : productId;
       
       if (!product) {
-        console.warn('[iapService] ⚠️⚠️⚠️ 警告：無法從 Google Play 獲取商品詳情 ⚠️⚠️⚠️');
+        const storeName = Platform.OS === 'ios' ? 'App Store' : 'Google Play';
+        console.warn(`[iapService] ⚠️⚠️⚠️ 警告：無法從 ${storeName} 獲取商品詳情 ⚠️⚠️⚠️`);
         console.warn('[iapService] ⚠️ 這是最可能導致「找不到您要購買的項目」錯誤的原因！');
         console.warn('[iapService]');
         console.warn('[iapService] 📋 診斷資訊：');
@@ -760,16 +814,23 @@ class IAPService {
         console.warn('[iapService]   緩存中的商品 ID 列表:', this.cachedProducts.map((p: any) => (p as any).productId || p.id));
         console.warn('[iapService]');
         console.warn('[iapService] 🔍 請檢查以下項目：');
-        console.warn('[iapService]   1. ✅ 商品 ID 是否與 Google Play Console 中的完全一致（區分大小寫）');
-        console.warn('[iapService]   2. ✅ 應用是否已發布到測試軌道（狀態為「已發布」）');
-        console.warn('[iapService]   3. ✅ 測試帳號是否已加入測試人員名單');
-        console.warn('[iapService]   4. ✅ 商品是否已啟用（不是草稿狀態）');
-        console.warn('[iapService]   5. ✅ fetchProducts 是否能成功獲取該商品');
+        if (Platform.OS === 'ios') {
+          console.warn('[iapService]   1. ✅ 商品 ID 是否與 App Store Connect 中的完全一致（區分大小寫）');
+          console.warn('[iapService]   2. ✅ 應用內購買項目是否已建立且狀態為「準備提交」或「已批准」');
+          console.warn('[iapService]   3. ✅ 是否已登入 App Store 或沙盒測試帳號');
+          console.warn('[iapService]   4. ✅ Bundle ID 是否與 App Store Connect 一致');
+          console.warn('[iapService]   5. ✅ fetchProducts 是否能成功獲取該商品');
+        } else {
+          console.warn('[iapService]   1. ✅ 商品 ID 是否與 Google Play Console 中的完全一致（區分大小寫）');
+          console.warn('[iapService]   2. ✅ 應用是否已發布到測試軌道（狀態為「已發布」）');
+          console.warn('[iapService]   3. ✅ 測試帳號是否已加入測試人員名單');
+          console.warn('[iapService]   4. ✅ 商品是否已啟用（不是草稿狀態）');
+          console.warn('[iapService]   5. ✅ fetchProducts 是否能成功獲取該商品');
+        }
         console.warn('[iapService]');
         console.warn('[iapService] 💡 建議：');
         console.warn('[iapService]   - 先確保 fetchProducts 能成功獲取該商品');
         console.warn('[iapService]   - 如果 fetchProducts 返回空，購買時也會找不到商品');
-        console.warn('[iapService]   - 詳細排查指南請查看：GOOGLE_PLAY_FETCH_PRODUCTS_TROUBLESHOOTING.md');
         console.warn('[iapService] ⚠️⚠️⚠️ 將嘗試購買，但可能會失敗 ⚠️⚠️⚠️');
       } else {
         console.log('[iapService] ✓ 商品詳情已獲取，商品 ID:', productIdValue);
@@ -793,14 +854,22 @@ class IAPService {
       }
       console.log('[iapService]   緩存中的商品 ID 列表:', this.cachedProducts.map((p: any) => (p as any).productId || p.id));
       console.log('[iapService]');
-      console.log('[iapService] ⚠️ 如果 Google Play 顯示「找不到您要購買的項目」:');
-      console.log('[iapService]   1. 檢查商品 ID 是否與 Google Play Console 完全一致');
-      console.log('[iapService]   2. 確認商品在 Google Play Console 中狀態為「已啟用」');
-      console.log('[iapService]   3. 確認應用已發布到測試軌道（狀態為「已發布」）');
-      console.log('[iapService]   4. 等待 30-60 分鐘讓 Google Play 完全同步商品資訊');
-      console.log('[iapService]   5. 清除 Google Play 商店快取並重啟設備');
+      if (Platform.OS === 'ios') {
+        console.log('[iapService] ⚠️ 如果 App Store 顯示「找不到您要購買的項目」:');
+        console.log('[iapService]   1. 檢查商品 ID 是否與 App Store Connect 完全一致');
+        console.log('[iapService]   2. 確認應用內購買項目已建立且狀態為「準備提交」或「已批准」');
+        console.log('[iapService]   3. 確認已登入 App Store 或沙盒測試帳號');
+        console.log('[iapService]   4. 等待數分鐘讓 App Store 同步，必要時重啟設備');
+      } else {
+        console.log('[iapService] ⚠️ 如果 Google Play 顯示「找不到您要購買的項目」:');
+        console.log('[iapService]   1. 檢查商品 ID 是否與 Google Play Console 完全一致');
+        console.log('[iapService]   2. 確認商品在 Google Play Console 中狀態為「已啟用」');
+        console.log('[iapService]   3. 確認應用已發布到測試軌道（狀態為「已發布」）');
+        console.log('[iapService]   4. 等待 30-60 分鐘讓 Google Play 完全同步商品資訊');
+        console.log('[iapService]   5. 清除 Google Play 商店快取並重啟設備');
+      }
       console.log('[iapService] ==========================================');
-      
+
       // 方法 1: 嘗試嵌套的 request 格式
       try {
         console.log('[iapService] 嘗試方法 1: 嵌套 request 格式');
@@ -878,6 +947,7 @@ class IAPService {
             
             // 如果是「找不到商品」的錯誤，提供詳細診斷
             if (errorMsg.includes('item') && (errorMsg.includes('not found') || errorMsg.includes('找不到'))) {
+              const storeName = Platform.OS === 'ios' ? 'App Store Connect' : 'Google Play Console';
               console.error('[iapService] ========== 商品找不到錯誤診斷 ==========');
               console.error('[iapService] ❌ 錯誤：找不到商品');
               console.error(`[iapService] 嘗試購買的商品 ID: "${productIdValue}"`);
@@ -886,8 +956,8 @@ class IAPService {
               console.error('[iapService]   1. ❌ fetchProducts 無法獲取該商品');
               console.error('[iapService]      → 請確認商品是否在 fetchProducts 的返回列表中');
               console.error('[iapService]   2. ❌ 商品 ID 不匹配（區分大小寫、空格等）');
-              console.error('[iapService]      → 請與 Google Play Console 中的商品 ID 完全對比');
-              console.error('[iapService]   3. ❌ 商品在 Google Play Console 中未啟用或不存在');
+              console.error(`[iapService]      → 請與 ${storeName} 中的商品 ID 完全對比`);
+              console.error(`[iapService]   3. ❌ 商品在 ${storeName} 中未啟用或不存在`);
               console.error('[iapService] ==========================================');
             }
             
@@ -1083,7 +1153,7 @@ class IAPService {
       
       const isIOS = purchase.platform === 'ios';
       const purchaseToken = (purchase as any).purchaseToken;
-      const originalTransactionIdIOS = isIOS ? (purchase as any).originalTransactionIdentifierIOS : null;
+      const purchaseAny = purchase as any;
       
       // 構建驗證請求
       let verifyRequest: {
@@ -1093,25 +1163,29 @@ class IAPService {
       };
       
       if (isIOS) {
-        // iOS: 使用 receipt (originalTransactionIdentifierIOS 或 transactionId)
-        const receipt = originalTransactionIdIOS 
-          ? String(originalTransactionIdIOS) 
-          : (purchase.transactionId || undefined);
+        // iOS: 優先使用 transactionReceipt（Apple 收據資料，用於後端調用 Apple verifyReceipt API）
+        // 其次使用 originalTransactionIdentifierIOS 或 transactionId 作為 fallback
+        const transactionReceipt = purchaseAny.transactionReceipt ?? purchaseAny.transactionReceiptIOS ?? purchaseAny.receipt;
+        const originalTransactionIdIOS = purchaseAny.originalTransactionIdentifierIOS ?? null;
+        const receipt =
+          (transactionReceipt && String(transactionReceipt).trim())
+            ? String(transactionReceipt)
+            : (originalTransactionIdIOS ? String(originalTransactionIdIOS) : (purchase.transactionId || undefined));
         
         if (!receipt) {
-          console.warn('[iapService] ⚠️ iOS 購買缺少收據資訊');
+          console.warn('[iapService] ⚠️ iOS 購買缺少收據資訊（需 transactionReceipt 或 transactionId）');
           return undefined;
         }
         
         verifyRequest = {
           platform: "APPLE",
-          receipt: receipt,
-          productId: purchase.productId, // 添加 productId
+          receipt,
+          productId: purchase.productId,
         };
         
-        console.log('[iapService] iOS 驗證請求:');
+        console.log('[iapService] iOS (APPLE) 驗證請求:');
         console.log('[iapService]   平台: APPLE');
-        console.log('[iapService]   收據:', receipt);
+        console.log('[iapService]   收據長度:', receipt.length, '(transactionReceipt 或 transactionId)');
         console.log('[iapService]   商品 ID:', purchase.productId);
       } else {
         // Android: 使用 purchaseToken 作為 receipt

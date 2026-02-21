@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { forgotXStoryPassword } from "../config/authApiClient";
 import { translate } from "../i18n/i18n";
+import useResponsive from "../hook/useResponsive";
 
 interface Props {
   onEmailChange: (email: string) => void;
@@ -24,6 +25,7 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
   const [email, setEmail] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [waitingVerification, setWaitingVerification] = useState(false);
+  const { isTablet, maxContentWidth } = useResponsive();
 
   const sendResetEmail = async () => {
     if (!email) {
@@ -51,14 +53,14 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
 
   return (
     <KeyboardAvoidingView
-      style={styles.screen}
+      style={[styles.screen, isTablet && { paddingHorizontal: 24 }]}
       behavior={Platform.select({ ios: "padding", android: undefined })}
     >
-      {/* 左上角 Logo */}
       <View style={styles.logoContainer}>
         <Image style={styles.imgIcon} source={require("../../assets/blueeye.png")} />
       </View>
 
+      <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
       <Text style={styles.title}>{translate("forgotPasswordTitle") || "忘記密碼"}</Text>
 
       {!waitingVerification ? (
@@ -97,6 +99,7 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
           {translate("resetEmailSentMessage") || "重設信已發送，請到信箱確認。"}
         </Text>
       )}
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -105,10 +108,13 @@ const styles = StyleSheet.create({
   // 用 Modal 後，這裡就是一個一般頁面容器即可
   screen: {
     flex: 1,
-    backgroundColor: "#39393B", // 直接實色覆蓋底層，避免「看到底下畫面」
+    backgroundColor: "#39393B",
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 30,
+  },
+  formWrap: {
+    width: "100%",
   },
   title: {
     fontSize: 24,

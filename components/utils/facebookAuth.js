@@ -13,6 +13,9 @@ import { sha256 } from "js-sha256";
 export async function facebookLogin() {
   try {
     console.log("[FB Classic Login] 開始傳統 Facebook 登入");
+    // 先登出以清除殘留 session，避免「已登入但 token 無效」導致流程卡住
+    LoginManager.logOut();
+
     const loginTracking = "enabled"; // 關鍵：避免 iOS 走 Limited Login
     const result = await LoginManager.logInWithPermissions(
       ["public_profile", "email"],
@@ -24,7 +27,7 @@ export async function facebookLogin() {
       grantedPermissions: result?.grantedPermissions,
     });
 
-    if (result.isCancelled) {
+    if (result?.isCancelled) {
       console.log("[FB Classic Login] 使用者取消登入");
       return null; // 使用者取消
     }
@@ -32,7 +35,7 @@ export async function facebookLogin() {
     const data = await AccessToken.getCurrentAccessToken();
     if (!data?.accessToken) {
       console.error("[FB Classic Login] 未取得 accessToken");
-      throw new Error("Failed to get access token");
+      throw new Error("Facebook 登入後未取得 access token，請重試");
     }
 
     console.log("[FB Classic Login] 成功取得 accessToken，長度:", data.accessToken.toString().length);
@@ -40,7 +43,12 @@ export async function facebookLogin() {
     return data.accessToken.toString();
   } catch (error) {
     console.error("[FB Classic Login] 發生錯誤:", error?.message || error);
-    return null;
+    // 讓呼叫端可區分「取消」與「錯誤」：取消不拋出，其餘拋出以顯示提示
+    const msg = error?.message || String(error);
+    if (msg.toLowerCase().includes("cancel") || msg.toLowerCase().includes("取消")) {
+      return null;
+    }
+    throw error;
   }
 }
 
@@ -66,6 +74,9 @@ export async function facebookLimitedLoginIOS() {
   }
 
   try {
+    // 先登出以清除殘留 session
+    LoginManager.logOut();
+
     // 1) 產生 rawNonce
     const rawNonce = generateNonce();
     const nonceForSDK = sha256(rawNonce);
@@ -80,7 +91,7 @@ export async function facebookLimitedLoginIOS() {
     );
     console.log("[FB LimitedLogin] result =", result);
 
-    if (result.isCancelled) {
+    if (result?.isCancelled) {
       console.warn("[FB LimitedLogin] 使用者取消登入");
       return null;
     }
@@ -92,7 +103,7 @@ export async function facebookLimitedLoginIOS() {
     const idToken = auth?.authenticationToken;
     if (!idToken) {
       console.error("[FB LimitedLogin] 未取得 idToken (authenticationToken 為空)");
-      return null;
+      throw new Error("Facebook 登入後未取得 id token，請重試");
     }
 
     console.log("[FB LimitedLogin] idToken(JWT) 長度 =", idToken.length);
@@ -100,6 +111,10 @@ export async function facebookLimitedLoginIOS() {
     return { idToken, rawNonce };
   } catch (e) {
     console.error("[FB LimitedLogin] error =", e);
-    return null;
+    const msg = e?.message || String(e);
+    if (msg.toLowerCase().includes("cancel") || msg.toLowerCase().includes("取消")) {
+      return null;
+    }
+    throw e;
   }
 }

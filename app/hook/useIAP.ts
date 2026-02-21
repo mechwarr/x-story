@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Alert, Platform } from 'react-native';
 import { iapService, PRODUCT_IDS, type ProductId } from '../services/iapService';
 import { useCoins } from '../store/coinContext';
+import { getCoinPacks } from '../config/shopApiClient';
 import type { Product, Purchase, PurchaseError } from 'react-native-iap';
 
 interface UseIAPReturn {
@@ -34,16 +35,32 @@ export function useIAP(): UseIAPReturn {
 
       console.log('[useIAP] ========== 開始載入商品 ==========');
 
-      // 步驟 1: 使用 PRODUCT_IDS 配置（支援 iOS App Store 和 Google Play）
-      // 這些商品 ID 需要在 App Store Connect 和 Google Play Console 中設定
-      const productIds = Object.values(PRODUCT_IDS);
-      
-      console.log('[useIAP] 步驟 1: 使用 PRODUCT_IDS 配置');
+      // 步驟 1: 決定要向「平台」請求的商品 ID 列表
+      // 傳給平台的資料：fetchProducts({ skus: productIds }) → App Store / Google Play 用這些 ID 回傳商品與價格
+      let productIds: string[];
+      if (Platform.OS === 'ios') {
+        // iOS：優先使用後端 API 回傳的 APPLE 金幣包 productId，與 App Store Connect 設定一致才能取得內購資料
+        try {
+          const allPacks = await getCoinPacks();
+          const applePacks = allPacks.filter(p => p.platform === 'APPLE');
+          const apiProductIds = applePacks.map(p => p.productId).filter((id): id is string => !!id && id.trim().length > 0);
+          productIds = apiProductIds.length > 0 ? apiProductIds : Object.values(PRODUCT_IDS);
+          console.log('[useIAP] 步驟 1 (iOS): 使用後端 API APPLE 金幣包 productId');
+          console.log('[useIAP] 後端 APPLE 商品 ID 數量:', apiProductIds.length, '→ 傳給 App Store 的 ID 列表:', productIds);
+        } catch (e) {
+          console.warn('[useIAP] 取得後端金幣包失敗，改用本地 PRODUCT_IDS:', e);
+          productIds = Object.values(PRODUCT_IDS);
+          console.log('[useIAP] 步驟 1 (iOS fallback): 使用 PRODUCT_IDS');
+        }
+      } else {
+        // Android：使用本地 PRODUCT_IDS（與 Google Play Console 商品 ID 一致）
+        productIds = Object.values(PRODUCT_IDS);
+        console.log('[useIAP] 步驟 1 (Android): 使用 PRODUCT_IDS');
+      }
       console.log('[useIAP] 當前平台:', Platform.OS);
-      console.log('[useIAP] 商品 ID 列表:', productIds);
+      console.log('[useIAP] 傳給平台的商品 ID 列表:', productIds);
       console.log('[useIAP] 商品 ID 數量:', productIds.length);
-      console.log('[useIAP] 商品 ID 來源: PRODUCT_IDS (支援 iOS 和 Android)');
-      
+
       // 驗證商品 ID 都是有效的字串
       const invalidIds = productIds.filter(id => !id || typeof id !== 'string' || id.trim().length === 0);
       if (invalidIds.length > 0) {

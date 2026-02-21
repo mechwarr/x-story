@@ -11,6 +11,7 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		4E248F912E57AD9E00C1E8F3 /* main.jsbundle in Resources */ = {isa = PBXBuildFile; fileRef = 4E9228022E329687006CA995 /* main.jsbundle */; };
+		4ED2CD872F3E471C00A44735 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4ED2CD862F3E471C00A44735 /* StoreKit.framework */; };
 		4EEF970D2F0C253200F3E4DB /* WeChatModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EEF970C2F0C253200F3E4DB /* WeChatModule.swift */; };
 		4EEF970F2F0C254500F3E4DB /* WeChatPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EEF970E2F0C254500F3E4DB /* WeChatPackage.swift */; };
 		4EEF97112F0C475600F3E4DB /* WeChatPackage.m in Sources */ = {isa = PBXBuildFile; fileRef = 4EEF97102F0C475600F3E4DB /* WeChatPackage.m */; };
@@ -29,6 +30,7 @@
 		41443B28EB928A3AA28D16B1 /* libPods-storyappv2.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-storyappv2.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		460F09E9B2DED3B90428C8F0 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = storyappv2/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		4E9228022E329687006CA995 /* main.jsbundle */ = {isa = PBXFileReference; lastKnownFileType = text; path = main.jsbundle; sourceTree = "<group>"; };
+		4ED2CD862F3E471C00A44735 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		4EEF970C2F0C253200F3E4DB /* WeChatModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WeChatModule.swift; path = storyappv2/WeChatModule.swift; sourceTree = "<group>"; };
 		4EEF970E2F0C254500F3E4DB /* WeChatPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WeChatPackage.swift; path = storyappv2/WeChatPackage.swift; sourceTree = "<group>"; };
 		4EEF97102F0C475600F3E4DB /* WeChatPackage.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = WeChatPackage.m; path = storyappv2/WeChatPackage.m; sourceTree = "<group>"; };
@@ -46,6 +48,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				09D80EB291404D9C0A37D6A5 /* libPods-storyappv2.a in Frameworks */,
+				4ED2CD872F3E471C00A44735 /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +81,7 @@
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				4ED2CD862F3E471C00A44735 /* StoreKit.framework */,
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				41443B28EB928A3AA28D16B1 /* libPods-storyappv2.a */,
 			);
@@ -376,7 +380,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = storyappv2/storyappv2.entitlements;
-				CURRENT_PROJECT_VERSION = 68;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 584QBJVZ28;
 				ENABLE_BITCODE = NO;
 				EXCLUDED_ARCHS = x86_64;
@@ -385,12 +389,12 @@
 					"FB_SONARKIT_ENABLED=1",
 				);
 				INFOPLIST_FILE = storyappv2/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.59;
+				MARKETING_VERSION = 1.0.64;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -415,17 +419,17 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = storyappv2/storyappv2.entitlements;
-				CURRENT_PROJECT_VERSION = 68;
+				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 584QBJVZ28;
 				EXCLUDED_ARCHS = x86_64;
 				INFOPLIST_FILE = storyappv2/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.59;
+				MARKETING_VERSION = 1.0.64;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
 					"$(inherited)",

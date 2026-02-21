@@ -12,6 +12,7 @@ import routes from '../../navigations/routes';
 import AppText from '../AppText';
 import colors from '../../config/colors';
 import apiclient  from '../../config/apiClient';
+import { isTabletWidth } from '../../config/responsive';
 import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins } from '../../config/userApiClient';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../../config/idempotencyKeyCache';
@@ -19,6 +20,7 @@ import { useCoins } from '../../store/coinContext';
 import storage from '../../storage/storage';
 
 const screenWidth = Dimensions.get('window').width;
+const isTablet = isTabletWidth(screenWidth);
 
 function Book(props) {
   const {
@@ -55,7 +57,7 @@ function Book(props) {
   const hasChapter = chapter_type === '章節';
   const isOpen = open === '公開';
 
-  const padImgStyle = screenWidth > 500 ? { width: 225, height: 330 } : {};
+  const padImgStyle = isTablet ? { width: 225, height: 330 } : {};
 
   const chapter = useMemo(() => {
     return nochapter?.find((e) => e.storyid === id);

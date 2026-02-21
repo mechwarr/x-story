@@ -4,10 +4,15 @@ import { useNavigation, DrawerActions } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import AppText from './AppText';
 import { useCoins } from '../store/coinContext';
+import useResponsive from '../hook/useResponsive';
 
 function AppHeader({ news, config, onNewsPress }) {
   const navigation = useNavigation();
   const { coins, refreshCoins } = useCoins();
+  const { horizontalPadding, scale } = useResponsive();
+  const iconSize = Math.round(32 * scale);
+  const coinIconSize = Math.round(20 * scale);
+  const headerHeight = Math.max(50, Math.round(50 * scale));
 
   // 組件掛載時刷新金幣餘額
   useEffect(() => {
@@ -15,14 +20,14 @@ function AppHeader({ news, config, onNewsPress }) {
   }, [refreshCoins]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { height: headerHeight, paddingHorizontal: horizontalPadding }]}>
       {/* 左邊 Drawer 開關 */}
       <Pressable
         onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
         hitSlop={8}
       >
         <Image
-          style={styles.leftIcon}
+          style={[styles.leftIcon, { width: iconSize, height: iconSize }]}
           source={require('../../assets/blueeye.png')}
         />
       </Pressable>
@@ -55,9 +60,9 @@ function AppHeader({ news, config, onNewsPress }) {
         onPress={() => navigation.navigate(routes.PROFILE)}
         hitSlop={8}
       >
-        <Image style={styles.profileIcon} source={require('../../assets/profile.png')} />
+        <Image style={[styles.profileIcon, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]} source={require('../../assets/profile.png')} />
         <View style={styles.coinRow}>
-          <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
+          <Image style={[styles.coinIcon, { width: coinIconSize, height: coinIconSize }]} source={require('../../assets/coin.png')} />
           <Text style={styles.coinText}>{coins}</Text>
         </View>
       </Pressable>
@@ -65,18 +70,14 @@ function AppHeader({ news, config, onNewsPress }) {
   );
 }
 
-const HEADER_HEIGHT = 50;
-
 const styles = StyleSheet.create({
   container: {
-    width: '100%', // 撐滿整個螢幕
-    height: HEADER_HEIGHT,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between', // 左右分散
-    paddingHorizontal: 10,
+    justifyContent: 'space-between',
   },
-  leftIcon: { width: 32, height: 32 },
+  leftIcon: {},
   newsContainer: {
     flex: 1,
     marginHorizontal: 10,
@@ -86,16 +87,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   profileIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
     marginBottom: 2,
   },
   coinRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  coinIcon: { width: 20, height: 20, marginRight: 4 },
+  coinIcon: { marginRight: 4 },
   coinText: { fontSize: 16, fontWeight: 'bold', color: "#f0ad57", },
 });
 

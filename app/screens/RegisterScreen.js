@@ -7,10 +7,10 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Dimensions,
 } from "react-native";
 import { translate } from "../i18n/i18n";
 import RichText from "../components/RichText";
+import useResponsive from "../hook/useResponsive";
 
 const loginOptions = [
   {
@@ -43,8 +43,8 @@ const loginOptions = [
 
 export default function RegisterScreen(props) {
   const [agreeChecked, setAgreeChecked] = useState(false);
-  const deviceWidth = Dimensions.get("window").width;
-  const buttonWidth = Math.min(420, Math.max(260, Math.round(deviceWidth * 0.82)));
+  const { contentWidth, isTablet, maxContentWidth } = useResponsive();
+  const buttonWidth = Math.min(420, Math.max(260, Math.round(contentWidth * 0.82)));
 
 
   const handlePress = (handlerName) => {
@@ -74,7 +74,8 @@ export default function RegisterScreen(props) {
       </View>
 
 
-      <View style={styles.container}>
+      <View style={[styles.container, isTablet && styles.containerTablet]}>
+        <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
         {/* 標題 */}
         <Text style={styles.title}>{translate("welcomeSignUp")}</Text>
         <Text style={styles.title}>{translate("signUpPrompt")}</Text>
@@ -213,23 +214,26 @@ export default function RegisterScreen(props) {
             </Text>
           </TouchableOpacity>
         </View>
+        </View>
       </View>
 
     </View>
   );
 }
 
-const screenHeight = Dimensions.get("window").height;
-const paddingTopPercent = screenHeight * 0.1;
-
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "flex-start",
-    paddingTop: paddingTopPercent,
+    paddingTop: "10%",
     paddingHorizontal: 20,
     backgroundColor: "#39393B",
+  },
+  containerTablet: {
+    paddingHorizontal: 24,
+  },
+  contentWrap: {
+    flex: 1,
   },
   title: {
     fontSize: 24,

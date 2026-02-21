@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { translate } from "../i18n/i18n";
 import { resetXStoryPassword } from "../config/authApiClient";
+import useResponsive from "../hook/useResponsive";
 
 interface Props {
     token: string;               // 由 deep link 解析得到
@@ -89,14 +90,15 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
     };
 
 
+    const { isTablet, maxContentWidth } = useResponsive();
+
     return (
-        <View style={styles.container}>
-            {/* 左上角 Logo */}
+        <View style={[styles.container, isTablet && { paddingHorizontal: 24 }]}>
             <View style={styles.logoContainer}>
                 <Image style={styles.imgIcon} source={require("../../assets/blueeye.png")} />
             </View>
 
-            {/* 標題區 */}
+            <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
             <View style={{ alignItems: "center", marginBottom: 30 }}>
                 <Text style={styles.title}>{translate("resetPassword")}</Text>
             </View>
@@ -176,6 +178,7 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
             <TouchableOpacity style={styles.cancelButton} onPress={onCancel} disabled={isSending}>
                 <Text style={styles.cancelButtonText}>{translate("cancel")}</Text>
             </TouchableOpacity>
+            </View>
         </View>
     );
 }
@@ -188,6 +191,9 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         paddingHorizontal: 28,
+    },
+    formWrap: {
+        width: "100%",
     },
     logoContainer: {
         position: "absolute",

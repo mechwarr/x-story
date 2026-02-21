@@ -87,7 +87,7 @@ def saveMappingFile(variant) {
     if (mappingFile.exists()) {
         def mappingDir = file("${projectDir}/mapping")
         mappingDir.mkdirs()
-        def targetMappingFile = file("${mappingDir}/mapping-${variant.versionName}-${variant.versionCode}.txt")
+        def targetMappingFile = file("${mappingDir}/mapping-${variant.versionName}-${variant.versionCode 4
         copy {
             from mappingFile
             into mappingDir
@@ -531,8 +531,8 @@ android {
         applicationId 'com.rueiyang.story'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 68
-        versionName "1.0.59"
+        versionCode 70
+        versionName "1.0.64"
     }
     signingConfigs {
         debug {
@@ -614,7 +614,8 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
-    implementation 'com.facebook.android:facebook-android-sdk:latest.release' 
+    // 鎖定版本：與 react-native-fbsdk-next 及 iOS Pod (18.0.2) 一致，避免 latest.release 拉新版本導致閃退
+    implementation 'com.facebook.android:facebook-android-sdk:18.0.2' 
     implementation "io.github.hyochan.openiap:openiap-google:1.2.6"
     // 微信官方 SDK
     // ⚠️ 重要：微信 SDK 無法從 Maven 倉庫直接獲取，需要手動下載 AAR 文件
