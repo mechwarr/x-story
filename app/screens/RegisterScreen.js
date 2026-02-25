@@ -11,6 +11,7 @@ import {
 import { translate } from "../i18n/i18n";
 import RichText from "../components/RichText";
 import useResponsive from "../hook/useResponsive";
+import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
 
 const loginOptions = [
   {
@@ -43,8 +44,9 @@ const loginOptions = [
 
 export default function RegisterScreen(props) {
   const [agreeChecked, setAgreeChecked] = useState(false);
-  const { contentWidth, isTablet, maxContentWidth } = useResponsive();
+  const { contentWidth, isTablet, maxContentWidth, scale } = useResponsive();
   const buttonWidth = Math.min(420, Math.max(260, Math.round(contentWidth * 0.82)));
+  const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
 
   const handlePress = (handlerName) => {
@@ -68,7 +70,7 @@ export default function RegisterScreen(props) {
       {/* 左上角 Logo */}
       <View style={styles.logoContainer}>
         <Image
-          style={styles.imgIcon}
+          style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]}
           source={require('../../assets/blueeye.png')}
         />
       </View>
@@ -320,8 +322,6 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
   },
   imgIcon: {
-    width: 40,
-    height: 40,
     resizeMode: "contain",
   },
   logoContainer: {

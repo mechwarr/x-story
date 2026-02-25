@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
 const rowStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   label: { color: '#9aa3ad', width: 110, fontSize: 13 },
-  value: { color: '#e7eef6', flex: 1, fontSize: 15 },
+  value: { color: '#ffffff', flex: 1, fontSize: 15 },
   strong: { fontWeight: '800' },
   mono: { fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }) as any },
 });

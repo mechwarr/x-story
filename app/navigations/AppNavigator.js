@@ -15,6 +15,7 @@ import VersionScreen from "../screens/VersionScreen";
 import {ResetScreen} from "../screens/ResetScreen";
 import ShopScreen from "../screens/ShopScreen";
 import useResponsive from "../hook/useResponsive";
+import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
 
 const Drawer = createDrawerNavigator();
 
@@ -24,7 +25,7 @@ export default function AppNavigator() {
   const [currentBackIdx, setCurrentBackIdx] = useState(0);
   const { isTablet, scale } = useResponsive();
   const drawerWidth = isTablet ? 260 : 180;
-  const drawerIconSize = Math.round(40 * scale);
+  const drawerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
   return (
     <StoryContext.Provider

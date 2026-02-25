@@ -17,6 +17,7 @@ import routes from '../navigations/routes';
 import { useCoins } from '../store/coinContext';
 import { getUserProfile, updateUserProfile } from '../config/userApiClient';
 import useResponsive from '../hook/useResponsive';
+import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
@@ -34,7 +35,7 @@ export default function ProfileScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { contentWidth, isTablet, maxContentWidth, horizontalPadding, scale } = useResponsive();
   const avatarSize = Math.min(Math.round(contentWidth / 4), 120);
-  const iconSize = Math.round(42 * scale);
+  const iconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
   // ---- 載入用戶資料 ----
   useEffect(() => {

@@ -1,7 +1,11 @@
 // userApiClient.ts
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RestfulApi } from "./api";
 import { portURL, devBaseUrl } from "./apiClient";
 import tokenStorage from "../auth/Storage";
+
+const ENTITLEMENTS_CACHE_KEY = 'entitlements_cache';
+const ENTITLEMENTS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 分鐘
 
 // 創建使用 portURL 的 API 實例（用於用戶相關 API）
 const userApi = new RestfulApi({
@@ -63,6 +67,90 @@ export async function getBookstoreList(): Promise<BookstoreItem[]> {
   } catch (error) {
     console.error("[userApiClient] 獲取書店列表時發生錯誤:", error);
     return [];
+  }
+}
+
+/**
+ * 我的已購買書籍項目（GET api/me/entitlements 單筆）
+ */
+export interface BookEntitlementItem {
+  storyListId: number;
+  createdAt: string; // ISO 8601 格式，購買時間
+  story: Story;
+}
+
+/**
+ * 獲取我的已購買書籍 Response（GET api/me/entitlements）
+ */
+export interface GetEntitlementsResponse {
+  items: BookEntitlementItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/**
+ * 獲取我的已購買書籍（含快取，快取 TTL 5 分鐘）
+ * @param page - 頁碼，預設 1
+ * @param limit - 每頁筆數，預設 20
+ * @returns Promise<GetEntitlementsResponse>
+ */
+export async function getEntitlements(
+  page: number = 1,
+  limit: number = 20
+): Promise<GetEntitlementsResponse> {
+  const cacheKey = `${ENTITLEMENTS_CACHE_KEY}_${page}_${limit}`;
+
+  const tryCache = async (): Promise<GetEntitlementsResponse | null> => {
+    try {
+      const raw = await AsyncStorage.getItem(cacheKey);
+      if (!raw) return null;
+      const { data, fetchedAt } = JSON.parse(raw);
+      if (Date.now() - fetchedAt > ENTITLEMENTS_CACHE_TTL_MS) return null;
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
+  const cached = await tryCache();
+  if (cached) {
+    console.log("[userApiClient] ✓ 使用已快取的 entitlements");
+    return cached;
+  }
+
+  try {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    const endpoint = `api/me/entitlements?${params.toString()}`;
+
+    const token = await tokenStorage.getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await userApi.get<GetEntitlementsResponse>(endpoint, headers);
+
+    if (res && Array.isArray(res.items)) {
+      const data: GetEntitlementsResponse = {
+        items: res.items,
+        total: res.total ?? res.items.length,
+        page: res.page ?? page,
+        limit: res.limit ?? limit,
+      };
+      try {
+        await AsyncStorage.setItem(cacheKey, JSON.stringify({ data, fetchedAt: Date.now() }));
+      } catch (e) {
+        // 快取寫入失敗不影響回傳
+      }
+      console.log("[userApiClient] ✓ 獲取 entitlements 成功，數量:", data.items.length);
+      return data;
+    }
+    console.warn("[userApiClient] ✗ 獲取 entitlements 失敗，響應格式不正確:", res);
+    return { items: [], total: 0, page, limit };
+  } catch (error) {
+    console.error("[userApiClient] 獲取 entitlements 時發生錯誤:", error);
+    return { items: [], total: 0, page, limit };
   }
 }
 

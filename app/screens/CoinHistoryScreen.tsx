@@ -7,10 +7,13 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
-import { getCoinLedger, CoinLedgerItem } from '../config/userApiClient';
+import routes from '../navigations/routes';
+
+import { getCoinLedger, getEntitlements, CoinLedgerItem, BookEntitlementItem } from '../config/userApiClient';
 import { useCoins } from '../store/coinContext';
 import { PRODUCT_NAMES } from '../services/iapService';
 
@@ -23,7 +26,23 @@ const TYPE_LABELS: Record<string, string> = {
   spent: '消費',
   refund: '退款',
   expired: '過期',
+  BOOK_PURCHASE: '書籍購買',
 };
+
+/** 以購買時間比對 ledger 與 entitlement（允許誤差 2 秒內視為同一筆） */
+function findBookNameByCreatedAt(
+  ledgerCreatedAt: string,
+  entitlements: BookEntitlementItem[]
+): string | null {
+  const t = new Date(ledgerCreatedAt).getTime();
+  for (const e of entitlements) {
+    const et = new Date(e.createdAt).getTime();
+    if (Math.abs(t - et) <= 2000) {
+      return e.story?.main_menu_name ?? null;
+    }
+  }
+  return null;
+}
 
 /**
  * 從 source 字串解析出第一行（產品名稱／BONUS）與第二行（ORDER 字串）。
@@ -67,9 +86,11 @@ function formatDate(iso: string): string {
 
 export default function CoinHistoryScreen({ embedded = false }: { embedded?: boolean }) {
   const Wrapper: any = embedded ? View : SafeAreaView;
+  const navigation = useNavigation();
   const { coins: balance, refreshCoins } = useCoins();
 
   const [logs, setLogs] = useState<CoinLedgerItem[]>([]);
+  const [entitlements, setEntitlements] = useState<BookEntitlementItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,8 +98,12 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
     setLoading(true);
     setError(null);
     try {
-      const logsRes = await getCoinLedger();
+      const [logsRes, entitlementsRes] = await Promise.all([
+        getCoinLedger(),
+        getEntitlements(1, 100),
+      ]);
       setLogs(logsRes);
+      setEntitlements(entitlementsRes.items ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : '載入失敗');
     } finally {
@@ -101,16 +126,27 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
     <Wrapper style={styles.safe}>
       <View style={styles.header}>
         <Text style={styles.title}>金幣紀錄</Text>
-        {loading && !logs.length ? (
-          <View style={styles.balanceRow}>
-            <ActivityIndicator size="small" color="#f0ad57" />
+        <View style={styles.balanceChargeRow}>
+          <View style={styles.balanceRowSpacer} />
+          {loading && !logs.length ? (
+            <View style={styles.balanceRow}>
+              <ActivityIndicator size="small" color="#f0ad57" />
+            </View>
+          ) : (
+            <View style={styles.balanceRow}>
+              <Image style={styles.coin} source={require('../../assets/coin.png')} />
+              <Text style={styles.balanceText}>{balance}</Text>
+            </View>
+          )}
+          <View style={styles.chargeBtnWrap}>
+            <Pressable
+              style={styles.chargeBtn}
+              onPress={() => navigation.navigate(routes.PURCHASE as never)}
+            >
+              <Text style={styles.chargeText}>加值</Text>
+            </Pressable>
           </View>
-        ) : (
-          <View style={styles.balanceRow}>
-            <Image style={styles.coin} source={require('../../assets/coin.png')} />
-            <Text style={styles.balanceText}>{balance}</Text>
-          </View>
-        )}
+        </View>
       </View>
 
       {error ? (
@@ -130,7 +166,10 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
           ) : (
             logs.map((log) => {
               const { line1, line2 } = log.source ? parseSourceDisplay(log.source) : { line1: '', line2: '' };
-              const rowTitle = line1 || (TYPE_LABELS[log.type] ?? log.type);
+              const bookName =
+                log.type === 'BOOK_PURCHASE' ? findBookNameByCreatedAt(log.createdAt, entitlements) : null;
+              const rowTitle =
+                line1 || bookName || (TYPE_LABELS[log.type] ?? log.type);
               const rowNote = line2 || log.source;
               return (
               <View key={log.id} style={styles.row}>
@@ -182,9 +221,24 @@ const styles = StyleSheet.create({
 
   header: { alignItems: 'center', paddingTop: 8, paddingBottom: 6 },
   title: { color: '#e7eef6', fontWeight: '700', fontSize: 18, marginBottom: 6 },
-  balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  coin: { width: 18, height: 18 },
-  balanceText: { color: '#f0ad57', fontWeight: '700' },
+  balanceChargeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    justifyContent: 'center',
+  },
+  balanceRowSpacer: { flex: 1 },
+  balanceRow: { flexDirection: 'row', alignItems: 'center' },
+  coin: { width: 20, height: 20, marginRight: 4 },
+  balanceText: { fontSize: 16, fontWeight: 'bold', color: '#f0ad57' },
+  chargeBtnWrap: { flex: 1, flexDirection: 'row', justifyContent: 'flex-start', paddingLeft: 12 },
+  chargeBtn: {
+    backgroundColor: '#ff3344',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  chargeText: { color: '#fff', fontWeight: '700' },
 
   errorWrap: { paddingHorizontal: 16, paddingVertical: 8 },
   errorText: { color: '#e57373', fontSize: 14 },
@@ -200,8 +254,8 @@ const styles = StyleSheet.create({
   date: { color: '#a6afba', fontSize: 12, marginTop: 6 },
 
   right: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  amount: { fontWeight: '800', fontSize: 18 },
-  plus: { color: '#B6F07B' },
-  minus: { color: '#e9e9e9' },
+  amount: { fontWeight: '800', fontSize: 18, color: '#ffffff' },
+  plus: { color: '#ffffff' },
+  minus: { color: '#ffffff' },
   coinMini: { width: 18, height: 18 },
 });

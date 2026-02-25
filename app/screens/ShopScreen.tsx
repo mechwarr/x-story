@@ -8,6 +8,7 @@ import routes from '../navigations/routes';
 import PackCard, { PackItem } from '../components/Purchase/PackCard';
 import { useIAP } from '../hook/useIAP';
 import useResponsive from '../hook/useResponsive';
+import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
 import { type ProductId } from '../services/iapService';
 import { useCoins } from '../store/coinContext';
 import { getCoinPacks, type CoinPack } from '../config/shopApiClient';
@@ -179,7 +180,7 @@ export default function ShopScreen() {
   };
 
   const { isTablet, maxContentWidth, horizontalPadding, scale } = useResponsive();
-  const iconSize = Math.round(32 * scale);
+  const iconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
   const TITLE_TOP_PADDING = 56;
 
   return (

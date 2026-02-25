@@ -15,6 +15,7 @@ import PurchaseHistoryScreen from './PurchaseHistoryScreen';
 import routes from '../navigations/routes';
 import useResponsive from '../hook/useResponsive';
 import { translate } from '../i18n/i18n';
+import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
 
 type TabKey = 'coin' | 'purchase';
 
@@ -22,7 +23,7 @@ export default function HistoryScreen() {
   const [tab, setTab] = useState<TabKey>('coin');
   const navigation = useNavigation();
   const { isTablet, maxContentWidth, horizontalPadding, scale } = useResponsive();
-  const iconSize = Math.round(36 * scale);
+  const iconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
   return (
     <SafeAreaView style={styles.safe}>

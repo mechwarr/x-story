@@ -87,7 +87,7 @@ def saveMappingFile(variant) {
     if (mappingFile.exists()) {
         def mappingDir = file("${projectDir}/mapping")
         mappingDir.mkdirs()
-        def targetMappingFile = file("${mappingDir}/mapping-${variant.versionName}-${variant.versionCode 4
+        def targetMappingFile = file("${mappingDir}/mapping-${variant.versionName}-${variant.versionCode}.txt")
         copy {
             from mappingFile
             into mappingDir
@@ -531,8 +531,8 @@ android {
         applicationId 'com.rueiyang.story'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 70
-        versionName "1.0.64"
+        versionCode 71
+        versionName "1.0.66"
     }
     signingConfigs {
         debug {

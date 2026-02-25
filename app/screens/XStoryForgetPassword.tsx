@@ -14,6 +14,7 @@ import {
 import { forgotXStoryPassword } from "../config/authApiClient";
 import { translate } from "../i18n/i18n";
 import useResponsive from "../hook/useResponsive";
+import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
 
 interface Props {
   onEmailChange: (email: string) => void;
@@ -25,7 +26,8 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
   const [email, setEmail] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [waitingVerification, setWaitingVerification] = useState(false);
-  const { isTablet, maxContentWidth } = useResponsive();
+  const { isTablet, maxContentWidth, scale } = useResponsive();
+  const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
   const sendResetEmail = async () => {
     if (!email) {
@@ -57,7 +59,7 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
       behavior={Platform.select({ ios: "padding", android: undefined })}
     >
       <View style={styles.logoContainer}>
-        <Image style={styles.imgIcon} source={require("../../assets/blueeye.png")} />
+        <Image style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]} source={require("../../assets/blueeye.png")} />
       </View>
 
       <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
@@ -171,8 +173,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   imgIcon: {
-    width: 40,
-    height: 40,
     resizeMode: "contain",
   },
   logoContainer: {

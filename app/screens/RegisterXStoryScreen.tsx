@@ -11,6 +11,7 @@ import {
 import { translate } from "../i18n/i18n";
 import { registerWithXStory, resentRegisterMail, ResentRegisterMailRequest } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
+import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
 
 interface Props {
   onCancel: () => void;
@@ -73,12 +74,13 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
     }
   };
 
-  const { isTablet, maxContentWidth } = useResponsive();
+  const { isTablet, maxContentWidth, scale } = useResponsive();
+  const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
   return (
     <View style={[styles.container, isTablet && { paddingHorizontal: 24 }]}>
       <View style={styles.logoContainer}>
-        <Image style={styles.imgIcon} source={require("../../assets/blueeye.png")} />
+        <Image style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]} source={require("../../assets/blueeye.png")} />
       </View>
 
       <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
@@ -285,7 +287,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 20,
   },
-  imgIcon: { width: 40, height: 40, resizeMode: "contain" },
+  imgIcon: { resizeMode: "contain" },
   logoContainer: { position: "absolute", top: 20, left: 20, zIndex: 10 },
 
   passwordInputWrapper: {

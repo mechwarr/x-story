@@ -5,12 +5,13 @@ import routes from '../navigations/routes';
 import AppText from './AppText';
 import { useCoins } from '../store/coinContext';
 import useResponsive from '../hook/useResponsive';
+import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
 
 function AppHeader({ news, config, onNewsPress }) {
   const navigation = useNavigation();
   const { coins, refreshCoins } = useCoins();
   const { horizontalPadding, scale } = useResponsive();
-  const iconSize = Math.round(32 * scale);
+  const iconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
   const coinIconSize = Math.round(20 * scale);
   const headerHeight = Math.max(50, Math.round(50 * scale));
 

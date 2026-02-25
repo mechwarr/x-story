@@ -12,6 +12,7 @@ import {
 import { translate } from "../i18n/i18n";
 import { resetXStoryPassword } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
+import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
 
 interface Props {
     token: string;               // 由 deep link 解析得到
@@ -90,12 +91,13 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
     };
 
 
-    const { isTablet, maxContentWidth } = useResponsive();
+    const { isTablet, maxContentWidth, scale } = useResponsive();
+    const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
     return (
         <View style={[styles.container, isTablet && { paddingHorizontal: 24 }]}>
             <View style={styles.logoContainer}>
-                <Image style={styles.imgIcon} source={require("../../assets/blueeye.png")} />
+                <Image style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]} source={require("../../assets/blueeye.png")} />
             </View>
 
             <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
@@ -202,8 +204,6 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     imgIcon: {
-        width: 40,
-        height: 40,
         resizeMode: "contain",
     },
     title: {

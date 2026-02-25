@@ -4,6 +4,9 @@
  * - 內容最大寬度避免在大螢幕上過度拉寬
  */
 export const BREAKPOINT_TABLET = 768;
+
+/** 頂欄 / Drawer 藍眼 logo (blueeye.png) 基準尺寸，實際為 Math.round(HEADER_ICON_BASE_SIZE * scale) */
+export const HEADER_ICON_BASE_SIZE = 32;
 export const MAX_CONTENT_WIDTH = 600;
 /** 平板時左右留白（內容置中時每側的 padding） */
 export const TABLET_HORIZONTAL_PADDING = 24;

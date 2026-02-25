@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { translate } from "../i18n/i18n";
 import useResponsive from "../hook/useResponsive";
+import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
 
 const loginOptions = [
   {
@@ -40,8 +41,9 @@ const loginOptions = [
 ];
 
 export default function LoginScreen(props) {
-  const { contentWidth, isTablet, maxContentWidth } = useResponsive();
+  const { contentWidth, isTablet, maxContentWidth, scale } = useResponsive();
   const buttonWidth = Math.min(420, Math.max(260, Math.round(contentWidth * 0.82)));
+  const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
   const handlePress = (handlerName) => {
     if (props[handlerName] && typeof props[handlerName] === "function") {
@@ -60,7 +62,7 @@ export default function LoginScreen(props) {
       {/* 左上角 Logo */}
       <View style={styles.logoContainer}>
         <Image
-          style={styles.imgIcon}
+          style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]}
           source={require("../../assets/blueeye.png")}
         />
       </View>
@@ -227,8 +229,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   imgIcon: {
-    width: 40,
-    height: 40,
     resizeMode: "contain",
   },
   logoContainer: {

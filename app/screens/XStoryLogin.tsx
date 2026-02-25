@@ -12,6 +12,7 @@ import { XStoryForgetPassword } from "./XStoryForgetPassword";
 import { translate } from "../i18n/i18n";
 import { loginWithXStory, LoginTokenResult } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
+import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
 
 interface Props {
     onLoginSuccess: (tokenResult: LoginTokenResult) => void;
@@ -23,7 +24,8 @@ export function XStoryLogin({ onLoginSuccess, onCancel }: Props) {
     const [password, setPassword] = useState("");
     const [showForgetPassword, setShowForgetPassword] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const { isTablet, maxContentWidth } = useResponsive();
+    const { isTablet, maxContentWidth, scale } = useResponsive();
+    const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
     const handleLogin = async () => {
         const tokenResult = await loginWithXStory({ email, password });
@@ -33,7 +35,7 @@ export function XStoryLogin({ onLoginSuccess, onCancel }: Props) {
     return (
         <View style={[styles.container, isTablet && { paddingHorizontal: 24 }]}>
             <View style={styles.logoContainer}>
-                <Image style={styles.imgIcon} source={require("../../assets/blueeye.png")} />
+                <Image style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]} source={require("../../assets/blueeye.png")} />
             </View>
 
             <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
@@ -169,8 +171,6 @@ const styles = StyleSheet.create({
         textDecorationLine: "underline",
     },
     imgIcon: {
-        width: 40,
-        height: 40,
         resizeMode: "contain",
     },
     logoContainer: {
