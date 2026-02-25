@@ -38,7 +38,7 @@ function formatDateTime(isoString: string): string {
 // 將 IAP 收據轉換為 UI 顯示格式（僅用平台顯示名稱）
 function convertReceiptToPurchase(receipt: IapReceipt): Purchase {
   const productName = iapService.getProductName(receipt.productId);
-  
+
   return {
     id: receipt.receiptId,
     amountNTD: 0, // TODO: 需要從後端獲取實際價格，或根據 productId 查詢
@@ -64,7 +64,7 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
     try {
       setIsLoading(true);
       setError(null);
-      
+
       // 先載入平台產品列表，讓 getProductName 能回傳平台顯示名稱
       try {
         await iapService.initialize();
@@ -72,16 +72,15 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
       } catch (e) {
         // IAP 未就緒時仍可顯示收據，名稱會顯示 productId
       }
-      
+
       const receipts = await iapService.getIapReceipts();
-      
-      // 按時間倒序排列（最新的在前）
+
       receipts.sort((a, b) => {
         const dateA = new Date(a.createdAt);
         const dateB = new Date(b.createdAt);
         return dateB.getTime() - dateA.getTime();
       });
-      
+
       const convertedPurchases = receipts.map(convertReceiptToPurchase);
       setPurchases(convertedPurchases);
     } catch (err) {
@@ -137,14 +136,12 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
         <ScrollView contentContainerStyle={styles.list}>
           {purchases.map((p) => (
             <View key={p.id} style={styles.card}>
-              <Row label="收據編號" value={p.id} mono />
+              <Row label="訂單編號" value={p.id} mono />
               {p.amountNTD > 0 && (
                 <Row label="交易額度 (NTD)" value={`$${p.amountNTD}`} strong />
               )}
               <Row label="交易商品名稱" value={p.productName} />
-              <Row label="獲得金幣" value={`${p.totalCoins} (基礎 ${p.baseCoins} + 贈送 ${p.bonusCoins})`} />
               <Row label="交易時間" value={p.purchasedAt} />
-              <Row label="狀態" value={p.status} />
             </View>
           ))}
         </ScrollView>

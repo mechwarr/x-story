@@ -14,6 +14,7 @@ import CoinHistoryScreen from './CoinHistoryScreen';
 import PurchaseHistoryScreen from './PurchaseHistoryScreen';
 import routes from '../navigations/routes';
 import useResponsive from '../hook/useResponsive';
+import { translate } from '../i18n/i18n';
 
 type TabKey = 'coin' | 'purchase';
 
@@ -38,16 +39,28 @@ export default function HistoryScreen() {
       <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%', paddingHorizontal: horizontalPadding }]}>
       <View style={styles.segmentBar}>
         <SegmentButton
-          label="金幣紀錄"
+          label={translate('coinHistory')}
           active={tab === 'coin'}
           onPress={() => setTab('coin')}
         />
         <SegmentButton
-          label="購買記錄"
+          label={translate('transactionHistory')}
           active={tab === 'purchase'}
           onPress={() => setTab('purchase')}
         />
       </View>
+
+      {tab === 'purchase' && (
+        <View style={styles.chargeRow}>
+          <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
+          <Pressable
+            style={styles.chargeBtn}
+            onPress={() => navigation.navigate(routes.PURCHASE as never)}
+          >
+            <Text style={styles.chargeText}>加值</Text>
+          </Pressable>
+        </View>
+      )}
 
       <View style={styles.content}>
         {tab === 'coin' ? (
@@ -123,5 +136,20 @@ const styles = StyleSheet.create({
   },
   segText: { color: '#cfd7df', fontWeight: '700' },
   segTextActive: { color: '#eafff9' },
+  chargeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  coinIcon: { width: 18, height: 18 },
+  chargeBtn: {
+    backgroundColor: '#ff3344',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  chargeText: { color: '#fff', fontWeight: '700' },
   content: { flex: 1, paddingTop: 6 },
 });

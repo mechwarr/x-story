@@ -273,5 +273,15 @@
         "zh-TW": "購買",
         "zh-CN": "购买",
         "en": "Purchase"
+    },
+    "coinHistory": {
+        "zh-TW": "金幣紀錄",
+        "zh-CN": "金币记录",
+        "en": "Coin History"
+    },
+    "transactionHistory": {
+        "zh-TW": "交易紀錄",
+        "zh-CN": "交易记录",
+        "en": "Transaction History"
     }
 }
