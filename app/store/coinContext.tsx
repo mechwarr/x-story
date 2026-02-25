@@ -15,10 +15,32 @@ interface CoinContextType {
 
 const CoinContext = createContext<CoinContextType | undefined>(undefined);
 
-export function CoinProvider({ children }: { children: ReactNode }) {
+/** 供登出時重置金幣狀態，避免換帳號後仍顯示上一用戶餘額 */
+export type CoinResetRef = React.MutableRefObject<(() => void) | null>;
+
+interface CoinProviderProps {
+  children: ReactNode;
+  /** 可選：登出時呼叫 ref.current() 可將金幣狀態重置為 0 */
+  resetRef?: CoinResetRef;
+}
+
+export function CoinProvider({ children, resetRef }: CoinProviderProps) {
   const [coins, setCoinsState] = useState<number>(0);
   const lastRefreshAt = useRef<number>(0);
   const isLoadingRef = useRef<boolean>(false);
+
+  // 暴露重置函數給外部（登出時呼叫）
+  useEffect(() => {
+    if (!resetRef) return;
+    resetRef.current = () => {
+      setCoinsState(0);
+      lastRefreshAt.current = 0;
+      console.log('[coinContext] 已重置金幣狀態（登出）');
+    };
+    return () => {
+      resetRef.current = null;
+    };
+  }, [resetRef]);
 
   // 從 Storage 載入金幣（初始化時使用）
   const loadCoinsFromStorage = useCallback(async () => {

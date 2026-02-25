@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { appleLogin } from "../../components/utils/appleAuth";
 import { facebookLogin, facebookLimitedLoginIOS } from "../../components/utils/facebookAuth";
 import {
@@ -21,8 +21,10 @@ import {
   appleLoginWithXStory,
   wechatLoginWithXStory
 } from '../config/authApiClient';
+import { useCoins } from '../store/coinContext';
 
 export default function LoginContainer({ onLoginSuccess }) {
+  const { refreshCoins } = useCoins();
   const [showEmailVerification, setShowEmailVerification] = useState(false);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [showRegisterView, setshowRegisterView] = useState(true);
@@ -55,6 +57,12 @@ export default function LoginContainer({ onLoginSuccess }) {
     setShowEmailLogin(false);
   };
 
+  /** 登入成功：先觸發金幣刷新（新帳號餘額），再切換至主畫面 */
+  const handleLoginSuccess = useCallback(() => {
+    refreshCoins(true);
+    onLoginSuccess();
+  }, [onLoginSuccess, refreshCoins]);
+
   const handleXStoryLoginSuccess = async (tokenResult) => {
     console.log('handleXStoryLoginSuccess tokenResult:', {
       hasAccessToken: !!tokenResult?.accessToken,
@@ -67,7 +75,7 @@ export default function LoginContainer({ onLoginSuccess }) {
         accessToken: tokenResult.accessToken,
         refreshToken: tokenResult.refreshToken,
       });
-      onLoginSuccess();
+      handleLoginSuccess();
     }
   };
 
@@ -142,7 +150,7 @@ export default function LoginContainer({ onLoginSuccess }) {
           accessToken: tokenResult.accessToken,
           refreshToken: tokenResult.refreshToken,
         });
-        onLoginSuccess();
+        handleLoginSuccess();
       } else {
         console.error('[Facebook Login] 後端返回的 accessToken 為空');
         alert("serverToken is empty, please try again");
@@ -289,7 +297,7 @@ export default function LoginContainer({ onLoginSuccess }) {
             accessToken: tokenResult.accessToken,
             refreshToken: tokenResult.refreshToken,
           });
-          onLoginSuccess();
+          handleLoginSuccess();
         } else {
           console.error('[Google Login] 後端返回的 accessToken 為空');
           console.error('[Google Login] 請檢查 console 中的 [Google Login API] 後端回應 日誌，查看具體錯誤訊息');
@@ -333,7 +341,7 @@ export default function LoginContainer({ onLoginSuccess }) {
           accessToken: tokenResult.accessToken,
           refreshToken: tokenResult.refreshToken,
         });
-        onLoginSuccess();
+        handleLoginSuccess();
       } else {
         alert("token is empty, please try again");
       }
@@ -386,7 +394,7 @@ export default function LoginContainer({ onLoginSuccess }) {
               refreshToken: tokenResult.refreshToken,
             });
             console.log('[WeChat Login] ✅ Token 已保存，登入成功');
-            onLoginSuccess();
+            handleLoginSuccess();
           } catch (saveError) {
             console.error('[WeChat Login] ❌ Token 保存失敗:', saveError);
             Alert.alert(
@@ -587,7 +595,7 @@ export default function LoginContainer({ onLoginSuccess }) {
             />
           ) : (
             <LoginScreen
-              onLoginSuccess={onLoginSuccess}
+              onLoginSuccess={handleLoginSuccess}
               onXStoryLogin={handleXStoryLogin}
               onFacebookLogin={handleFacebookLogin}
               onAppleLogin={handleAppleLogin}

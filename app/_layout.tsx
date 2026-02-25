@@ -211,9 +211,12 @@ function RootLayoutContent() {
     }
   };
 
+  const coinResetRef = useRef<(() => void) | null>(null);
+
   const logout = async () => {
     await logoutWithXStory(); // 帶上 refreshToken、accessToken 讓後端失效
     await clearAllUserData();
+    coinResetRef.current?.(); // 清除金幣 Context 狀態，避免換帳號後仍顯示上一用戶餘額
     setIsLoggedIn(false);
   };
 
@@ -227,7 +230,7 @@ function RootLayoutContent() {
 
   return (
     <AuthProvider value={{ isLoggedIn, setIsLoggedIn, logout }}>
-      <CoinProvider>
+      <CoinProvider resetRef={coinResetRef}>
         <SafeAreaWrapper style={{ flex: 1 }}>
         {isLoggedIn ? (
           // ✅ 已登入：進入主導覽

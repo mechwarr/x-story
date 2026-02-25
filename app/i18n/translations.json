@@ -269,10 +269,10 @@
         "zh-CN": "注册账号",
         "en": "Register Account"
     },
-    "purchase": {
-        "zh-TW": "購買",
-        "zh-CN": "购买",
-        "en": "Purchase"
+    "unlock": {
+        "zh-TW": "解鎖",
+        "zh-CN": "解锁",
+        "en": "Unlock"
     },
     "coinHistory": {
         "zh-TW": "金幣紀錄",
@@ -283,5 +283,10 @@
         "zh-TW": "交易紀錄",
         "zh-CN": "交易记录",
         "en": "Transaction History"
+    },
+    "profileCompleteAndClaimCoins": {
+        "zh-TW": "完成並領取 50 金幣",
+        "zh-CN": "完成并领取 50 金币",
+        "en": "Complete and claim 50 coins"
     }
 }

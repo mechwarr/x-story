@@ -15,8 +15,9 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import { useCoins } from '../store/coinContext';
-import { getUserProfile, updateUserProfile } from '../config/userApiClient';
+import { getUserProfile, updateUserProfile, type GenderCode } from '../config/userApiClient';
 import useResponsive from '../hook/useResponsive';
+import { translate } from '../i18n/i18n';
 import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -29,7 +30,7 @@ export default function ProfileScreen() {
   // ---- 狀態 ----
   const [name, setName] = useState<string>('');
   const [birthday, setBirthday] = useState<Date>(new Date(1995, 7, 5));
-  const [gender, setGender] = useState<'female' | 'male' | 'other'>('female');
+  const [gender, setGender] = useState<GenderCode>(0);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -58,9 +59,11 @@ export default function ProfileScreen() {
             }
           }
           
-          // 更新性別
-          if (userData.gender && ['female', 'male', 'other'].includes(userData.gender)) {
-            setGender(userData.gender as 'female' | 'male' | 'other');
+          // 更新性別（API: 0=未選，1=男，2=女）
+          if (typeof userData.gender === 'number' && (userData.gender === 1 || userData.gender === 2)) {
+            setGender(userData.gender);
+          } else {
+            setGender(0);
           }
           
           console.log('[ProfileScreen] ✓ 成功載入用戶資料:', userData);
@@ -99,7 +102,7 @@ export default function ProfileScreen() {
       const result = await updateUserProfile({ 
         name,
         birthday: birthdayISO,
-        gender: gender
+        gender,
       });
       
       if (result.success !== false) {
@@ -198,19 +201,20 @@ export default function ProfileScreen() {
           </View>
         </Pressable>
 
-        {/* 性別 */}
+        {/* 性別（0=未選，1=男，2=女） */}
         <View style={styles.inputRow}>
           <Text style={styles.label}>性別</Text>
           <View style={styles.pickerBox}>
             <Picker
               selectedValue={gender}
-              onValueChange={(v) => setGender(v)}
+              onValueChange={(v) => setGender(v as GenderCode)}
               dropdownIconColor="#cdd4db"
               style={styles.picker}
               itemStyle={{ color: '#e7eef6' }}
             >
-              <Picker.Item label="女性" value="female" />
-              <Picker.Item label="男性" value="male" />
+              <Picker.Item label="請選擇" value={0} />
+              <Picker.Item label="男性" value={1} />
+              <Picker.Item label="女性" value={2} />
             </Picker>
           </View>
         </View>
@@ -226,7 +230,7 @@ export default function ProfileScreen() {
               <ActivityIndicator color="#eafff9" size="small" />
             ) : (
               <>
-                <Text style={styles.submitText}>完成並領取 50 金幣 </Text>
+                <Text style={styles.submitText}>{translate('profileCompleteAndClaimCoins')}</Text>
                 <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
               </>
             )}

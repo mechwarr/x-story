@@ -202,7 +202,11 @@ export default function ShopScreen() {
         hitSlop={8}
         style={[styles.profileBtn, { top: 8, right: horizontalPadding }]}
       >
-        <Image style={[styles.profileIcon, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]} source={require('../../assets/profile.png')} />
+        <Image
+          source={require('../../assets/profile.png')}
+          style={[styles.profileIcon, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]}
+          resizeMode="contain"
+        />
       </Pressable>
 
       <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%', paddingHorizontal: horizontalPadding }]}>
@@ -301,7 +305,6 @@ const styles = StyleSheet.create({
   profileBtn: {
     position: 'absolute',
     zIndex: 10,
-    padding: 6,
   },
   profileIcon: {},
 

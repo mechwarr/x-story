@@ -1,13 +1,13 @@
 import { useEffect } from "react";
 import { Alert } from "react-native";
-import * as SecureStore from "expo-secure-store";
 import { useAuth } from "../auth/AuthContext";
 
+/** 與正式登出相同：後端 token 失效 + clearAllUserData + 金幣狀態重置 */
 export function ResetScreen({ navigation }) {
-  const { setIsLoggedIn } = useAuth();
-  
+  const { logout } = useAuth();
+
   useEffect(() => {
-    const unsubscribe = navigation.addListener("focus", async () => {
+    const unsubscribe = navigation.addListener("focus", () => {
       Alert.alert(
         "確認重置",
         "確定要重置所有登入資料嗎？",
@@ -15,25 +15,14 @@ export function ResetScreen({ navigation }) {
           {
             text: "取消",
             style: "cancel",
-            onPress: () => {
-              navigation.goBack();
-            },
+            onPress: () => navigation.goBack(),
           },
           {
             text: "確定",
             style: "destructive",
             onPress: async () => {
-              await SecureStore.deleteItemAsync("authToken");
-              await SecureStore.deleteItemAsync("userId");
+              await logout();
               Alert.alert("已重置", "資料已清除");
-              setIsLoggedIn(false);
-              /*
-              navigation.reset({
-                index: 0,
-                routes: [{ name: "Login" }],
-              });
-              */
-             
             },
           },
         ],
@@ -41,8 +30,8 @@ export function ResetScreen({ navigation }) {
       );
     });
 
-    return unsubscribe; // 移除監聽
-  }, [navigation]);
+    return unsubscribe;
+  }, [navigation, logout]);
 
   return null; // 因為這個畫面只是功能，不顯示內容
 }

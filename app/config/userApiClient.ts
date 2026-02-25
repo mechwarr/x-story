@@ -161,12 +161,15 @@ export async function getEntitlements(
 /**
  * 獲取當前用戶資料 Response
  */
+/** 性別：0=未送出/未選，1=男，2=女 */
+export type GenderCode = 0 | 1 | 2;
+
 export interface UserProfile {
   id?: number;
   name?: string;
   email?: string;
   birthday?: string; // ISO 8601 格式日期字串
-  gender?: 'female' | 'male' | 'other';
+  gender?: GenderCode;
   createdAt?: string;
   updatedAt?: string;
   [key: string]: any; // 允許其他欄位
@@ -184,7 +187,7 @@ export interface GetUserProfileResponse {
   name?: string;
   email?: string;
   birthday?: string;
-  gender?: 'female' | 'male' | 'other';
+  gender?: GenderCode;
 }
 
 /**
@@ -226,10 +229,11 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 /**
  * 更新用戶資料 Request
  */
+/** 更新資料時性別：0=未送出/未選，1=男，2=女 */
 export interface UpdateUserProfileRequest {
   name?: string;
   birthday?: string; // ISO 8601 格式日期字串
-  gender?: 'female' | 'male' | 'other';
+  gender?: GenderCode;
 }
 
 /**
