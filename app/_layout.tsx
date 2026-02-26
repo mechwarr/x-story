@@ -21,6 +21,7 @@ function RootLayoutContent() {
   const [isResetPassword, setIsResetPassword] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const appState = useRef(AppState.currentState);
+  const coinResetRef = useRef<(() => void) | null>(null);
 
   // 傳遞 progress callback 給 useInitApp（應用重啟時使用）
   const handleTokenRefreshProgress = (isProgress: boolean) => {
@@ -32,12 +33,13 @@ function RootLayoutContent() {
   };
 
   const { checking, isLoggedIn, setIsLoggedIn } = useInitApp(
-    handleTokenRefreshProgress
-    // 不傳遞失敗回調，useInitApp 內部會處理應用重啟時的失敗
+    handleTokenRefreshProgress,
+    undefined,
+    () => coinResetRef.current?.() // 冷啟動時 token 過期/刷新失敗登出前也重置金幣
   );
 
   // 處理 token 刷新失敗：顯示 alert 並清除資料（用於應用喚醒場景）
-  const handleTokenRefreshFailed = useCallback(async () => {
+  const handleTokenRefreshFailed = useCallback(() => {
     Alert.alert(
       '帳戶權限過期',
       '您的登入權限已過期，請重新登入。',
@@ -45,10 +47,8 @@ function RootLayoutContent() {
         {
           text: '確定',
           onPress: async () => {
-            // 使用共享的清除資料服務
+            coinResetRef.current?.(); // 換帳號後不殘留上一用戶金幣
             await clearAllUserData();
-            
-            // 退出登入
             setIsLoggedIn(false);
             console.log('[RootLayout] ✅ 已退出登入，返回登入頁面');
           },
@@ -102,7 +102,7 @@ function RootLayoutContent() {
           console.log('[RootLayout] ✅ 檢測到登入狀態，檢查登入時間和刷新 token...');
           
           // 創建登入過期處理函數（超過 30 天需要重新登入）
-          const handleLoginExpired = async () => {
+          const handleLoginExpired = () => {
             Alert.alert(
               '登入已過期',
               '您的登入已超過 30 天，為了帳戶安全，請重新登入。',
@@ -110,6 +110,7 @@ function RootLayoutContent() {
                 {
                   text: '確定',
                   onPress: async () => {
+                    coinResetRef.current?.(); // 換帳號後不殘留上一用戶金幣
                     await clearAllUserData();
                     setIsLoggedIn(false);
                     console.log('[RootLayout] ✅ 登入已過期，已退出登入');
@@ -210,8 +211,6 @@ function RootLayoutContent() {
       console.log("❌ handleDeepLink 發生錯誤:", err);
     }
   };
-
-  const coinResetRef = useRef<(() => void) | null>(null);
 
   const logout = async () => {
     await logoutWithXStory(); // 帶上 refreshToken、accessToken 讓後端失效

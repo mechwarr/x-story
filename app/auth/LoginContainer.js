@@ -70,6 +70,7 @@ export default function LoginContainer({ onLoginSuccess }) {
     });
     
     if (tokenResult?.accessToken) {
+      console.log('[XStory Email Login] 後端回傳 accessToken:', tokenResult.accessToken);
       // 使用新的 saveLoginData 方法一次存儲所有登入資料
       await tokenStorage.saveLoginData({
         accessToken: tokenResult.accessToken,
@@ -143,6 +144,7 @@ export default function LoginContainer({ onLoginSuccess }) {
 
       const tokenResult = await facebookLoginWithXStory(body); // 你的 API 呼叫
       if (tokenResult?.accessToken) {
+        console.log('[Facebook Login] 後端回傳 accessToken:', tokenResult.accessToken);
         console.log('[Facebook Login] 後端登入成功，accessToken 長度:', tokenResult.accessToken.length);
         console.log('[Facebook Login] 後端登入成功，refreshToken 長度:', tokenResult.refreshToken?.length || 0);
         // 使用新的 saveLoginData 方法一次存儲所有登入資料
@@ -290,6 +292,7 @@ export default function LoginContainer({ onLoginSuccess }) {
         });
 
         if (tokenResult?.accessToken) {
+          console.log('[Google Login] 後端回傳 accessToken:', tokenResult.accessToken);
           console.log('[Google Login] 後端登入成功，accessToken 長度:', tokenResult.accessToken.length);
           console.log('[Google Login] 後端登入成功，refreshToken 長度:', tokenResult.refreshToken?.length || 0);
           // 使用新的 saveLoginData 方法一次存儲所有登入資料
@@ -334,6 +337,7 @@ export default function LoginContainer({ onLoginSuccess }) {
 
       const tokenResult = await appleLoginWithXStory({ idToken: appletoken });
       if (tokenResult?.accessToken) {
+        console.log('[Apple Login] 後端回傳 accessToken:', tokenResult.accessToken);
         console.log('[Apple Login] 後端登入成功，accessToken 長度:', tokenResult.accessToken.length);
         console.log('[Apple Login] 後端登入成功，refreshToken 長度:', tokenResult.refreshToken?.length || 0);
         // 使用新的 saveLoginData 方法一次存儲所有登入資料
@@ -383,6 +387,7 @@ export default function LoginContainer({ onLoginSuccess }) {
         });
         
         if (tokenResult?.accessToken) {
+          console.log('[WeChat Login] 後端回傳 accessToken:', tokenResult.accessToken);
           console.log('[WeChat Login] ✅ 成功取得 server token');
           console.log('[WeChat Login]   accessToken 長度:', tokenResult.accessToken.length);
           console.log('[WeChat Login]   refreshToken 長度:', tokenResult.refreshToken?.length || 0);

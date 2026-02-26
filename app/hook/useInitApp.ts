@@ -9,7 +9,8 @@ import { clearAllUserData } from '../services/clearUserDataService';
 
 export default function useInitApp(
   onTokenRefreshProgress?: (isProgress: boolean) => void,
-  onTokenRefreshFailed?: () => void
+  onTokenRefreshFailed?: () => void,
+  onBeforeLogout?: () => void
 ) {
   const [checking, setChecking] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -30,7 +31,7 @@ export default function useInitApp(
         console.log('[useInitApp] 🔄 檢測到登入狀態，檢查登入時間和刷新 token...');
         
         // 創建登入過期處理函數（超過 30 天需要重新登入）
-        const handleLoginExpired = async () => {
+        const handleLoginExpired = () => {
           Alert.alert(
             '登入已過期',
             '您的登入已超過 30 天，為了帳戶安全，請重新登入。',
@@ -38,10 +39,8 @@ export default function useInitApp(
               {
                 text: '確定',
                 onPress: async () => {
-                  // 使用共享的清除資料服務
+                  onBeforeLogout?.(); // 例如重置金幣 Context，避免換帳號後殘留
                   await clearAllUserData();
-                  
-                  // 退出登入
                   setIsLoggedIn(false);
                   console.log('[useInitApp] ✅ 登入已過期，已退出登入，返回登入頁面');
                 },
@@ -52,7 +51,7 @@ export default function useInitApp(
         };
         
         // 創建刷新失敗處理函數（可以訪問內部的 setIsLoggedIn）
-        const handleRefreshFailed = async () => {
+        const handleRefreshFailed = () => {
           Alert.alert(
             '帳戶權限過期',
             '您的登入權限已過期，請重新登入。',
@@ -60,10 +59,8 @@ export default function useInitApp(
               {
                 text: '確定',
                 onPress: async () => {
-                  // 使用共享的清除資料服務
+                  onBeforeLogout?.(); // 例如重置金幣 Context，避免換帳號後殘留
                   await clearAllUserData();
-                  
-                  // 退出登入
                   setIsLoggedIn(false);
                   console.log('[useInitApp] ✅ 已退出登入，返回登入頁面');
                 },

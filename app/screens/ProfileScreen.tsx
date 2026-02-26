@@ -1,5 +1,5 @@
 // app/screens/ProfileScreen.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   SafeAreaView,
   View,
@@ -12,7 +12,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import { useCoins } from '../store/coinContext';
 import { getUserProfile, updateUserProfile, type GenderCode } from '../config/userApiClient';
@@ -38,48 +38,45 @@ export default function ProfileScreen() {
   const avatarSize = Math.min(Math.round(contentWidth / 4), 120);
   const iconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
-  // ---- 載入用戶資料 ----
-  useEffect(() => {
-    const loadUserProfile = async () => {
-      try {
-        setIsLoading(true);
-        const userData = await getUserProfile();
-        
-        if (userData) {
-          // 更新名稱
-          if (userData.name) {
-            setName(userData.name);
-          }
-          
-          // 更新生日
-          if (userData.birthday) {
-            const birthdayDate = new Date(userData.birthday);
-            if (!isNaN(birthdayDate.getTime())) {
-              setBirthday(birthdayDate);
-            }
-          }
-          
-          // 更新性別（API: 0=未選，1=男，2=女）
-          if (typeof userData.gender === 'number' && (userData.gender === 1 || userData.gender === 2)) {
-            setGender(userData.gender);
-          } else {
-            setGender(0);
-          }
-          
-          console.log('[ProfileScreen] ✓ 成功載入用戶資料:', userData);
-        } else {
-          console.warn('[ProfileScreen] 無法獲取用戶資料，使用預設值');
-        }
-      } catch (error) {
-        console.error('[ProfileScreen] 載入用戶資料時發生錯誤:', error);
-        // 不顯示錯誤提示，只使用預設值
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // ---- 載入用戶資料（換帳號後每次進入此畫面都重新拉取，避免顯示上一帳號名稱/生日/性別）----
+  const loadUserProfile = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      // 先清空顯示，避免在請求完成前短暫顯示上一帳號資料
+      setName('');
+      setBirthday(new Date(1995, 7, 5));
+      setGender(0);
 
-    loadUserProfile();
+      const userData = await getUserProfile();
+
+      if (userData) {
+        if (userData.name) setName(userData.name);
+        if (userData.birthday) {
+          const birthdayDate = new Date(userData.birthday);
+          if (!isNaN(birthdayDate.getTime())) setBirthday(birthdayDate);
+        }
+        if (typeof userData.gender === 'number' && (userData.gender === 1 || userData.gender === 2)) {
+          setGender(userData.gender);
+        } else {
+          setGender(0);
+        }
+        console.log('[ProfileScreen] ✓ 成功載入用戶資料:', userData);
+      } else {
+        console.warn('[ProfileScreen] 無法獲取用戶資料，使用預設值');
+      }
+    } catch (error) {
+      console.error('[ProfileScreen] 載入用戶資料時發生錯誤:', error);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  // 每次畫面取得焦點時重新載入（含登出換帳號後第一次進入）
+  useFocusEffect(
+    useCallback(() => {
+      loadUserProfile();
+    }, [loadUserProfile])
+  );
 
   // ---- 事件：日期變更 ----
   const onChangeBirthday = (e: DateTimePickerEvent, date?: Date) => {
