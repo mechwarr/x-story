@@ -219,6 +219,13 @@ function RootLayoutContent() {
     setIsLoggedIn(false);
   };
 
+  /** 僅清除本地資料並登出，不呼叫後端（用於刪除帳號成功後） */
+  const logoutLocalOnly = async () => {
+    await clearAllUserData();
+    coinResetRef.current?.();
+    setIsLoggedIn(false);
+  };
+
   if (checking) {
     return (
       <SafeAreaWrapper style={styles.loadingContainer}>
@@ -228,7 +235,7 @@ function RootLayoutContent() {
   }
 
   return (
-    <AuthProvider value={{ isLoggedIn, setIsLoggedIn, logout }}>
+    <AuthProvider value={{ isLoggedIn, setIsLoggedIn, logout, logoutLocalOnly }}>
       <CoinProvider resetRef={coinResetRef}>
         <SafeAreaWrapper style={{ flex: 1 }}>
         {isLoggedIn ? (

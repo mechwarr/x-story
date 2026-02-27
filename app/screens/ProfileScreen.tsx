@@ -11,11 +11,13 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import { useCoins } from '../store/coinContext';
-import { getUserProfile, updateUserProfile, type GenderCode } from '../config/userApiClient';
+import { useAuth } from '../auth/AuthContext';
+import { getUserProfile, updateUserProfile, deleteUserAccount, type GenderCode } from '../config/userApiClient';
 import useResponsive from '../hook/useResponsive';
 import { translate } from '../i18n/i18n';
 import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
@@ -26,6 +28,7 @@ import { Picker } from '@react-native-picker/picker';
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const { coins } = useCoins();
+  const { logoutLocalOnly } = useAuth();
 
   // ---- 狀態 ----
   const [name, setName] = useState<string>('');
@@ -34,6 +37,9 @@ export default function ProfileScreen() {
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState<string>('');
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const { contentWidth, isTablet, maxContentWidth, horizontalPadding, scale } = useResponsive();
   const avatarSize = Math.min(Math.round(contentWidth / 4), 120);
   const iconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
@@ -114,6 +120,42 @@ export default function ProfileScreen() {
       Alert.alert('錯誤', error?.message || '更新失敗，請稍後再試');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // ---- 事件：刪除帳號確認 ----
+  const openDeleteModal = () => {
+    setDeleteConfirmInput('');
+    setShowDeleteModal(true);
+  };
+
+  const closeDeleteModal = () => {
+    if (!isDeleting) {
+      setShowDeleteModal(false);
+      setDeleteConfirmInput('');
+    }
+  };
+
+  const handleDeleteAccountConfirm = async () => {
+    const trimmed = deleteConfirmInput.trim();
+    if (trimmed !== 'DELETE') {
+      Alert.alert('輸入錯誤', '請輸入 \'DELETE\' 以確認刪除帳號。');
+      return;
+    }
+    try {
+      setIsDeleting(true);
+      const result = await deleteUserAccount();
+      if (result.success === true) {
+        setShowDeleteModal(false);
+        setDeleteConfirmInput('');
+        await logoutLocalOnly();
+      } else {
+        Alert.alert('刪除失敗', result.message || '無法刪除帳號，請稍後再試。');
+      }
+    } catch (e: any) {
+      Alert.alert('錯誤', e?.message || '刪除帳號時發生錯誤。');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -233,8 +275,58 @@ export default function ProfileScreen() {
             )}
           </View>
         </Pressable>
+
+        {/* 刪除帳號（防誤觸：需輸入 DELETE 確認） */}
+        <Pressable style={styles.deleteAccountRow} onPress={openDeleteModal} disabled={isDeleting}>
+          <Text style={styles.deleteAccountText}>{routes.REMOVE}</Text>
+        </Pressable>
       </View>
       </View>
+
+      {/* 刪除帳號確認 Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeDeleteModal}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={closeDeleteModal}>
+          <Pressable style={styles.modalBox} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>刪除帳號</Text>
+            <Text style={styles.modalMessage}>
+              請輸入{' '}
+              <Text style={styles.modalDeleteKeyword}>DELETE</Text>
+              {' '}以確認刪除帳號，此操作無法復原。
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={deleteConfirmInput}
+              onChangeText={setDeleteConfirmInput}
+              placeholder="輸入 DELETE"
+              placeholderTextColor="#9aa3ad"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              editable={!isDeleting}
+            />
+            <View style={styles.modalButtons}>
+              <Pressable style={styles.modalCancelBtn} onPress={closeDeleteModal} disabled={isDeleting}>
+                <Text style={styles.modalCancelText}>取消</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalConfirmBtn, isDeleting && styles.modalConfirmBtnDisabled]}
+                onPress={handleDeleteAccountConfirm}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.modalConfirmText}>確定</Text>
+                )}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* 日期選擇器 */}
       {showDatePicker && (
@@ -395,5 +487,91 @@ const styles = StyleSheet.create({
     color: '#e7eef6',
     marginTop: 12,
     fontSize: 16,
+  },
+
+  // ---- 刪除帳號 ----
+  deleteAccountRow: {
+    marginTop: 24,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  deleteAccountText: {
+    color: '#9aa3ad',
+    fontSize: 14,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+
+  // ---- 刪除帳號 Modal ----
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalBox: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: '#2c2f34',
+    borderRadius: 12,
+    padding: 20,
+  },
+  modalTitle: {
+    color: '#e7eef6',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    color: '#e7eef6',
+    fontSize: 15,
+    marginBottom: 14,
+    lineHeight: 22,
+  },
+  modalDeleteKeyword: {
+    color: '#ff4444',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  modalInput: {
+    color: '#e7eef6',
+    fontSize: 16,
+    backgroundColor: '#1f2226',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    marginBottom: 16,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'flex-end',
+  },
+  modalCancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  modalCancelText: {
+    color: '#9aa3ad',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalConfirmBtn: {
+    backgroundColor: '#ff3344',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    minWidth: 72,
+    alignItems: 'center',
+  },
+  modalConfirmBtnDisabled: {
+    opacity: 0.7,
+  },
+  modalConfirmText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

@@ -5,6 +5,8 @@ type AuthContextValue = {
   isLoggedIn: boolean;
   setIsLoggedIn: (v: boolean) => void;
   logout: () => Promise<void> | void;
+  /** 僅清除本地資料並登出，不呼叫後端登出（用於刪除帳號後） */
+  logoutLocalOnly: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);

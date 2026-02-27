@@ -274,6 +274,42 @@ export async function updateUserProfile(
   }
 }
 
+/**
+ * 刪除帳號 Response（API 成功格式）
+ */
+export interface DeleteUserAccountResponse {
+  success: true;
+  message: string;
+  deletedUserId: number;
+}
+
+/**
+ * 刪除當前登入帳號（清除帳號及關聯資料）
+ * 需帶 Authorization: Bearer token
+ * @returns 成功時回傳 DeleteUserAccountResponse，失敗回傳 { success: false, message }
+ */
+export async function deleteUserAccount(): Promise<DeleteUserAccountResponse | { success: false; message: string }> {
+  try {
+    const endpoint = "api/users/me";
+    const token = await tokenStorage.getToken();
+    const headers: Record<string, string> = { accept: "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    const res = await userApi.delete<DeleteUserAccountResponse & { error?: string; statusCode?: number }>(endpoint, headers);
+
+    if (res && (res as DeleteUserAccountResponse).success === true) {
+      console.log("[userApiClient] ✓ 刪除帳號成功:", res);
+      return res as DeleteUserAccountResponse;
+    }
+    return { success: false, message: (res as any)?.message || "刪除帳號失敗" };
+  } catch (error: any) {
+    const message = error?.message || (error?.response ? String(error.response) : "刪除帳號失敗");
+    console.error("[userApiClient] 刪除帳號時發生錯誤:", error);
+    return { success: false, message };
+  }
+}
+
 //=======================================================
 //============== 金幣相關 API ==============
 //=======================================================

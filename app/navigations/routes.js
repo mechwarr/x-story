@@ -6,6 +6,7 @@ export default Object.freeze({
   OTHERS: "其他頁面",
   VERSION: "版本資訊",
   RESET: "重設應用程序",
+  REMOVE: "刪除帳號",
   CON_RE_TOPTAB: " ",
 
   MAIN: "主畫面",
