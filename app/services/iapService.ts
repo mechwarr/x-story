@@ -21,6 +21,13 @@ import {
 import authApi from '../config/authApiClient';
 import Storage from '../auth/Storage';
 import { verifyIAPReceipt, type IapReceipt, type GetIapReceiptsResponse } from '../config/shopApiClient';
+import {
+  logInvalidSkuClassification,
+  logProductsSnapshot,
+  logSection,
+  logSkuCompare,
+  logStringList,
+} from '../utils/iapDebugLogger';
 
 // 商品 ID 配置（需要在 App Store Connect 和 Google Play Console 中設定）
 export const PRODUCT_IDS = {
@@ -473,6 +480,9 @@ class IAPService {
       console.log('[iapService] 傳給平台的 skus (商品 ID 列表):', JSON.stringify(skus, null, 2));
       console.log('[iapService] 商品 ID 數量:', skus.length);
       console.log('[iapService] 平台:', Platform.OS);
+      logSection('iapService Request SKUs', () => {
+        logStringList('requestedSkus', skus);
+      });
       
       const products = await fetchProducts({ skus });
       
@@ -496,10 +506,15 @@ class IAPService {
       }
       
       console.log('[iapService] ✓ 成功獲取商品數量:', products.length);
+      logSection('iapService Raw Products Snapshot', () => {
+        logProductsSnapshot('rawProducts', products as Array<Record<string, unknown>>);
+      });
 
       // 比對「請求的 skus」與「回傳的有效商品」→ 未出現在回傳裡的即為無效 ID（等同 StoreKit response.invalidProductIdentifiers）
       const returnedIds = new Set(products.map((p: any) => (p.productId ?? p.id ?? '').toString()));
       const invalidProductIdentifiers = skus.filter(sku => !returnedIds.has(sku));
+      logSkuCompare(skus, Array.from(returnedIds), invalidProductIdentifiers);
+      logInvalidSkuClassification(skus, Array.from(returnedIds));
       if (invalidProductIdentifiers.length > 0) {
         console.warn('[iapService] ⚠️ 無效商品 ID（平台未回傳，請檢查 App Store Connect / Google Play 設定）:', invalidProductIdentifiers);
       }
@@ -708,6 +723,9 @@ class IAPService {
         });
       
       console.log('[iapService] 過濾後的商品數量:', filteredProducts.length);
+      logSection('iapService Filtered Products Snapshot', () => {
+        logProductsSnapshot('filteredProducts', filteredProducts as Array<Record<string, unknown>>);
+      });
       if (filteredProducts.length !== products.length) {
         console.warn('[iapService] ⚠️ 過濾掉了一些商品，原始數量:', products.length);
         console.warn('[iapService] 過濾後的商品 ID:', filteredProducts.map((p: any) => p.productId || p.id));

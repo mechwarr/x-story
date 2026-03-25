@@ -36,10 +36,75 @@ else
     echo -e "${YELLOW}⏭️  跳過版本號更新${NC}\n"
 fi
 
-# 步驟 2: 讀取當前版本號
-echo -e "${BLUE}📦 步驟 2: 讀取版本資訊...${NC}"
+# 步驟 2: 同步專案版號（app.json / iOS 原生檔）
+echo -e "${BLUE}🔄 步驟 2: 同步專案版號到 iOS 原生專案...${NC}"
+
+# 以 android versionCode 作為 iOS buildNumber 的單一來源，避免多處不同步
+VERSION_CODE=$(node -e "const fs=require('fs'); const p='./android/gradle.properties'; const t=fs.readFileSync(p,'utf8'); const m=t.match(/^VERSION_CODE=(\d+)/m); if(!m){process.exit(1)}; process.stdout.write(m[1]);")
 VERSION_NAME=$(node -p "require('./app.json').expo.version")
+
+node - "$VERSION_NAME" "$VERSION_CODE" <<'NODE'
+const fs = require('fs');
+const path = require('path');
+
+const versionName = process.argv[2];
+const buildNumber = process.argv[3];
+const root = process.cwd();
+const iosRoot = path.join(root, 'ios');
+
+const read = (p) => fs.readFileSync(p, 'utf8');
+const write = (p, c) => fs.writeFileSync(p, c, 'utf8');
+
+// 1) 同步 app.json（Expo 會以此生成原生版本欄位）
+const appJsonPath = path.join(root, 'app.json');
+const appJson = JSON.parse(read(appJsonPath));
+appJson.expo = appJson.expo || {};
+appJson.expo.version = versionName;
+appJson.expo.ios = appJson.expo.ios || {};
+appJson.expo.ios.buildNumber = String(buildNumber);
+appJson.expo.android = appJson.expo.android || {};
+appJson.expo.android.versionCode = Number(buildNumber);
+write(appJsonPath, JSON.stringify(appJson, null, 2) + '\n');
+
+// 2) 同步所有 iOS Xcode 專案 pbxproj（避免專案改名後漏更新）
+if (fs.existsSync(iosRoot)) {
+  const entries = fs.readdirSync(iosRoot, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.endsWith('.xcodeproj')) continue;
+    const pbxprojPath = path.join(iosRoot, entry.name, 'project.pbxproj');
+    if (!fs.existsSync(pbxprojPath)) continue;
+    const pbxproj = read(pbxprojPath)
+      .replace(/MARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${versionName};`)
+      .replace(/CURRENT_PROJECT_VERSION = [^;]+;/g, `CURRENT_PROJECT_VERSION = ${buildNumber};`);
+    write(pbxprojPath, pbxproj);
+  }
+
+  // 3) 同步所有 iOS app 目錄中的 Info.plist（保險）
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const plistPath = path.join(iosRoot, entry.name, 'Info.plist');
+    if (!fs.existsSync(plistPath)) continue;
+    let plist = read(plistPath);
+    plist = plist.replace(
+      /<key>CFBundleShortVersionString<\/key>\s*<string>[^<]+<\/string>/,
+      `<key>CFBundleShortVersionString</key>\n\t<string>${versionName}</string>`
+    );
+    plist = plist.replace(
+      /<key>CFBundleVersion<\/key>\s*<string>[^<]+<\/string>/,
+      `<key>CFBundleVersion</key>\n\t<string>${buildNumber}</string>`
+    );
+    write(plistPath, plist);
+  }
+}
+NODE
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}❌ 專案版號同步失敗${NC}"
+    exit 1
+fi
+
 echo -e "   版本名稱: ${VERSION_NAME}"
+echo -e "   Build Number: ${VERSION_CODE}"
 echo ""
 
 # 步驟 2.5: 檢查 Xcode 和 iOS SDK 版本
@@ -73,7 +138,7 @@ fi
 
 # 檢查是否為較舊的 Xcode 版本（警告）
 XCODE_MAJOR_VERSION=$(echo "$XCODE_VERSION" | cut -d. -f1)
-if [ "$XCODE_MAJOR_VERSION" -lt 16 ]; then
+if [[ "$XCODE_MAJOR_VERSION" =~ ^[0-9]+$ ]] && [ "$XCODE_MAJOR_VERSION" -lt 16 ]; then
     echo -e "   ${YELLOW}⚠️  警告: 您使用的是較舊的 Xcode 版本${NC}"
     echo -e "   ${YELLOW}   建議更新到最新版本的 Xcode 以使用最新的 iOS SDK${NC}"
     echo -e "   ${YELLOW}   從 2026 年 4 月開始，需要 iOS 26 SDK (Xcode 26)${NC}"
@@ -203,10 +268,16 @@ fi
 # 步驟 6: 打開 Xcode
 echo -e "${BLUE}🚀 步驟 6: 準備打開 Xcode...${NC}\n"
 
-XCODE_PROJECT="ios/storyappv2.xcworkspace"
+# Expo prebuild 可能重建並更換 workspace 名稱，優先使用舊名稱，否則自動偵測
+if [ -d "ios/storyappv2.xcworkspace" ]; then
+    XCODE_PROJECT="ios/storyappv2.xcworkspace"
+else
+    XCODE_PROJECT=$(ls -d ios/*.xcworkspace 2>/dev/null | head -n 1)
+fi
 
-if [ ! -d "$XCODE_PROJECT" ]; then
-    echo -e "${RED}❌ 找不到 Xcode workspace: ${XCODE_PROJECT}${NC}"
+if [ -z "$XCODE_PROJECT" ] || [ ! -d "$XCODE_PROJECT" ]; then
+    echo -e "${RED}❌ 找不到任何 Xcode workspace（ios/*.xcworkspace）${NC}"
+    echo -e "${YELLOW}   請先確認 Expo prebuild 與 pod install 是否成功${NC}"
     exit 1
 fi
 
@@ -214,11 +285,12 @@ echo -e "${GREEN}✅ 準備完成！${NC}\n"
 
 echo -e "${GREEN}📦 版本資訊:${NC}"
 echo -e "   版本名稱: ${VERSION_NAME}"
+echo -e "   Build Number: ${VERSION_CODE}"
 echo -e "   jsbundle: ios/storyappv2/main.jsbundle (${JSBUNDLE_SIZE})\n"
 
 echo -e "${BLUE}📤 下一步操作：${NC}"
 echo -e "   1. 在 Xcode 中打開專案："
-echo -e "      ${GREEN}open ios/storyappv2.xcworkspace${NC}"
+echo -e "      ${GREEN}open ${XCODE_PROJECT}${NC}"
 echo ""
 echo -e "   2. 在 Xcode 中："
 echo -e "      - 選擇正確的 Team 和 Provisioning Profile"

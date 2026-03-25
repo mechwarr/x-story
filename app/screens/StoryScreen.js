@@ -27,6 +27,7 @@ import { purchaseStoryWithCoins } from '../config/userApiClient';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
 import { useCoins } from '../store/coinContext';
 import { translate } from '../i18n/i18n';
+import { syncPurchasedStoryIds } from '../services/bookAccessService';
 
 const domain = apiclient.currentBaseUrl() + 'images/update/';
 const initStoryIdx = null;
@@ -149,7 +150,7 @@ function StoryScreen({ route }) {
 
   useEffect(() => {
     let mounted = true;
-    storage.getLocalPurchasedStoryIds().then((ids) => {
+    syncPurchasedStoryIds().then((ids) => {
       if (mounted) setIsBookPurchased(ids.includes(Number(storyId)));
     });
     return () => { mounted = false; };
@@ -196,6 +197,7 @@ function StoryScreen({ route }) {
                 await clearIdempotencyKey(storyId);
                 await refreshCoins?.();
                 await storage.addLocalPurchasedStoryId(storyId);
+                await syncPurchasedStoryIds();
                 setIsBookPurchased(true);
                 setShowPurchaseOverlay(false);
                 Alert.alert(

@@ -2,7 +2,7 @@
   "expo": {
     "name": "xStory",
     "slug": "story-app-v2",
-    "version": "1.0.72",
+    "version": "1.0.93",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
@@ -20,11 +20,67 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rueiyang.story",
+      "usesAppleSignIn": true,
       "scheme": "xstoryscheme",
       "jsEngine": "hermes",
       "infoPlist": {
-        "CFBundleAllowMixedLocalizations": true
-      }
+        "CFBundleAllowMixedLocalizations": true,
+        "FacebookAppID": "753717744007574",
+        "FacebookClientToken": "EAAKcdlHKt68BOySZANi04mmYXGEKkRkC0KP7kzYKoyPKTzW32v9w2Ah94ihQdnhmfuUhII74FOHkYOoau11PBH8Qvy1nxRLHCZAZCPlDNUepgLeZCTEpcRiBrkR2SIwnD5yMAdb6J7QVrxeaaOBv7upa2TePIRORN9ZBomI9W92emyBOkgTzjTN5VmJZB5KOnwP3BUaxksQ6SeWZBovmdj5AzdgQZAoQtRcB",
+        "FacebookDisplayName": "xStory",
+        "GIDClientID": "927761409049-66o2rujvgaoaovopb4q3mvev3kceej95.apps.googleusercontent.com",
+        "LSApplicationQueriesSchemes": [
+          "fbapi",
+          "fbapi20130214",
+          "fbapi20130410",
+          "fbapi20130702",
+          "fbapi20131010",
+          "fbapi20131219",
+          "fbapi20140410",
+          "fbapi20140116",
+          "fbapi20150313",
+          "fbapi20150629",
+          "fbapi20160328",
+          "fbauth2",
+          "fb-messenger-api20140430",
+          "weixin",
+          "weixinULAPI",
+          "wechat",
+          "googlechromes",
+          "googlechrome"
+        ],
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "xstory",
+            "CFBundleURLSchemes": [
+              "xstoryscheme",
+              "com.rueiyang.story"
+            ]
+          },
+          {
+            "CFBundleURLName": "facebook",
+            "CFBundleURLSchemes": [
+              "fb753717744007574"
+            ]
+          },
+          {
+            "CFBundleURLName": "google",
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.927761409049-66o2rujvgaoaovopb4q3mvev3kceej95"
+            ]
+          },
+          {
+            "CFBundleURLName": "wechat",
+            "CFBundleURLSchemes": [
+              "wx277826ce3d9510c6"
+            ]
+          }
+        ]
+      },
+      "associatedDomains": [
+        "applinks:xstudio-mclub.url.tw"
+      ],
+      "buildNumber": "96"
     },
     "android": {
       "splash": {
@@ -54,7 +110,8 @@
             "DEFAULT"
           ]
         }
-      ]
+      ],
+      "versionCode": 96
     },
     "web": {
       "favicon": "./assets/favicon.png"

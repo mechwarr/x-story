@@ -89,6 +89,10 @@ export interface GetEntitlementsResponse {
   limit: number;
 }
 
+interface GetEntitlementsOptions {
+  bypassCache?: boolean;
+}
+
 /**
  * 獲取我的已購買書籍（含快取，快取 TTL 5 分鐘）
  * @param page - 頁碼，預設 1
@@ -97,9 +101,11 @@ export interface GetEntitlementsResponse {
  */
 export async function getEntitlements(
   page: number = 1,
-  limit: number = 20
+  limit: number = 20,
+  options: GetEntitlementsOptions = {}
 ): Promise<GetEntitlementsResponse> {
   const cacheKey = `${ENTITLEMENTS_CACHE_KEY}_${page}_${limit}`;
+  const { bypassCache = false } = options;
 
   const tryCache = async (): Promise<GetEntitlementsResponse | null> => {
     try {
@@ -113,10 +119,12 @@ export async function getEntitlements(
     }
   };
 
-  const cached = await tryCache();
-  if (cached) {
-    console.log("[userApiClient] ✓ 使用已快取的 entitlements");
-    return cached;
+  if (!bypassCache) {
+    const cached = await tryCache();
+    if (cached) {
+      console.log("[userApiClient] ✓ 使用已快取的 entitlements");
+      return cached;
+    }
   }
 
   try {
@@ -152,6 +160,26 @@ export async function getEntitlements(
     console.error("[userApiClient] 獲取 entitlements 時發生錯誤:", error);
     return { items: [], total: 0, page, limit };
   }
+}
+
+export async function invalidateEntitlementsCache(): Promise<void> {
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const cacheKeys = allKeys.filter((key) => key.startsWith(`${ENTITLEMENTS_CACHE_KEY}_`));
+    if (cacheKeys.length > 0) {
+      await AsyncStorage.multiRemove(cacheKeys);
+    }
+  } catch (error) {
+    console.warn("[userApiClient] 清除 entitlements 快取失敗:", error);
+  }
+}
+
+export async function refreshEntitlements(
+  page: number = 1,
+  limit: number = 20
+): Promise<GetEntitlementsResponse> {
+  await invalidateEntitlementsCache();
+  return getEntitlements(page, limit, { bypassCache: true });
 }
 
 //=======================================================

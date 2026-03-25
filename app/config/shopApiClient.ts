@@ -1,11 +1,11 @@
 // shopApiClient.ts
 import { RestfulApi } from "./api";
-import { portURL, devBaseUrl } from "./apiClient";
+import { portURL } from "./apiClient";
 import tokenStorage from "../auth/Storage";
 
-// 創建使用 portURL 的 API 實例（用於商城相關 API）
+// 商城/IAP 相關 API 一律走 portURL，避免 dev/prod 指到不同資料源造成商品清單不一致
 const shopApi = new RestfulApi({
-  devBaseUrl,
+  devBaseUrl: portURL,
   prodBaseUrl: portURL,
   isDev: __DEV__,
 });
@@ -53,6 +53,7 @@ export async function getCoinPacks(): Promise<CoinPack[]> {
   console.log("[shopApiClient] 基礎 URL:", baseUrl);
   console.log("[shopApiClient] Endpoint:", endpoint);
   console.log("[shopApiClient] 完整 URL:", fullUrl);
+  console.log("[shopApiClient] 資料源模式: 固定使用 portURL（dev/prod 一致）");
   
   try {
     const res = await shopApi.get<GetCoinPacksResponse>(endpoint);

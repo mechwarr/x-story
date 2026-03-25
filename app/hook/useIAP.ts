@@ -7,14 +7,21 @@ import { useState, useEffect, useCallback } from 'react';
 import { Alert, Platform } from 'react-native';
 import { iapService, PRODUCT_IDS, type ProductId } from '../services/iapService';
 import { useCoins } from '../store/coinContext';
-import { getCoinPacks } from '../config/shopApiClient';
 import type { Product, Purchase, PurchaseError } from 'react-native-iap';
+import { logKeyValue, logSection, logStringList } from '../utils/iapDebugLogger';
 
 interface UseIAPReturn {
   products: Product[];
   isLoading: boolean;
   isPurchasing: boolean;
   error: Error | null;
+  requestedProductIds: string[];
+  productIdSource:
+    | 'api-apple-packs'
+    | 'local-product-ids-fallback'
+    | 'local-product-ids-fake-setup'
+    | 'local-product-ids-android'
+    | 'unknown';
   purchaseProduct: (productId: ProductId) => Promise<void>;
   restorePurchases: () => Promise<void>;
   refreshProducts: () => Promise<void>;
@@ -25,6 +32,10 @@ export function useIAP(): UseIAPReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [requestedProductIds, setRequestedProductIds] = useState<string[]>([]);
+  const [productIdSource, setProductIdSource] = useState<
+    'api-apple-packs' | 'local-product-ids-fallback' | 'local-product-ids-fake-setup' | 'local-product-ids-android' | 'unknown'
+  >('unknown');
   const { refreshCoins } = useCoins();
 
   // 初始化並載入商品
@@ -38,28 +49,36 @@ export function useIAP(): UseIAPReturn {
       // 步驟 1: 決定要向「平台」請求的商品 ID 列表
       // 傳給平台的資料：fetchProducts({ skus: productIds }) → App Store / Google Play 用這些 ID 回傳商品與價格
       let productIds: string[];
+      let productIdSource:
+        | 'api-apple-packs'
+        | 'local-product-ids-fallback'
+        | 'local-product-ids-fake-setup'
+        | 'local-product-ids-android';
       if (Platform.OS === 'ios') {
-        // iOS：優先使用後端 API 回傳的 APPLE 金幣包 productId，與 App Store Connect 設定一致才能取得內購資料
-        try {
-          const allPacks = await getCoinPacks();
-          const applePacks = allPacks.filter(p => p.platform === 'APPLE');
-          const apiProductIds = applePacks.map(p => p.productId).filter((id): id is string => !!id && id.trim().length > 0);
-          productIds = apiProductIds.length > 0 ? apiProductIds : Object.values(PRODUCT_IDS);
-          console.log('[useIAP] 步驟 1 (iOS): 使用後端 API APPLE 金幣包 productId');
-          console.log('[useIAP] 後端 APPLE 商品 ID 數量:', apiProductIds.length, '→ 傳給 App Store 的 ID 列表:', productIds);
-        } catch (e) {
-          console.warn('[useIAP] 取得後端金幣包失敗，改用本地 PRODUCT_IDS:', e);
-          productIds = Object.values(PRODUCT_IDS);
-          console.log('[useIAP] 步驟 1 (iOS fallback): 使用 PRODUCT_IDS');
-        }
+        // iOS：暫時擱置後端 coin-packs response，改用 IAP_PLATFORM_API_SETUP.md 的假 SKU
+        // 目的：確認 iOS 階段2 fetchProducts 能否正確對照到 App Store 的商品資料
+        productIds = ['item_01', 'item_02', 'item_03', 'item_04', 'item_05', 'item_06'];
+        productIdSource = 'local-product-ids-fake-setup';
+        console.log('[useIAP] 步驟 1 (iOS): 暫時使用 IAP_PLATFORM_API_SETUP 假資料 IDs');
+        logSection('useIAP iOS ProductId Source (fake setup)', () => {
+          logKeyValue('source', productIdSource);
+          logStringList('fakeProductIds(sent to store)', productIds);
+        });
       } else {
         // Android：使用本地 PRODUCT_IDS（與 Google Play Console 商品 ID 一致）
         productIds = Object.values(PRODUCT_IDS);
+        productIdSource = 'local-product-ids-android';
         console.log('[useIAP] 步驟 1 (Android): 使用 PRODUCT_IDS');
+        logSection('useIAP Android ProductId Source', () => {
+          logKeyValue('source', productIdSource);
+          logStringList('finalProductIds(sent to store)', productIds);
+        });
       }
       console.log('[useIAP] 當前平台:', Platform.OS);
       console.log('[useIAP] 傳給平台的商品 ID 列表:', productIds);
       console.log('[useIAP] 商品 ID 數量:', productIds.length);
+      setRequestedProductIds(productIds);
+      setProductIdSource(productIdSource);
 
       // 驗證商品 ID 都是有效的字串
       const invalidIds = productIds.filter(id => !id || typeof id !== 'string' || id.trim().length === 0);
@@ -290,6 +309,8 @@ export function useIAP(): UseIAPReturn {
     isLoading,
     isPurchasing,
     error,
+      requestedProductIds,
+      productIdSource,
     purchaseProduct,
     restorePurchases,
     refreshProducts,

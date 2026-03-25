@@ -62,12 +62,12 @@ CREATE TABLE coin_packs (
 
 ```typescript
 export const PRODUCT_IDS = {
-  PACK_1: 'item_001', // 入門基本包
-  PACK_2: 'item_002', // 熱門推薦包
-  PACK_3: 'item_003', // 高效閱讀包
-  PACK_4: 'item_004', // 文青超值包
-  PACK_5: 'item_005', // VIP獨享包
-  PACK_6: 'item_006', // 尊爵贊助包
+  PACK_1: 'item_01', // 入門基本包
+  PACK_2: 'item_02', // 熱門推薦包
+  PACK_3: 'item_03', // 高效閱讀包
+  PACK_4: 'item_04', // 文青超值包
+  PACK_5: 'item_05', // VIP獨享包
+  PACK_6: 'item_06', // 尊爵贊助包
 } as const;
 ```
 

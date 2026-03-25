@@ -23,6 +23,7 @@ import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempo
 import { translate } from '../i18n/i18n';
 import colors from '../config/colors';
 import storage from '../storage/storage';
+import { canAccessChapter } from '../services/bookAccessService';
 
 const ChapterItem = (props) => {
   const {
@@ -54,7 +55,7 @@ const ChapterItem = (props) => {
   } = props ?? {};
 
   const isFreeOpen = free_open === '開放';
-  const canView = isFreeOpen || isBookPurchased;
+  const canView = canAccessChapter({ freeOpen: free_open, isBookPurchased });
   const showLock = !canView;
 
   const navigation = useGuardedNavigate();

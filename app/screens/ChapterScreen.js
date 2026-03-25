@@ -4,10 +4,10 @@ import axios from 'axios';
 import ChapterItem from '../components/ChapterItem';
 import useResponsive from '../hook/useResponsive';
 import StoryHeader from '../components/StoryHeader';
-import { useRoute } from '@react-navigation/native';
+import { useFocusEffect, useRoute } from '@react-navigation/native';
 import apiclient from '../config/apiClient';
 import { useCoins } from '../store/coinContext';
-import storage from '../storage/storage';
+import { syncPurchasedStoryIds } from '../services/bookAccessService';
 
 const ChapterScreen = () => {
   const [queryInfo, setQueryInfo] = useState({
@@ -33,6 +33,11 @@ const ChapterScreen = () => {
       prev.includes(Number(storyId)) ? prev : [...prev, Number(storyId)]
     );
   }, [storyId]);
+
+  const refreshPurchasedIds = useCallback(async () => {
+    const mergedIds = await syncPurchasedStoryIds();
+    setLocalPurchasedIds(mergedIds);
+  }, []);
 
   const renderItem = ({ item, index }) => (
     <ChapterItem
@@ -92,13 +97,11 @@ const ChapterScreen = () => {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-    storage.getLocalPurchasedStoryIds().then((ids) => {
-      if (mounted) setLocalPurchasedIds(ids);
-    });
-    return () => { mounted = false; };
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      refreshPurchasedIds();
+    }, [refreshPurchasedIds])
+  );
 
   const { isTablet, maxContentWidth } = useResponsive();
 

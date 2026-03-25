@@ -13,11 +13,9 @@ install! 'cocoapods',
 
 prepare_react_native_project!
 
-target 'storyappv2' do
+target 'xStory' do
   use_expo_modules!
-  
-  # WeChat SDK
-  pod 'WechatOpenSDK', '~> 1.9.0'
+  pod 'WechatOpenSDK'
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
@@ -64,15 +62,15 @@ target 'storyappv2' do
       end
     end
 
-    # 強制為 Hermes 相關的 target 開啟 dSYM 生成
+    # Folly New.h: op_del_library_fn_ + sized deallocation can fail to resolve
+    # ::operator delete(void*, size_t) on some Xcode/Clang toolchains; disable
+    # sized deallocation for RCT-Folly only.
     installer.pods_project.targets.each do |target|
-      # 針對所有與 Hermes 相關的 target 強制開啟 dSYM
-      if target.name.include?('hermes')
-        target.build_configurations.each do |build_config|
-          build_config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
-          # 強制包含所有架構的符號
-          build_config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'NO'
-        end
+      next unless target.name == 'RCT-Folly'
+      target.build_configurations.each do |config|
+        flags = config.build_settings['OTHER_CPLUSPLUSFLAGS'] || '$(inherited)'
+        flags = flags.is_a?(Array) ? flags.join(' ') : flags.to_s
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "#{flags} -fno-sized-deallocation"
       end
     end
   end

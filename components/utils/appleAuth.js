@@ -22,22 +22,20 @@ export async function appleLogin() {
       // user is authenticated
     }
 
-    const { identityToken } = appleAuthRequestResponse;
-if (identityToken) {
-      // 將 id_token 解碼並打印其中的 aud 欄位
+    const { identityToken, authorizationCode, user } = appleAuthRequestResponse;
+    if (identityToken) {
       const payload = parseJwt(identityToken);
       console.log('Apple ID Token Payload:', payload);
       console.log('aud:', payload?.aud);
-    } else {
-      console.warn('無法取得 Apple identityToken');
+      return {
+        idToken: identityToken,
+        authorizationCode: authorizationCode ? String(authorizationCode) : undefined,
+        user: user ? String(user) : undefined,
+      };
     }
 
-    if (identityToken) {
-      // identityToken 通常會送後端驗證
-      return identityToken;
-    } else {
-      return null;
-    }
+    console.warn('無法取得 Apple identityToken');
+    return null;
   } catch (error) {
     console.error("Apple login error:", error);
     return null;

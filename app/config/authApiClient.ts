@@ -1,10 +1,12 @@
 // apiClient.ts
 import { RestfulApi } from "./api";
 import tokenStorage from '../auth/Storage';
+import { devBaseUrl as sharedDevBaseUrl, prodBaseUrl as sharedProdBaseUrl } from "./apiClient";
 
-export const devBaseUrl = "http://220.133.50.218:6001/";
-export const prodBaseUrl = "http://20.198.216.126:3001/";
-//https://xstoryline.com/
+// iOS ATS 會阻擋 http，但 `ios/xStory/Info.plist` 已針對 dev 網域允許 insecure HTTP。
+// 因此 dev 仍走原本的 devBaseUrl，prod 才走 production 網域。
+export const devBaseUrl = sharedDevBaseUrl;
+export const prodBaseUrl = sharedProdBaseUrl;
 const authApi = new RestfulApi({
   devBaseUrl,
   prodBaseUrl,
@@ -12,6 +14,32 @@ const authApi = new RestfulApi({
 });
 
 export default authApi;
+
+// Debug: 印出登入用 token 供你核對（驗證「送出去」與「後端回傳」是否正確）
+// 注意：token 屬於敏感資訊；確認後建議把 SHOULD_LOG_TOKENS 設回 false。
+const SHOULD_LOG_TOKENS = true;
+const SHOULD_LOG_FULL_TOKEN = true;
+
+function logToken(
+  label: string,
+  value: string | undefined | null,
+  opts?: { maxPreview?: number; maxFull?: number }
+) {
+  const maxPreview = opts?.maxPreview ?? 200;
+  const maxFull = opts?.maxFull ?? 50000;
+  const len = value?.length ?? 0;
+  console.log(label + " 長度:", len);
+  if (!SHOULD_LOG_TOKENS) return;
+  if (!value) return;
+  if (SHOULD_LOG_FULL_TOKEN && len <= maxFull) {
+    console.log(label + " (full):", value);
+    return;
+  }
+  console.log(label + ` (preview ${maxPreview} chars):`, value.substring(0, maxPreview));
+  if (len > maxPreview) {
+    console.log(label + " (tail 80 chars):", value.substring(Math.max(0, len - 80)));
+  }
+}
 
 
 /**
@@ -364,6 +392,7 @@ export async function googleLoginWithXStory(
     console.log("[Google Login API]   基礎 URL:", baseUrl);
     console.log("[Google Login API]   完整 URL:", fullUrl);
     console.log("[Google Login API]   idToken 長度:", payload.idToken?.length || 0);
+    logToken("[Google Login API]   送往後端的 idToken", payload.idToken);
     console.log("[Google Login API]   環境模式:", __DEV__ ? "開發" : "生產");
     
     const res = await authApi.post<XStoryGoogleLoginResponse>(
@@ -398,7 +427,7 @@ export async function googleLoginWithXStory(
       });
       // 不在此處 alert，讓呼叫端決定是否要顯示錯誤訊息
       // alert(errorMsg);
-      return null;
+      throw new Error(errorMsg);
     }
   } catch (error) {
     const errorMsg = extractErrorMessage(error);
@@ -409,7 +438,7 @@ export async function googleLoginWithXStory(
     });
     // 不在此處 alert，讓呼叫端決定是否要顯示錯誤訊息
     // alert(errorMsg);
-    return null;
+    throw error instanceof Error ? error : new Error(errorMsg);
   }
 }
 
@@ -440,6 +469,8 @@ export async function facebookLoginWithXStory(
     console.log("[Facebook Login API] 準備發送請求:");
     console.log("[Facebook Login API]   token 長度:", payload.token?.length || 0);
     console.log("[Facebook Login API]   hasRawNonce:", !!payload.rawNonce);
+    logToken("[Facebook Login API]   送往後端的 token", payload.token);
+    logToken("[Facebook Login API]   送往後端的 rawNonce", payload.rawNonce, { maxPreview: 120, maxFull: 500 });
     
     const res = await authApi.post<XStoryFacebookLoginResponse>(
       "api/auth/facebook-login",
@@ -453,11 +484,14 @@ export async function facebookLoginWithXStory(
       hasRefreshToken: !!res?.refreshToken,
       refreshTokenLength: res?.refreshToken?.length || 0,
       message: res?.message,
+      fullResponse: JSON.stringify(res, null, 2),
     });
 
     if (res && res.success && res.accessToken) {
       console.log("[Facebook Login API] 登入成功，accessToken 長度:", res.accessToken.length);
       console.log("[Facebook Login API] 登入成功，refreshToken 長度:", res.refreshToken?.length || 0);
+      logToken("[Facebook Login API]   後端回傳的 accessToken", res.accessToken);
+      logToken("[Facebook Login API]   後端回傳的 refreshToken", res.refreshToken);
       return {
         accessToken: res.accessToken,
         refreshToken: res.refreshToken,
@@ -468,8 +502,9 @@ export async function facebookLoginWithXStory(
         success: res?.success,
         hasAccessToken: !!res?.accessToken,
         message: errorMsg,
+        fullResponse: JSON.stringify(res, null, 2),
       });
-      return null;
+      throw new Error(errorMsg);
     }
   } catch (error) {
     const errorMsg = extractErrorMessage(error);
@@ -477,7 +512,7 @@ export async function facebookLoginWithXStory(
       message: errorMsg,
       error: error,
     });
-    return null;
+    throw error instanceof Error ? error : new Error(errorMsg);
   }
 }
 
@@ -535,7 +570,7 @@ export async function wechatLoginWithXStory(
         hasAccessToken: !!res?.accessToken,
         message: errorMsg,
       });
-      return null;
+      throw new Error(errorMsg);
     }
   } catch (error) {
     const errorMsg = extractErrorMessage(error);
@@ -543,7 +578,7 @@ export async function wechatLoginWithXStory(
       message: errorMsg,
       error: error,
     });
-    return null;
+    throw error instanceof Error ? error : new Error(errorMsg);
   }
 }
 
@@ -554,6 +589,8 @@ export async function wechatLoginWithXStory(
 // Apple 登入 Request
 export interface XStoryAppleLoginRequest {
   idToken: string;
+  authorizationCode?: string;
+  user?: string;
 }
 
 // Apple 登入 Response
@@ -572,7 +609,17 @@ export async function appleLoginWithXStory(
   try {
     console.log("[Apple Login API] 準備發送請求:");
     console.log("[Apple Login API]   idToken 長度:", payload.idToken?.length || 0);
-    
+    logToken("[Apple Login API]   送往後端的 idToken", payload.idToken);
+    if (payload.authorizationCode) {
+      logToken(
+        "[Apple Login API]   送往後端的 authorizationCode",
+        payload.authorizationCode,
+        { maxPreview: 200, maxFull: 2500 }
+      );
+    } else {
+      console.log("[Apple Login API]   送往後端的 authorizationCode: (無)");
+    }
+
     const res = await authApi.post<XStoryAppleLoginResponse>(
       "api/auth/apple-login",
       payload
@@ -585,11 +632,14 @@ export async function appleLoginWithXStory(
       hasRefreshToken: !!res?.refreshToken,
       refreshTokenLength: res?.refreshToken?.length || 0,
       message: res?.message,
+      fullResponse: JSON.stringify(res, null, 2),
     });
 
     if (res && res.success && res.accessToken) {
       console.log("[Apple Login API] 登入成功，accessToken 長度:", res.accessToken.length);
       console.log("[Apple Login API] 登入成功，refreshToken 長度:", res.refreshToken?.length || 0);
+      logToken("[Apple Login API]   後端回傳的 accessToken", res.accessToken);
+      logToken("[Apple Login API]   後端回傳的 refreshToken", res.refreshToken);
       return {
         accessToken: res.accessToken,
         refreshToken: res.refreshToken,
@@ -600,8 +650,9 @@ export async function appleLoginWithXStory(
         success: res?.success,
         hasAccessToken: !!res?.accessToken,
         message: errorMsg,
+        fullResponse: JSON.stringify(res, null, 2),
       });
-      return null;
+      throw new Error(errorMsg);
     }
   } catch (error) {
     const errorMsg = extractErrorMessage(error);
@@ -609,7 +660,7 @@ export async function appleLoginWithXStory(
       message: errorMsg,
       error: error,
     });
-    return null;
+    throw error instanceof Error ? error : new Error(errorMsg);
   }
 }
 
