@@ -25,6 +25,8 @@ interface UseIAPReturn {
   purchaseProduct: (productId: ProductId) => Promise<void>;
   restorePurchases: () => Promise<void>;
   refreshProducts: () => Promise<void>;
+  /** iOS：最近一次階段 2（fetchProducts）請求／回傳摘要，供商城 UI 顯示；Android 固定為空字串 */
+  iapCatalogSummary: string;
 }
 
 export function useIAP(): UseIAPReturn {
@@ -36,6 +38,7 @@ export function useIAP(): UseIAPReturn {
   const [productIdSource, setProductIdSource] = useState<
     'api-apple-packs' | 'local-product-ids-fallback' | 'local-product-ids-fake-setup' | 'local-product-ids-android' | 'unknown'
   >('unknown');
+  const [iapCatalogSummary, setIapCatalogSummary] = useState('');
   const { refreshCoins } = useCoins();
 
   // 初始化並載入商品
@@ -43,11 +46,14 @@ export function useIAP(): UseIAPReturn {
     try {
       setIsLoading(true);
       setError(null);
+      if (Platform.OS === 'ios') {
+        setIapCatalogSummary('');
+      }
 
       console.log('[useIAP] ========== 開始載入商品 ==========');
 
       // 步驟 1: 決定要向「平台」請求的商品 ID 列表
-      // 傳給平台的資料：fetchProducts({ skus: productIds }) → App Store / Google Play 用這些 ID 回傳商品與價格
+      // 傳給平台的資料：fetchProducts({ skus: productIds, type: 'in-app' })（消耗型）→ 商店回傳價格與元資料
       let productIds: string[];
       let productIdSource:
         | 'api-apple-packs'
@@ -86,11 +92,14 @@ export function useIAP(): UseIAPReturn {
         console.error('[useIAP] ❌ 發現無效的商品 ID:', invalidIds);
         setError(new Error('商品 ID 配置錯誤，包含無效值'));
         setProducts([]);
+        if (Platform.OS === 'ios') {
+          setIapCatalogSummary('尚未呼叫 fetchProducts（商品 ID 配置錯誤）');
+        }
         return;
       }
 
-      // 步驟 2: 初始化 IAP 連線
-      console.log('[useIAP] 步驟 2: 初始化 IAP 連線...');
+      // 步驟 2: 初始化 IAP 連線（iOS：initConnection / StoreKit；須成功後才能步驟 3 查價）
+      console.log('[useIAP] 步驟 2: 初始化 IAP 連線（initConnection）...');
       const initialized = await iapService.initialize();
       if (!initialized) {
         const errorMsg = Platform.OS === 'ios'
@@ -99,11 +108,14 @@ export function useIAP(): UseIAPReturn {
         console.warn('[useIAP]', errorMsg);
         setError(new Error(errorMsg));
         setProducts([]);
+        if (Platform.OS === 'ios') {
+          setIapCatalogSummary(`尚未呼叫 fetchProducts（initConnection 失敗）\n${errorMsg}`);
+        }
         return;
       }
 
-      // 步驟 3: 根據平台使用不同的方式獲取 IAP 商品詳情
-      console.log('[useIAP] 步驟 3: 根據平台獲取 IAP 商品詳情...');
+      // 步驟 3: 連線就緒後才向商店請求消耗型商品（fetchProducts + type in-app）；雙平台同順序
+      console.log('[useIAP] 步驟 3: 連線已就緒，向商店取得消耗型商品（fetchProducts type: in-app）...');
       console.log('[useIAP] 當前平台:', Platform.OS);
       
       let productList: Product[] = [];
@@ -150,12 +162,30 @@ export function useIAP(): UseIAPReturn {
       }
       
       setProducts(productList);
+      if (Platform.OS === 'ios') {
+        const returnedIds = productList
+          .map((p) => String((p as { productId?: string; id?: string }).productId ?? (p as { id?: string }).id ?? ''))
+          .filter(Boolean);
+        setIapCatalogSummary(
+          [
+            `ID 來源：${productIdSource}`,
+            `請求 SKU（${productIds.length}）：${productIds.join(', ')}`,
+            `fetchProducts 回傳件數：${productList.length}`,
+            returnedIds.length > 0
+              ? `回傳 productId：${returnedIds.join(', ')}`
+              : '回傳 productId：（無 — 請對照 App Store Connect 與 SKU）',
+          ].join('\n')
+        );
+      }
     } catch (err) {
       const error = err instanceof Error ? err : new Error('載入商品失敗');
       setError(error);
       console.error('[useIAP] ========== 載入商品失敗 ==========');
       console.error('[useIAP] 錯誤:', error);
       setProducts([]);
+      if (Platform.OS === 'ios') {
+        setIapCatalogSummary(`getProductList／載入流程失敗：\n${error.message}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -244,7 +274,19 @@ export function useIAP(): UseIAPReturn {
         Alert.alert('購買失敗', errorMessage || '購買過程中發生錯誤，請稍後再試');
       };
 
-      // 執行購買
+      const catalogHasSku = products.some(
+        (p: any) => p.productId === productId || p.id === productId
+      );
+      if (!catalogHasSku) {
+        const msg =
+          '商店列表中尚無此商品，請先在商城重新載入後再試。（需先 fetchProducts 成功再購買）';
+        setError(new Error(msg));
+        setIsPurchasing(false);
+        Alert.alert('無法購買', msg);
+        return;
+      }
+
+      // 執行購買（iapService 內會再次確認 consume 型 SKU 已自商店載入）
       await iapService.purchaseProduct(productId);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('購買失敗');
@@ -314,6 +356,7 @@ export function useIAP(): UseIAPReturn {
     purchaseProduct,
     restorePurchases,
     refreshProducts,
+    iapCatalogSummary,
   };
 }
 

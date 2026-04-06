@@ -2,7 +2,7 @@
   "expo": {
     "name": "xStory",
     "slug": "story-app-v2",
-    "version": "1.0.93",
+    "version": "1.0.97",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
@@ -80,7 +80,7 @@
       "associatedDomains": [
         "applinks:xstudio-mclub.url.tw"
       ],
-      "buildNumber": "96"
+      "buildNumber": "100"
     },
     "android": {
       "splash": {
@@ -111,7 +111,7 @@
           ]
         }
       ],
-      "versionCode": 96
+      "versionCode": 100
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -1,15 +1,19 @@
 // apiClient.ts
 import { RestfulApi } from "./api";
 import tokenStorage from '../auth/Storage';
-import { devBaseUrl as sharedDevBaseUrl, prodBaseUrl as sharedProdBaseUrl } from "./apiClient";
+import { portURL } from "./apiClient";
 
-// iOS ATS 會阻擋 http，但 `ios/xStory/Info.plist` 已針對 dev 網域允許 insecure HTTP。
-// 因此 dev 仍走原本的 devBaseUrl，prod 才走 production 網域。
-export const devBaseUrl = sharedDevBaseUrl;
-export const prodBaseUrl = sharedProdBaseUrl;
+/**
+ * 登入／註冊／refresh／logout 與 iapService 使用的 `api/me/iap-receipts` 等，實際都部署在
+ * `portURL`（與 `userApiClient` 的 production base 相同）。
+ *
+ * `https://xstoryline.com/` 與 `http://api.xstudio-mclub.url.tw/` 對 `api/auth/*` 會回 **404**
+ *（路由未掛在該主機），因此第三方登入會一直失敗。
+ */
+export const authServiceBaseUrl = portURL;
 const authApi = new RestfulApi({
-  devBaseUrl,
-  prodBaseUrl,
+  devBaseUrl: authServiceBaseUrl,
+  prodBaseUrl: authServiceBaseUrl,
   isDev: __DEV__,
 });
 

@@ -10,6 +10,7 @@
 		06000311EA4ABA1DCD762EAE /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 50518AD113B81CF83F24545C /* PrivacyInfo.xcprivacy */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
+		4EB9699D2F747A140048C127 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4EB9699C2F747A140048C127 /* StoreKit.framework */; };
 		54D6119D74F1A7D234ECDE8D /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DA8B9219A43DDFDE6D8A448 /* ExpoModulesProvider.swift */; };
 		B5B91AF5476426CFD4A99D2F /* libPods-xStory.a in Frameworks */ = {isa = PBXBuildFile; fileRef = B67F391EC32B42A9E9DEF685 /* libPods-xStory.a */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
@@ -23,6 +24,7 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = xStory/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = xStory/Info.plist; sourceTree = "<group>"; };
 		4ABB5BEA668CC60A382B652C /* Pods-xStory.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-xStory.release.xcconfig"; path = "Target Support Files/Pods-xStory/Pods-xStory.release.xcconfig"; sourceTree = "<group>"; };
+		4EB9699C2F747A140048C127 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		50518AD113B81CF83F24545C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = xStory/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		9DA8B9219A43DDFDE6D8A448 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-xStory/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = xStory/SplashScreen.storyboard; sourceTree = "<group>"; };
@@ -42,6 +44,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B5B91AF5476426CFD4A99D2F /* libPods-xStory.a in Frameworks */,
+				4EB9699D2F747A140048C127 /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -75,6 +78,7 @@
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				4EB9699C2F747A140048C127 /* StoreKit.framework */,
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				B67F391EC32B42A9E9DEF685 /* libPods-xStory.a */,
 			);
@@ -152,6 +156,7 @@
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
 				493DE618FDD0A49D57A7E2AC /* [CP] Embed Pods Frameworks */,
+				C1D2E3F4A5B6789012345678 /* Generate Hermes dSYM */,
 			);
 			buildRules = (
 			);
@@ -182,6 +187,7 @@
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hant",
 			);
 			mainGroup = 83CBB9F61A601CBA00E9B192;
 			productRefGroup = 83CBBA001A601CBA00E9B192 /* Products */;
@@ -344,6 +350,22 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-xStory/Pods-xStory-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		C1D2E3F4A5B6789012345678 /* Generate Hermes dSYM */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Generate Hermes dSYM";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Prebuilt Hermes often ships without a separate dSYM; generate from the embedded binary so Archive UUID checks pass.\nHERMES_BIN=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework/hermes\"\nif [ ! -f \"$HERMES_BIN\" ]; then\n  echo \"warning: Hermes binary not found at $HERMES_BIN (skipping dSYM)\"\n  exit 0\nfi\nOUT_DSYM=\"${DWARF_DSYM_FOLDER_PATH}/hermes.framework.dSYM\"\nrm -rf \"$OUT_DSYM\"\ndsymutil \"$HERMES_BIN\" -o \"$OUT_DSYM\"\n";
+			showEnvVarsInLog = 0;
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -368,7 +390,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = xStory/xStory.entitlements;
-				CURRENT_PROJECT_VERSION = 96;
+				CURRENT_PROJECT_VERSION = 100;
 				DEVELOPMENT_TEAM = 584QBJVZ28;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -382,7 +404,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.93;
+				MARKETING_VERSION = 1.0.97;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -406,7 +428,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = xStory/xStory.entitlements;
-				CURRENT_PROJECT_VERSION = 96;
+				CURRENT_PROJECT_VERSION = 100;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 584QBJVZ28;
 				INFOPLIST_FILE = xStory/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
@@ -415,7 +438,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.93;
+				MARKETING_VERSION = 1.0.97;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",

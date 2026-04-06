@@ -59,7 +59,6 @@ export default function ShopScreen() {
     purchaseProduct,
     error,
     refreshProducts,
-    requestedProductIds,
     productIdSource,
   } = useIAP();
   const { coins } = useCoins();
@@ -111,26 +110,34 @@ export default function ShopScreen() {
       console.log('[ShopScreen] 階段 1 診斷 不匹配樣本（最多 6 筆）:', mismatchedPacks);
       console.log('[ShopScreen] 階段 1 ✓ 過濾後本平台（', platformCode, '）金幣包數量:', filteredPacks.length);
 
-      setCoinPackDebugText(
-        [
-          `平台代碼：${platformCode}`,
-          `後端總筆數：${packs.length}`,
-          `raw platform 分布：${JSON.stringify(rawPlatformStats)}`,
-          `normalized 分布：${JSON.stringify(normalizedPlatformStats)}`,
-          `本平台過濾後：${filteredPacks.length}`,
-          mismatchedPacks.length > 0
-            ? `不匹配樣本：${JSON.stringify(mismatchedPacks)}`
-            : '不匹配樣本：無',
-        ].join('\n')
-      );
+      if (Platform.OS === 'ios') {
+        setCoinPackDebugText('');
+      } else {
+        setCoinPackDebugText(
+          [
+            `平台代碼：${platformCode}`,
+            `後端總筆數：${packs.length}`,
+            `raw platform 分布：${JSON.stringify(rawPlatformStats)}`,
+            `normalized 分布：${JSON.stringify(normalizedPlatformStats)}`,
+            `本平台過濾後：${filteredPacks.length}`,
+            mismatchedPacks.length > 0
+              ? `不匹配樣本：${JSON.stringify(mismatchedPacks)}`
+              : '不匹配樣本：無',
+          ].join('\n')
+        );
+      }
       setCoinPacks(filteredPacks);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[ShopScreen] 階段 1 ✗ 取得後端金幣包失敗:', msg);
       setBackendError(msg);
-      setCoinPackDebugText(`平台代碼：${platformCode}\n階段 1 錯誤：${msg}`);
+      if (Platform.OS === 'ios') {
+        setCoinPackDebugText('');
+      } else {
+        setCoinPackDebugText(`平台代碼：${platformCode}\n階段 1 錯誤：${msg}`);
+      }
       setCoinPacks([]);
-      if (!hasAlertedBackendError.current) {
+      if (Platform.OS !== 'ios' && !hasAlertedBackendError.current) {
         hasAlertedBackendError.current = true;
         Alert.alert('後端金幣包取得失敗', `階段 1（後端）失敗：${msg}`);
       }
@@ -205,7 +212,7 @@ export default function ShopScreen() {
     });
   }, [products, coinPacks, platformCode, productIdSource]);
 
-  // 無商品時顯示的具體原因（哪一階段沒有資料）
+  // 無商品時顯示原因（iOS／Android 同一套文案結構）
   const emptyReason = useMemo(() => {
     if (products.length > 0) return null;
     const parts: string[] = [];
@@ -215,11 +222,6 @@ export default function ShopScreen() {
       parts.push(`階段 1（後端）：本平台（${platformCode}）金幣包數量為 0`);
       if (coinPackDebugText) {
         parts.push(`階段 1 診斷：\n${coinPackDebugText}`);
-      }
-      if (platformCode === 'APPLE') {
-        const fallbackIds = requestedProductIds.length > 0 ? requestedProductIds.join(', ') : 'item_001, item_002, item_003, item_004, item_005, item_006';
-        parts.push(`階段 2（App Store）已啟用 fallback IDs：${fallbackIds}`);
-        parts.push(`階段 2（App Store）目前 ID 來源：${productIdSource}`);
       }
     } else {
       parts.push(`階段 1（後端）：已取得 ${coinPacks.length} 筆金幣包`);
@@ -233,8 +235,6 @@ export default function ShopScreen() {
     platformName,
     backendError,
     coinPackDebugText,
-    requestedProductIds,
-    productIdSource,
   ]);
 
   // 無商品時寫入一筆流程 log，方便對照
@@ -363,13 +363,6 @@ export default function ShopScreen() {
           {isIAPLoading && (
             <View style={styles.iapLoadingHint}>
               <Text style={styles.iapLoadingText}>正在載入商店價格資訊...</Text>
-            </View>
-          )}
-          {Platform.OS === 'ios' && (
-            <View style={styles.debugBanner}>
-              <Text style={styles.debugBannerTitle}>iOS 階段2（查詢 Apple 商品）診斷</Text>
-              <Text style={styles.debugBannerText}>productIdSource: {productIdSource}</Text>
-              <Text style={styles.debugBannerText}>requestedProductIds: {requestedProductIds.join(', ')}</Text>
             </View>
           )}
           {packsWithPrice.map((p, i) => (
@@ -503,24 +496,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
-  },
-  debugBanner: {
-    width: '100%',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(30, 144, 255, 0.10)',
-    borderRadius: 10,
-    gap: 4,
-    marginTop: 2,
-  },
-  debugBannerTitle: {
-    color: '#7ab6ff',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  debugBannerText: {
-    color: '#e7eef6',
-    fontSize: 12,
-    lineHeight: 16,
   },
 });

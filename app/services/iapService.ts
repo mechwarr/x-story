@@ -459,7 +459,7 @@ class IAPService {
    * 獲取商品列表
    * 對應 Apple StoreKit 的 productsRequest 流程：
    * 1. 建立清單：傳入要查詢的 Product IDs (skus)
-   * 2. 發送請求：fetchProducts({ skus }) → 底層透過 OpenIAP/StoreKit 2 向 App Store 請求
+   * 2. 發送請求：fetchProducts({ skus, type: 'in-app' })（消耗型）→ 底層向 App Store / Play 請求
    * 3. App Store 驗證：ID 是否存在、是否準備銷售、Bundle ID / 付費協議等
    * 4. 回傳結果：有效商品在 products 陣列；無效 ID 會透過日誌 invalidProductIdentifiers 列出
    * @param productIds - 可選的商品 ID 列表，如果不提供則使用預設的 PRODUCT_IDS
@@ -468,6 +468,15 @@ class IAPService {
     try {
       if (!this.isInitialized) {
         await this.initialize();
+      }
+      // StoreKit / Play Billing：必須先 initConnection 成功，才能安全呼叫 fetchProducts（否則行為未定義）
+      if (!this.isInitialized) {
+        if (Platform.OS === 'ios') {
+          console.error('[iapService] iOS：initConnection 未成功，略過 fetchProducts（不應在未連線時查商品）');
+        } else {
+          console.error('[iapService] Android：initConnection 未成功，略過 fetchProducts（不應在未連線時查商品）');
+        }
+        return [];
       }
 
       // 如果提供了商品 ID 列表，使用提供的；否則使用預設的
@@ -484,7 +493,7 @@ class IAPService {
         logStringList('requestedSkus', skus);
       });
       
-      const products = await fetchProducts({ skus });
+      const products = await fetchProducts({ skus, type: 'in-app' });
       
       // fetchProducts 可能返回 null，需要處理
       if (!products) {
@@ -700,15 +709,27 @@ class IAPService {
         });
       }
       
-      // 過濾出 Product 類型（排除訂閱類型）
-      // 注意：react-native-iap 返回的 Product 可能使用 'id' 或 'productId' 屬性
+      // 過濾：僅排除訂閱；保留消耗型／非消耗型 IAP
+      // react-native-iap v14 在 iOS 上對消耗型也會帶 subscriptionPeriodUnitIOS（例如 'empty'），
+      // 若用 ('subscriptionPeriodUnitIOS' in p) 當訂閱判斷，會把全部 iOS 品項誤刪 → UI 永遠 0 件。
+      const isSubscriptionLike = (p: any): boolean => {
+        if (p.type === 'subs') {
+          return true;
+        }
+        if (p.platform === 'ios') {
+          const t = p.typeIOS as string | undefined;
+          return (
+            t === 'auto-renewable-subscription' ||
+            t === 'non-renewing-subscription'
+          );
+        }
+        return false;
+      };
+
       const filteredProducts = products
         .filter((p: any) => {
-          // 檢查是否有 productId 或 id 屬性（都表示這是一個商品）
           const hasProductId = 'productId' in p || 'id' in p;
-          // 排除訂閱類型（訂閱有 subscriptionPeriodUnitIOS 屬性）
-          const isNotSubscription = !('subscriptionPeriodUnitIOS' in p);
-          return hasProductId && isNotSubscription;
+          return hasProductId && !isSubscriptionLike(p);
         })
         .map((p: any) => {
           // 統一處理：確保所有商品都有 productId 和 id 屬性
@@ -788,73 +809,42 @@ class IAPService {
         }
       }
 
-      // 根據 react-native-iap v14.4.5 的文檔
-      // 重要：可能需要先獲取商品詳情，然後使用商品對象購買
-      // 嘗試多種方法來確保購買成功
-      
+      // 消耗型 IAP：必須先透過 fetchProducts（in-app）取得該 SKU，才允許 requestPurchase
       console.log('[iapService] 準備購買，商品 ID:', productId);
       console.log('[iapService] 平台:', Platform.OS);
       console.log('[iapService] 緩存的商品數量:', this.cachedProducts.length);
-      
-      // 方法 1: 嘗試從緩存的商品中找到對應的商品對象
+
       let product: Product | undefined = this.cachedProducts.find(
         (p) => (p as any).productId === productId || p.id === productId
       );
-      
+
       if (product) {
-        const productIdValue = (product as any).productId || product.id;
-        console.log('[iapService] ✓ 從緩存中找到商品:', productIdValue);
+        const pid = (product as any).productId || product.id;
+        console.log('[iapService] ✓ 從緩存中找到商品:', pid);
       } else {
-        console.log('[iapService] ⚠️ 緩存中沒有找到商品，嘗試獲取商品詳情...');
-        // 如果緩存中沒有，嘗試獲取商品詳情
-        try {
-          const products = await this.getProductList([productId]);
-          product = products.find((p) => (p as any).productId === productId || p.id === productId);
-          if (product) {
-            console.log('[iapService] ✓ 成功獲取商品詳情');
-          }
-        } catch (error) {
-          console.warn('[iapService] ⚠️ 獲取商品詳情失敗，將使用商品 ID:', error);
+        console.log('[iapService] 緩存無此 SKU，改呼叫 getProductList／fetchProducts(type: in-app) 補齊...');
+        const products = await this.getProductList([productId]);
+        product = products.find((p) => (p as any).productId === productId || p.id === productId);
+        if (product) {
+          console.log('[iapService] ✓ 已從商店載入該消耗型商品');
         }
       }
-      
-      // 診斷：檢查商品是否可獲取
-      const productIdValue = product ? ((product as any).productId || product.id) : productId;
-      
+
       if (!product) {
-        const storeName = Platform.OS === 'ios' ? 'App Store' : 'Google Play';
-        console.warn(`[iapService] ⚠️⚠️⚠️ 警告：無法從 ${storeName} 獲取商品詳情 ⚠️⚠️⚠️`);
-        console.warn('[iapService] ⚠️ 這是最可能導致「找不到您要購買的項目」錯誤的原因！');
-        console.warn('[iapService]');
-        console.warn('[iapService] 📋 診斷資訊：');
-        console.warn(`[iapService]   嘗試購買的商品 ID: "${productIdValue}"`);
-        console.warn('[iapService]   緩存中的商品數量:', this.cachedProducts.length);
-        console.warn('[iapService]   緩存中的商品 ID 列表:', this.cachedProducts.map((p: any) => (p as any).productId || p.id));
-        console.warn('[iapService]');
-        console.warn('[iapService] 🔍 請檢查以下項目：');
-        if (Platform.OS === 'ios') {
-          console.warn('[iapService]   1. ✅ 商品 ID 是否與 App Store Connect 中的完全一致（區分大小寫）');
-          console.warn('[iapService]   2. ✅ 應用內購買項目是否已建立且狀態為「準備提交」或「已批准」');
-          console.warn('[iapService]   3. ✅ 是否已登入 App Store 或沙盒測試帳號');
-          console.warn('[iapService]   4. ✅ Bundle ID 是否與 App Store Connect 一致');
-          console.warn('[iapService]   5. ✅ fetchProducts 是否能成功獲取該商品');
-        } else {
-          console.warn('[iapService]   1. ✅ 商品 ID 是否與 Google Play Console 中的完全一致（區分大小寫）');
-          console.warn('[iapService]   2. ✅ 應用是否已發布到測試軌道（狀態為「已發布」）');
-          console.warn('[iapService]   3. ✅ 測試帳號是否已加入測試人員名單');
-          console.warn('[iapService]   4. ✅ 商品是否已啟用（不是草稿狀態）');
-          console.warn('[iapService]   5. ✅ fetchProducts 是否能成功獲取該商品');
-        }
-        console.warn('[iapService]');
-        console.warn('[iapService] 💡 建議：');
-        console.warn('[iapService]   - 先確保 fetchProducts 能成功獲取該商品');
-        console.warn('[iapService]   - 如果 fetchProducts 返回空，購買時也會找不到商品');
-        console.warn('[iapService] ⚠️⚠️⚠️ 將嘗試購買，但可能會失敗 ⚠️⚠️⚠️');
-      } else {
-        console.log('[iapService] ✓ 商品詳情已獲取，商品 ID:', productIdValue);
-        console.log('[iapService]   商品名稱:', (product as any).title || product.id);
-        console.log('[iapService]   商品價格:', (product as any).price || (product as any).displayPrice || 'N/A');
+        const storeName = Platform.OS === 'ios' ? 'App Store Connect' : 'Google Play Console';
+        console.error(`[iapService] ❌ ${storeName} 未回傳此消耗型商品，已阻擋 requestPurchase`);
+        console.error(`[iapService]    商品 ID: "${productId}"`);
+        console.error('[iapService]    緩存 ID 列表:', this.cachedProducts.map((p: any) => (p as any).productId || p.id));
+        throw new Error(
+          `無法購買：商店尚未回傳此消耗型商品（${productId}）。請確認 ${storeName} 與應用內 SKU 一致，並在商城重新載入後再試。`,
+        );
       }
+
+      const productIdValue = (product as any).productId || product.id;
+
+      console.log('[iapService] ✓ 商品詳情已就緒，商品 ID:', productIdValue);
+      console.log('[iapService]   商品名稱:', (product as any).title || (product as any).id);
+      console.log('[iapService]   商品價格:', (product as any).price || (product as any).displayPrice || 'N/A');
       
       // 嘗試多種格式（react-native-iap v14.4.5 可能需要不同的格式）
       

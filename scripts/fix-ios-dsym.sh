@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}🔧 修復 iOS Hermes dSYM 設定...${NC}\n"
 
-PROJECT_FILE="ios/storyappv2.xcodeproj/project.pbxproj"
+PROJECT_FILE="ios/xStory.xcodeproj/project.pbxproj"
 
 # 檢查專案文件是否存在
 if [ ! -f "$PROJECT_FILE" ]; then
@@ -24,13 +24,13 @@ fi
 
 # 檢查是否已經設置了 DEBUG_INFORMATION_FORMAT
 echo -e "${BLUE}📋 步驟 1: 檢查 Debug Information Format 設定...${NC}"
-if grep -q 'DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"' "$PROJECT_FILE"; then
+if grep -qE 'DEBUG_INFORMATION_FORMAT = ("dwarf-with-dsym"|dwarf-with-dsym)' "$PROJECT_FILE"; then
     echo -e "${GREEN}✅ Release 配置已正確設置 DEBUG_INFORMATION_FORMAT = dwarf-with-dsym${NC}"
 else
     echo -e "${YELLOW}⚠️  未找到正確的 DEBUG_INFORMATION_FORMAT 設置${NC}"
     echo -e "${BLUE}   請在 Xcode 中手動設置：${NC}"
     echo -e "   1. 打開 Xcode 專案"
-    echo -e "   2. 選擇 Target 'storyappv2' → Build Settings"
+    echo -e "   2. 選擇 Target 'xStory' → Build Settings"
     echo -e "   3. 搜尋 'Debug Information Format'"
     echo -e "   4. 將 Release 配置設為 'DWARF with dSYM File'"
     echo ""
@@ -71,15 +71,15 @@ fi
 
 # 檢查是否已經有複製 Hermes dSYM 的 Build Phase
 echo -e "${BLUE}📋 步驟 3: 檢查 Build Phase 設定...${NC}"
-if grep -q "Copy Hermes dSYM\|hermes.framework.dSYM" "$PROJECT_FILE"; then
+if grep -q "Generate Hermes dSYM\|Copy Hermes dSYM\|hermes.framework.dSYM" "$PROJECT_FILE"; then
     echo -e "${GREEN}✅ 已找到 Hermes dSYM 相關的 Build Phase${NC}"
 else
-    echo -e "${YELLOW}⚠️  未找到複製 Hermes dSYM 的 Build Phase${NC}"
+    echo -e "${YELLOW}⚠️  未找到 Hermes dSYM 的 Build Phase（專案應含「Generate Hermes dSYM」Run Script）${NC}"
     echo ""
     echo -e "${BLUE}📝 需要手動添加 Build Phase：${NC}"
     echo -e "${YELLOW}   方法 1: 在 Xcode 中手動添加（推薦）${NC}"
     echo -e "   1. 打開 Xcode 專案"
-    echo -e "   2. 選擇 Target 'storyappv2' → Build Phases"
+    echo -e "   2. 選擇 Target 'xStory' → Build Phases"
     echo -e "   3. 點擊左上角 '+' → New Run Script Phase"
     echo -e "   4. 將新 Phase 拖到 'Bundle React Native code and images' 之後"
     echo -e "   5. 命名為 'Copy Hermes dSYM'"
@@ -110,8 +110,8 @@ echo -e "   1. 確認 Build Settings → Debug Information Format → Release �
 if [ -z "$HERMES_DSYM_FOUND" ]; then
     echo -e "   2. 執行 ${GREEN}cd ios && pod install${NC} 確保 Hermes dSYM 存在"
 fi
-if ! grep -q "Copy Hermes dSYM\|hermes.framework.dSYM" "$PROJECT_FILE"; then
-    echo -e "   3. 按照上述步驟添加 'Copy Hermes dSYM' Build Phase"
+if ! grep -q "Generate Hermes dSYM\|Copy Hermes dSYM\|hermes.framework.dSYM" "$PROJECT_FILE"; then
+    echo -e "   3. 確認專案已加入「Generate Hermes dSYM」Build Phase（對嵌入的 hermes 執行 dsymutil）"
 fi
 echo -e "   4. 在 Xcode 中執行 Product → Archive"
 echo -e "   5. 上傳到 App Store Connect"
