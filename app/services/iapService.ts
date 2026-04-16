@@ -12,6 +12,8 @@ import {
   requestPurchase,
   finishTransaction,
   getAvailablePurchases,
+  getReceiptIOS,
+  requestReceiptRefreshIOS,
   purchaseUpdatedListener,
   purchaseErrorListener,
   type Product,
@@ -28,6 +30,7 @@ import {
   logSkuCompare,
   logStringList,
 } from '../utils/iapDebugLogger';
+import { appStoreSkuToBackendProductId } from '../utils/iosIapSkuMapping';
 
 // 商品 ID 配置（需要在 App Store Connect 和 Google Play Console 中設定）
 export const PRODUCT_IDS = {
@@ -66,6 +69,10 @@ class IAPService {
   private purchaseUpdateSubscription: any = null;
   private purchaseErrorSubscription: any = null;
   private isInitialized = false;
+  /** 防止並行 initialize() 重複註冊 purchaseUpdatedListener（會導致同一筆購買觸發兩次） */
+  private initConnectionPromise: Promise<boolean> | null = null;
+  /** 已處理的交易 ID（消耗型仍可能收到重複事件，略過第二次） */
+  private processedPurchaseTransactionIds = new Set<string>();
   private cachedProducts: Product[] = []; // 緩存已獲取的商品列表
 
   /**
@@ -133,12 +140,19 @@ class IAPService {
    * 初始化內購連線
    */
   async initialize(): Promise<boolean> {
-    try {
-      if (this.isInitialized) {
-        console.log('[iapService] IAP 已經初始化，跳過');
-        return true;
-      }
+    if (this.isInitialized) {
+      console.log('[iapService] IAP 已經初始化，跳過');
+      return true;
+    }
+    if (this.initConnectionPromise) {
+      return this.initConnectionPromise;
+    }
+    this.initConnectionPromise = this.runInitConnection();
+    return this.initConnectionPromise;
+  }
 
+  private async runInitConnection(): Promise<boolean> {
+    try {
       console.log('[iapService] ========== 開始初始化 IAP 連線 ==========');
       console.log('[iapService] 平台:', Platform.OS);
 
@@ -301,6 +315,8 @@ class IAPService {
       }
       
       return false;
+    } finally {
+      this.initConnectionPromise = null;
     }
   }
 
@@ -309,12 +325,34 @@ class IAPService {
    * 監聽 Google Play / App Store 返回的購買結果
    */
   private setupPurchaseListeners() {
+    if (this.purchaseUpdateSubscription) {
+      this.purchaseUpdateSubscription.remove();
+      this.purchaseUpdateSubscription = null;
+    }
+    if (this.purchaseErrorSubscription) {
+      this.purchaseErrorSubscription.remove();
+      this.purchaseErrorSubscription = null;
+    }
+
     // 監聽購買更新（成功、取消、失敗都會觸發）
     this.purchaseUpdateSubscription = purchaseUpdatedListener(
       async (purchase: Purchase) => {
         console.log('[iapService] ========== 收到購買更新 ==========');
         console.log('[iapService] 購買物件:', JSON.stringify(purchase, null, 2));
-        
+
+        const purchaseAny = purchase as any;
+        const dedupeKey =
+          (purchase.transactionId && String(purchase.transactionId)) ||
+          (purchaseAny.id && String(purchaseAny.id)) ||
+          '';
+        if (dedupeKey && this.processedPurchaseTransactionIds.has(dedupeKey)) {
+          console.log('[iapService] 略過重複購買事件（已處理） transactionId/id:', dedupeKey);
+          return;
+        }
+        if (dedupeKey) {
+          this.processedPurchaseTransactionIds.add(dedupeKey);
+        }
+
         try {
           // 提取購買資訊
           const purchaseInfo = this.extractPurchaseInfo(purchase);
@@ -345,17 +383,27 @@ class IAPService {
           // 驗證收據（在後端驗證）
           console.log('[iapService] 開始驗證收據...');
           const verificationResult = await this.validateReceiptWithBackend(purchase);
-          
+
           // 完成交易（標記為已處理）
           // 重要：必須調用 finishTransaction，否則 Google Play 會認為交易未完成
           console.log('[iapService] 完成交易（finishTransaction）...');
           await finishTransaction({ purchase, isConsumable: true });
           console.log('[iapService] ✓ 交易已完成');
-          
-          // 觸發購買成功回調（傳遞驗證結果）
-          console.log('[iapService] 觸發購買成功回調...');
+
+          // 僅在後端驗證成功時顯示「購買成功」；失敗則走 onPurchaseError（與 catch 一致）
+          if (!verificationResult) {
+            console.warn('[iapService] 後端驗證未通過，不觸發購買成功回調');
+            this.onPurchaseError?.(
+              new Error(
+                '[VERIFY_FAILED] 伺服器驗證失敗，無法確認金幣入帳。若已扣款，請稍後查看餘額或聯絡客服。',
+              ),
+            );
+            return;
+          }
+
+          console.log('[iapService] 觸發購買成功回調（驗證已成功）...');
           this.onPurchaseSuccess?.(purchase, verificationResult);
-          
+
           console.log('[iapService] ========== 購買處理完成 ==========');
         } catch (error) {
           console.error('[iapService] ========== 處理購買時發生錯誤 ==========');
@@ -1159,62 +1207,114 @@ class IAPService {
       console.log('[iapService] ========== 開始驗證收據 ==========');
       console.log('[iapService] 購買物件:', JSON.stringify(purchase, null, 2));
       
-      const isIOS = purchase.platform === 'ios';
+      // 以執行緒平台為準：避免 purchase.platform 未帶入時誤走 Google 分支（導致未呼叫 api/iap/verify）
+      const isIOS = Platform.OS === 'ios';
+      const isAndroid = Platform.OS === 'android';
       const purchaseToken = (purchase as any).purchaseToken;
       const purchaseAny = purchase as any;
-      
+
+      const storeProductId = String(purchase.productId ?? '').trim();
+      const productIdForBackend = isIOS ? appStoreSkuToBackendProductId(storeProductId) : storeProductId;
+
       // 構建驗證請求
       let verifyRequest: {
-        platform: "GOOGLE" | "APPLE";
+        platform: 'GOOGLE' | 'APPLE';
         receipt: string;
         productId?: string;
+        purchaseToken?: string;
       };
-      
+
       if (isIOS) {
-        // iOS: 優先使用 transactionReceipt（Apple 收據資料，用於後端調用 Apple verifyReceipt API）
-        // 其次使用 originalTransactionIdentifierIOS 或 transactionId 作為 fallback
-        const transactionReceipt = purchaseAny.transactionReceipt ?? purchaseAny.transactionReceiptIOS ?? purchaseAny.receipt;
+        // 後端若以 Apple legacy verifyReceipt 驗證，必須傳 App 的 base64 收據；僅傳 StoreKit 2 的 JWS 會導致 Apple status 21002
+        let appReceiptBase64: string | undefined;
+        try {
+          const bundle = await getReceiptIOS();
+          if (bundle && String(bundle).trim().length > 0) {
+            appReceiptBase64 = String(bundle).trim();
+            console.log('[iapService] iOS：getReceiptIOS() base64 收據長度:', appReceiptBase64.length);
+          }
+        } catch (e) {
+          console.warn('[iapService] getReceiptIOS 失敗，將嘗試刷新收據:', e);
+        }
+        if (!appReceiptBase64) {
+          try {
+            const refreshed = await requestReceiptRefreshIOS();
+            if (refreshed && String(refreshed).trim().length > 0) {
+              appReceiptBase64 = String(refreshed).trim();
+              console.log('[iapService] iOS：requestReceiptRefreshIOS 收據長度:', appReceiptBase64.length);
+            }
+          } catch (e) {
+            console.warn('[iapService] requestReceiptRefreshIOS 失敗:', e);
+          }
+        }
+
+        const jws = purchaseToken && String(purchaseToken).trim();
+        const legacyReceipt =
+          purchaseAny.transactionReceipt ?? purchaseAny.transactionReceiptIOS ?? purchaseAny.receipt;
+        const legacy = legacyReceipt && String(legacyReceipt).trim() ? String(legacyReceipt) : '';
         const originalTransactionIdIOS = purchaseAny.originalTransactionIdentifierIOS ?? null;
+
         const receipt =
-          (transactionReceipt && String(transactionReceipt).trim())
-            ? String(transactionReceipt)
-            : (originalTransactionIdIOS ? String(originalTransactionIdIOS) : (purchase.transactionId || undefined));
-        
+          appReceiptBase64 && appReceiptBase64.length > 0
+            ? appReceiptBase64
+            : legacy.length > 0
+              ? legacy
+              : jws && jws.length > 0
+                ? jws
+                : originalTransactionIdIOS
+                  ? String(originalTransactionIdIOS)
+                  : purchase.transactionId
+                    ? String(purchase.transactionId)
+                    : undefined;
+
         if (!receipt) {
-          console.warn('[iapService] ⚠️ iOS 購買缺少收據資訊（需 transactionReceipt 或 transactionId）');
+          console.warn(
+            '[iapService] ⚠️ iOS 購買缺少收據（getReceiptIOS／transactionReceipt／JWS 皆無）',
+          );
           return undefined;
         }
-        
+
         verifyRequest = {
-          platform: "APPLE",
+          platform: 'APPLE',
           receipt,
-          productId: purchase.productId,
+          productId: productIdForBackend,
+          ...(jws && jws.length > 0 ? { purchaseToken: jws } : {}),
         };
-        
+
         console.log('[iapService] iOS (APPLE) 驗證請求:');
         console.log('[iapService]   平台: APPLE');
-        console.log('[iapService]   收據長度:', receipt.length, '(transactionReceipt 或 transactionId)');
-        console.log('[iapService]   商品 ID:', purchase.productId);
-      } else {
+        console.log('[iapService]   receipt 是否為 base64  bundle:', !!appReceiptBase64);
+        console.log('[iapService]   收據前綴:', receipt.length > 32 ? `${receipt.slice(0, 32)}…` : receipt);
+        console.log('[iapService]   收據長度:', receipt.length);
+        console.log('[iapService]   商店商品 ID:', storeProductId);
+        console.log('[iapService]   後端 productId:', productIdForBackend);
+      } else if (isAndroid) {
         // Android: 使用 purchaseToken 作為 receipt
         if (!purchaseToken) {
           console.warn('[iapService] ⚠️ Android 購買缺少 purchaseToken');
           return undefined;
         }
-        
+
         verifyRequest = {
-          platform: "GOOGLE",
-          receipt: String(purchaseToken), // 使用 receipt 欄位傳遞 purchaseToken
-          productId: purchase.productId, // 添加 productId
+          platform: 'GOOGLE',
+          receipt: String(purchaseToken),
+          productId: storeProductId,
         };
-        
+
         console.log('[iapService] Android 驗證請求:');
         console.log('[iapService]   平台: GOOGLE');
         console.log('[iapService]   receipt (purchaseToken):', purchaseToken);
-        console.log('[iapService]   商品 ID:', purchase.productId);
+        console.log('[iapService]   商品 ID:', storeProductId);
+      } else {
+        console.warn('[iapService] ⚠️ 不支援的平台，略過驗證:', Platform.OS);
+        return undefined;
       }
       
-      console.log('[iapService] 發送驗證請求:', JSON.stringify(verifyRequest, null, 2));
+      const verifyLog = { ...verifyRequest, receipt: verifyRequest.receipt };
+      if (verifyLog.receipt && verifyLog.receipt.length > 120) {
+        verifyLog.receipt = `[len=${verifyLog.receipt.length}] ${verifyLog.receipt.slice(0, 48)}…`;
+      }
+      console.log('[iapService] 發送驗證請求:', JSON.stringify(verifyLog, null, 2));
       
       // 調用驗證 API
       const verificationResult = await verifyIAPReceipt(verifyRequest);
@@ -1230,11 +1330,12 @@ class IAPService {
       console.log('[iapService]   獲得金幣:', verificationResult.coinsAdded);
       console.log('[iapService]   訊息:', verificationResult.message);
       
-      // 僅從緩存的平台產品列表取得產品名稱（不使用後端回傳）
-      const cachedProduct = this.cachedProducts.find(
-        (p) => (p as any).productId === purchase.productId || p.id === purchase.productId
-      );
-      const productName = cachedProduct?.title ?? purchase.productId ?? '商品';
+      // 僅從緩存的平台產品列表取得產品名稱（iOS 可能為 item_01，與後端 item_001 並存）
+      const cachedProduct = this.cachedProducts.find((p) => {
+        const pid = String((p as any).productId ?? p.id ?? '');
+        return pid === storeProductId || pid === productIdForBackend;
+      });
+      const productName = cachedProduct?.title ?? storeProductId ?? '商品';
       
       console.log('[iapService] 商品名稱（從平台取得）:', productName);
       console.log('[iapService] ============================================');
@@ -1257,9 +1358,10 @@ class IAPService {
   }
 
   // 回調函數
+  /** 僅在後端 api/iap/verify 成功後呼叫，verificationResult 必為有效物件 */
   onPurchaseSuccess?: (
     purchase: Purchase,
-    verificationResult?: { productName: string; coinsAdded: number; message?: string }
+    verificationResult: { productName: string; coinsAdded: number; message?: string }
   ) => void;
   onPurchaseError?: (error: Error | PurchaseError) => void;
 }

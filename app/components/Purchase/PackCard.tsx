@@ -18,6 +18,13 @@ const PRODUCT_COINS_BONUS_MAP: Record<string, { coins: number; bonus: number }> 
   'item_004': { coins: 590, bonus: 120 },
   'item_005': { coins: 1190, bonus: 280 },
   'item_006': { coins: 1790, bonus: 460 },
+  // iOS App Store SKU（與上列同階金額，供無後端數值時與 Android 顯示一致）
+  'item_01': { coins: 90, bonus: 5 },
+  'item_02': { coins: 150, bonus: 20 },
+  'item_03': { coins: 300, bonus: 55 },
+  'item_04': { coins: 590, bonus: 120 },
+  'item_05': { coins: 1190, bonus: 280 },
+  'item_06': { coins: 1790, bonus: 460 },
 };
 
 type Props = {

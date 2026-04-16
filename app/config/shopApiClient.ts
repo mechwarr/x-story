@@ -2,6 +2,7 @@
 import { RestfulApi } from "./api";
 import { portURL } from "./apiClient";
 import tokenStorage from "../auth/Storage";
+import { tokenRefreshService } from "./authApiClient";
 
 // 商城/IAP 相關 API 一律走 portURL，避免 dev/prod 指到不同資料源造成商品清單不一致
 const shopApi = new RestfulApi({
@@ -359,6 +360,20 @@ export async function verifyPurchase(
 }
 
 /**
+ * 取得帶入 api/iap/verify 的 Bearer access token（trim；必要時強制 refresh）
+ */
+async function getAccessTokenForIapVerify(): Promise<string | null> {
+  let token = (await tokenStorage.getToken())?.trim() ?? "";
+  if (token) {
+    return token;
+  }
+  console.log("[shopApiClient] accessToken 為空，嘗試 refresh 後再驗證 IAP…");
+  await tokenRefreshService.refreshToken(undefined, undefined, undefined, undefined, true);
+  token = (await tokenStorage.getToken())?.trim() ?? "";
+  return token || null;
+}
+
+/**
  * 驗證 IAP 收據 (新版 API - api/iap/verify)
  * 需要登入態，帶上 account token（401 為未帶/無效 token）
  * @param payload - 收據資訊
@@ -371,12 +386,15 @@ export async function verifyIAPReceipt(
     console.log("[shopApiClient] ========== 開始驗證 IAP 收據 ==========");
     console.log("[shopApiClient] 請求資料:", JSON.stringify(payload, null, 2));
 
-    const token = await tokenStorage.getToken();
+    const token = await getAccessTokenForIapVerify();
     if (!token) {
-      console.warn("[shopApiClient] 無法驗證 IAP 收據：未登入（無 account token）");
+      console.warn("[shopApiClient] 無法驗證 IAP 收據：未取得有效 access token（請先登入）");
       return null;
     }
-    const headers = { Authorization: `Bearer ${token}` };
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    };
 
     const res = await shopApi.post<VerifyIAPReceiptResponse>(
       "api/iap/verify",

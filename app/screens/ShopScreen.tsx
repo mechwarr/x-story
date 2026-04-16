@@ -12,6 +12,7 @@ import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
 import { type ProductId } from '../services/iapService';
 import { useCoins } from '../store/coinContext';
 import { getCoinPacks, type CoinPack } from '../config/shopApiClient';
+import { appStoreSkuMatchesBackendProductId } from '../utils/iosIapSkuMapping';
 
 const RIGHT_COLORS = ['#F2D4AE', '#F4B86F', '#F3A55D', '#F18F52', '#EF7D47', '#EA6A3E'];
 
@@ -22,16 +23,9 @@ function normalizePlatformValue(value: unknown): 'GOOGLE' | 'APPLE' | 'UNKNOWN' 
   return 'UNKNOWN';
 }
 
-// 暫時用於「階段1 後端 coin-packs 為 0」時，讓階段2 查到的 iOS 商品仍可在 UI 正常顯示 coins/bonus。
-// 這組對應 IAP_PLATFORM_API_SETUP.md 的 item_01 ~ item_06。
-const FAKE_SETUP_COIN_PACKS: Record<string, { amount: number; bonusAmount: number }> = {
-  item_01: { amount: 90, bonusAmount: 5 },
-  item_02: { amount: 150, bonusAmount: 20 },
-  item_03: { amount: 300, bonusAmount: 55 },
-  item_04: { amount: 590, bonusAmount: 120 },
-  item_05: { amount: 1190, bonusAmount: 280 },
-  item_06: { amount: 1790, bonusAmount: 460 },
-};
+function findCoinPackForStoreProductId(coinPacks: CoinPack[], storeProductId: string): CoinPack | undefined {
+  return coinPacks.find((pack) => appStoreSkuMatchesBackendProductId(storeProductId, pack.productId));
+}
 
 // 從 title 中提取純名稱（去掉括號和描述）
 function extractProductName(title: string): string {
@@ -59,7 +53,6 @@ export default function ShopScreen() {
     purchaseProduct,
     error,
     refreshProducts,
-    productIdSource,
   } = useIAP();
   const { coins } = useCoins();
   const [coinPacks, setCoinPacks] = useState<CoinPack[]>([]);
@@ -73,6 +66,7 @@ export default function ShopScreen() {
   // 根據平台獲取對應的平台名稱和平台代碼
   const platformName = Platform.OS === 'ios' ? 'App Store' : 'Google Play';
   const platformCode: 'GOOGLE' | 'APPLE' = Platform.OS === 'ios' ? 'APPLE' : 'GOOGLE';
+  const isShopLoading = isIAPLoading || isLoadingCoinPacks;
 
   const loadCoinPacks = React.useCallback(async () => {
     try {
@@ -179,8 +173,6 @@ export default function ShopScreen() {
       console.log('[ShopScreen] IAP 商品 id 列表:', products.map(p => productIdKey(p)));
     }
 
-    const useFakeCoinsForSetup = Platform.OS === 'ios' && productIdSource === 'local-product-ids-fake-setup';
-
     return products.map((product, index) => {
       const pid = productIdKey(product);
       // 使用 IAP 的價格（優先使用 displayPrice，否則使用 price）
@@ -188,9 +180,8 @@ export default function ShopScreen() {
         ? parseFloat(product.displayPrice.replace(/[^0-9.]/g, ''))
         : (product.price || 0);
 
-      // 從 API 資料中查找對應的金幣包資料（比對後端 productId 與平台商品 id）
-      const coinPackData = coinPacks.find(pack => pack.productId === pid);
-      const fakeCoinPackData = useFakeCoinsForSetup ? FAKE_SETUP_COIN_PACKS[pid] : undefined;
+      // 從 API 資料中查找對應的金幣包（後端 item_001 與 App Store item_01 等需對照）
+      const coinPackData = findCoinPackForStoreProductId(coinPacks, pid);
       const hasMatch = !!coinPackData;
       if (!hasMatch && coinPacks.length > 0) {
         console.warn('[ShopScreen] 未匹配到後端金幣包 productId=', pid, '（請確認後端 APPLE 金幣包的 productId 與 App Store Connect 一致）');
@@ -200,8 +191,8 @@ export default function ShopScreen() {
         id: `${pid}`,
         title: product.title, // 平台顯示名稱（多國語系）
         name: extractProductName(product.title) || product.title, // 僅用平台產品名稱，不用後端回傳
-        coins: useFakeCoinsForSetup ? (fakeCoinPackData?.amount ?? 0) : (coinPackData?.amount ?? 0),
-        bonus: useFakeCoinsForSetup ? (fakeCoinPackData?.bonusAmount ?? 0) : (coinPackData?.bonusAmount ?? 0),
+        coins: coinPackData?.amount ?? 0,
+        bonus: coinPackData?.bonusAmount ?? 0,
         priceUsd: price, // 使用 IAP 的價格
         productId: pid as ProductId,
         isAvailable: true, // IAP 商品已載入，標記為可用
@@ -210,7 +201,7 @@ export default function ShopScreen() {
       console.log(`[ShopScreen] 商品 ${index + 1}: id=${pack.id} coins=${pack.coins} bonus=${pack.bonus} priceUsd=${pack.priceUsd} 後端匹配=${hasMatch}`);
       return pack;
     });
-  }, [products, coinPacks, platformCode, productIdSource]);
+  }, [products, coinPacks, platformCode]);
 
   // 無商品時顯示原因（iOS／Android 同一套文案結構）
   const emptyReason = useMemo(() => {
@@ -239,10 +230,10 @@ export default function ShopScreen() {
 
   // 無商品時寫入一筆流程 log，方便對照
   useEffect(() => {
-    if (!isIAPLoading && !error && packsWithPrice.length === 0 && emptyReason) {
+    if (!isShopLoading && !error && packsWithPrice.length === 0 && emptyReason) {
       console.log('[ShopScreen] 暫無可用商品 — 原因：', emptyReason.replace(/\n/g, ' | '));
     }
-  }, [isIAPLoading, error, packsWithPrice.length, emptyReason]);
+  }, [isShopLoading, error, packsWithPrice.length, emptyReason]);
 
   const handlePressPack = async (p: PackItem & { productId?: ProductId; isAvailable?: boolean }) => {
     if (!p.productId) {
@@ -306,7 +297,7 @@ export default function ShopScreen() {
         </View>
       </View>
 
-      {isIAPLoading ? (
+      {isShopLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#f0ad57" />
           <Text style={styles.loadingText}>載入商品中...</Text>

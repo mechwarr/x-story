@@ -1,7 +1,6 @@
 // app/screens/ProfileScreen.tsx
 import React, { useState, useCallback } from 'react';
 import {
-  SafeAreaView,
   View,
   Text,
   StyleSheet,
@@ -12,12 +11,22 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  ScrollView,
+  KeyboardAvoidingView,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import { useCoins } from '../store/coinContext';
 import { useAuth } from '../auth/AuthContext';
-import { getUserProfile, updateUserProfile, deleteUserAccount, type GenderCode } from '../config/userApiClient';
+import {
+  getUserProfile,
+  updateUserProfile,
+  deleteUserAccount,
+  claimActivityReward,
+  type GenderCode,
+} from '../config/userApiClient';
 import useResponsive from '../hook/useResponsive';
 import { translate } from '../i18n/i18n';
 import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
@@ -27,7 +36,7 @@ import { Picker } from '@react-native-picker/picker';
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
-  const { coins } = useCoins();
+  const { coins, refreshCoins } = useCoins();
   const { logoutLocalOnly } = useAuth();
 
   // ---- 狀態 ----
@@ -35,12 +44,25 @@ export default function ProfileScreen() {
   const [birthday, setBirthday] = useState<Date>(new Date(1995, 7, 5));
   const [gender, setGender] = useState<GenderCode>(0);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  /** iOS：性別以列顯示選中值，點擊後開 bottom sheet（Picker） */
+  const [showGenderPicker, setShowGenderPicker] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState<string>('');
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  /** 後端尚未有生日且性別未選（1/2）時，顯示「完成並領取」按鈕並隱藏「更新個人資訊」 */
+  const [showCompleteProfileClaimCta, setShowCompleteProfileClaimCta] = useState<boolean>(false);
   const { contentWidth, isTablet, maxContentWidth, horizontalPadding, scale } = useResponsive();
+  const { width: windowWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  /** 窄螢幕改為上下排列，避免餘額與按鈕同一行擠壓 */
+  const compactBalanceRow = windowWidth < 420;
+  const modalBoxMaxWidth = Math.min(340, windowWidth - 32);
+  const titleFontSize = Math.round(18 * Math.min(scale, 1.12));
+  const bodyFontSize = Math.round(16 * Math.min(scale, 1.08));
+  const labelFontSize = Math.round(12 * Math.min(scale, 1.06));
+  const submitFontSize = Math.round(16 * Math.min(scale, 1.08));
   const avatarSize = Math.min(Math.round(contentWidth / 4), 120);
   const iconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
@@ -66,9 +88,13 @@ export default function ProfileScreen() {
         } else {
           setGender(0);
         }
+        const hasBirthday = !!(userData.birthday && String(userData.birthday).trim());
+        const hasGender = userData.gender === 1 || userData.gender === 2;
+        setShowCompleteProfileClaimCta(!hasBirthday && !hasGender);
         console.log('[ProfileScreen] ✓ 成功載入用戶資料:', userData);
       } else {
         console.warn('[ProfileScreen] 無法獲取用戶資料，使用預設值');
+        setShowCompleteProfileClaimCta(false);
       }
     } catch (error) {
       console.error('[ProfileScreen] 載入用戶資料時發生錯誤:', error);
@@ -92,32 +118,93 @@ export default function ProfileScreen() {
 
   const birthdayText = `${birthday.getFullYear()}/${birthday.getMonth() + 1}/${birthday.getDate()}`;
 
-  // ---- 事件：提交表單 ----
-  const handleSubmit = async () => {
+  const genderDisplayLabel = (g: GenderCode) => {
+    if (g === 1) return '男性';
+    if (g === 2) return '女性';
+    return '請選擇';
+  };
+
+  const buildBirthdayPayload = () => birthday.toISOString().split('T')[0];
+
+  /** 僅更新個人資料（一般模式按鈕） */
+  const handleUpdateProfileOnly = async () => {
     if (isSubmitting) return;
 
     try {
       setIsSubmitting(true);
-      
-      // 將生日轉換為 ISO 8601 格式字串
-      const birthdayISO = birthday.toISOString().split('T')[0]; // YYYY-MM-DD 格式
-      
-      const result = await updateUserProfile({ 
+      const birthdayISO = buildBirthdayPayload();
+      const result = await updateUserProfile({
         name,
         birthday: birthdayISO,
         gender,
       });
-      
+
       if (result.success !== false) {
-        Alert.alert('成功', '個人資料已更新！', [
-          { text: '確定', onPress: () => {} }
+        Alert.alert(translate('profileUpdatedSuccessTitle'), translate('profileUpdatedSuccessMessage'), [
+          { text: translate('ok'), onPress: () => {} },
         ]);
       } else {
-        Alert.alert('錯誤', result.message || '更新失敗，請稍後再試');
+        Alert.alert(translate('passwordUpdateErrorTitle'), result.message || translate('passwordUpdateErrorMessage'));
       }
     } catch (error: any) {
       console.error('更新用戶資料錯誤:', error);
-      Alert.alert('錯誤', error?.message || '更新失敗，請稍後再試');
+      Alert.alert(translate('passwordUpdateErrorTitle'), error?.message || translate('passwordUpdateErrorMessage'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /** 首次完成個人資料：更新後領取 PROFILE_COMPLETED 獎勵 */
+  const handleCompleteProfileAndClaim = async () => {
+    if (isSubmitting) return;
+
+    if (gender !== 1 && gender !== 2) {
+      Alert.alert(translate('passwordUpdateErrorTitle'), translate('profileSelectGenderForBonus'));
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const birthdayISO = buildBirthdayPayload();
+      const result = await updateUserProfile({
+        name,
+        birthday: birthdayISO,
+        gender,
+      });
+
+      if (result.success === false) {
+        Alert.alert(translate('passwordUpdateErrorTitle'), result.message || translate('passwordUpdateErrorMessage'));
+        return;
+      }
+
+      try {
+        const claimResult = await claimActivityReward({ activityName: 'PROFILE_COMPLETED' });
+        if (claimResult.success === false) {
+          setShowCompleteProfileClaimCta(false);
+          await refreshCoins(true);
+          Alert.alert(
+            translate('profileRewardClaimFailedTitle'),
+            claimResult.message || translate('profileRewardClaimFailedMessage')
+          );
+          return;
+        }
+        setShowCompleteProfileClaimCta(false);
+        await refreshCoins(true);
+        Alert.alert(translate('profileUpdatedSuccessTitle'), translate('profileCompletedRewardSuccessMessage'), [
+          { text: translate('ok'), onPress: () => {} },
+        ]);
+      } catch (claimErr: any) {
+        setShowCompleteProfileClaimCta(false);
+        await refreshCoins(true);
+        console.error('[ProfileScreen] 領取獎勵錯誤:', claimErr);
+        Alert.alert(
+          translate('profileRewardClaimFailedTitle'),
+          claimErr?.message || translate('profileRewardClaimFailedMessage')
+        );
+      }
+    } catch (error: any) {
+      console.error('更新用戶資料錯誤:', error);
+      Alert.alert(translate('passwordUpdateErrorTitle'), error?.message || translate('passwordUpdateErrorMessage'));
     } finally {
       setIsSubmitting(false);
     }
@@ -162,7 +249,7 @@ export default function ProfileScreen() {
   // 如果正在載入，顯示載入指示器
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <View style={styles.safe}>
         <View style={[styles.topBar, { paddingTop: 8, paddingHorizontal: horizontalPadding }]}>
           <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
             <Image style={[styles.profileIconTop, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]} source={require('../../assets/blueeye.png')} />
@@ -170,118 +257,188 @@ export default function ProfileScreen() {
         </View>
         <View style={[styles.container, styles.loadingContainer, { paddingHorizontal: horizontalPadding }]}>
           <ActivityIndicator size="large" color="#00a99d" />
-          <Text style={styles.loadingText}>載入中...</Text>
+          <Text style={[styles.loadingText, { fontSize: bodyFontSize }]}>載入中...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
+  const coinIconSmall = Math.round(16 * Math.min(scale, 1.08));
+  const coinIconBtn = Math.round(18 * Math.min(scale, 1.08));
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={[styles.topBar, { paddingTop: 8, paddingHorizontal: horizontalPadding }]}>
-        <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
-          <Image style={[styles.profileIconTop, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]} source={require('../../assets/blueeye.png')} />
-        </Pressable>
-      </View>
-
-      <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
-      <View style={[styles.container, { paddingHorizontal: horizontalPadding }]}>
-        {/* 頭像 */}
-        <Image
-          style={[
-            styles.avatar,
-            { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 },
-          ]}
-          source={require('../../assets/profile2.png')}
-        />
-
-        <Text style={styles.title}>我的資料</Text>
-
-        {/* 餘額 + 操作列（同一行顯示，從螢幕正中間開始往右排） */}
-        <View style={styles.balanceActionsRow}>
-          <View style={styles.flexSpacer} />  {/* 新增：左側彈性空間，確保中間對齊 */}
-
-          <View style={styles.balanceBox}>
-            <Image style={styles.coin} source={require('../../assets/coin.png')} />
-            <Text style={styles.balanceText}>{coins}</Text>
-          </View>
-
-          <View style={[styles.walletRow, styles.walletRowRight]}>
-            <Pressable
-              style={styles.chargeBtn}
-              onPress={() => navigation.navigate(routes.PURCHASE as never)}
-            >
-              <Text style={styles.chargeText}>加值</Text>
-            </Pressable>
-
-            <Pressable onPress={() => navigation.navigate(routes.HISTORY as never)}>
-              <Text style={styles.linkText}>查看紀錄</Text>
-            </Pressable>
-          </View>
-        </View>
-        {/* 暱稱 */}
-        <View style={styles.inputRow}>
-          <Text style={styles.label}>暱稱</Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="請輸入暱稱"
-            placeholderTextColor="#9aa3ad"
-            style={styles.input}
-          />
-        </View>
-
-        {/* 生日 */}
-        <Pressable style={styles.inputRow} onPress={() => setShowDatePicker(true)}>
-          <Text style={styles.label}>生日</Text>
-          <View style={styles.valueBox}>
-            <Text style={styles.valueText}>{birthdayText}</Text>
-            <Text style={styles.arrow}>{'>'}</Text>
-          </View>
-        </Pressable>
-
-        {/* 性別（0=未選，1=男，2=女） */}
-        <View style={styles.inputRow}>
-          <Text style={styles.label}>性別</Text>
-          <View style={styles.pickerBox}>
-            <Picker
-              selectedValue={gender}
-              onValueChange={(v) => setGender(v as GenderCode)}
-              dropdownIconColor="#cdd4db"
-              style={styles.picker}
-              itemStyle={{ color: '#e7eef6' }}
-            >
-              <Picker.Item label="請選擇" value={0} />
-              <Picker.Item label="男性" value={1} />
-              <Picker.Item label="女性" value={2} />
-            </Picker>
-          </View>
-        </View>
-
-        {/* CTA */}
-        <Pressable 
-          style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]} 
-          onPress={handleSubmit}
-          disabled={isSubmitting}
+    <View style={styles.safe}>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+      >
+        <ScrollView
+          style={styles.scrollView}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          showsVerticalScrollIndicator={false}
+          {...(Platform.OS === 'ios' ? { contentInsetAdjustmentBehavior: 'automatic' as const } : {})}
+          contentContainerStyle={styles.scrollContent}
         >
-          <View style={styles.btnRow}>
-            {isSubmitting ? (
-              <ActivityIndicator color="#eafff9" size="small" />
-            ) : (
-              <>
-                <Text style={styles.submitText}>{translate('profileCompleteAndClaimCoins')}</Text>
-                <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
-              </>
-            )}
+          <View style={[styles.topBar, { paddingTop: 8, paddingHorizontal: horizontalPadding }]}>
+            <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
+              <Image
+                style={[styles.profileIconTop, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]}
+                source={require('../../assets/blueeye.png')}
+              />
+            </Pressable>
           </View>
-        </Pressable>
 
-        {/* 刪除帳號（防誤觸：需輸入 DELETE 確認） */}
-        <Pressable style={styles.deleteAccountRow} onPress={openDeleteModal} disabled={isDeleting}>
-          <Text style={styles.deleteAccountText}>{routes.REMOVE}</Text>
-        </Pressable>
-      </View>
-      </View>
+          <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
+            <View style={[styles.container, { paddingHorizontal: horizontalPadding }]}>
+              {/* 頭像 */}
+              <Image
+                style={[
+                  styles.avatar,
+                  { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 },
+                ]}
+                source={require('../../assets/profile2.png')}
+              />
+
+              <Text style={[styles.title, { fontSize: titleFontSize }]}>我的資料</Text>
+
+              {/* 餘額 + 操作列：寬螢幕單行置中；窄螢幕改直向堆疊避免 iOS 擠壓 */}
+              {compactBalanceRow ? (
+                <View style={styles.balanceBlockCompact}>
+                  <View style={styles.balanceBox}>
+                    <Image style={[styles.coin, { width: coinIconSmall, height: coinIconSmall }]} source={require('../../assets/coin.png')} />
+                    <Text style={[styles.balanceText, { fontSize: bodyFontSize }]}>{coins}</Text>
+                  </View>
+                  <View style={[styles.walletRow, styles.walletRowCompact]}>
+                    <Pressable style={styles.chargeBtn} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
+                      <Text style={[styles.chargeText, { fontSize: bodyFontSize }]}>加值</Text>
+                    </Pressable>
+                    <Pressable onPress={() => navigation.navigate(routes.HISTORY as never)}>
+                      <Text style={[styles.linkText, { fontSize: bodyFontSize }]}>查看紀錄</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.balanceActionsRow}>
+                  <View style={styles.flexSpacer} />
+                  <View style={styles.balanceBox}>
+                    <Image style={[styles.coin, { width: coinIconSmall, height: coinIconSmall }]} source={require('../../assets/coin.png')} />
+                    <Text style={[styles.balanceText, { fontSize: bodyFontSize }]}>{coins}</Text>
+                  </View>
+                  <View style={[styles.walletRow, styles.walletRowRight]}>
+                    <Pressable style={styles.chargeBtn} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
+                      <Text style={[styles.chargeText, { fontSize: bodyFontSize }]}>加值</Text>
+                    </Pressable>
+                    <Pressable onPress={() => navigation.navigate(routes.HISTORY as never)}>
+                      <Text style={[styles.linkText, { fontSize: bodyFontSize }]}>查看紀錄</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
+              {/* 暱稱 */}
+              <View style={styles.inputRow}>
+                <Text style={[styles.label, { fontSize: labelFontSize }]}>暱稱</Text>
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="請輸入暱稱"
+                  placeholderTextColor="#9aa3ad"
+                  style={[styles.input, { fontSize: bodyFontSize }]}
+                />
+              </View>
+
+              {/* 生日 */}
+              <Pressable style={styles.inputRow} onPress={() => setShowDatePicker(true)}>
+                <Text style={[styles.label, { fontSize: labelFontSize }]}>生日</Text>
+                <View style={styles.valueBox}>
+                  <Text style={[styles.valueText, { fontSize: bodyFontSize }]} numberOfLines={1}>
+                    {birthdayText}
+                  </Text>
+                  <Text style={[styles.arrow, { fontSize: bodyFontSize }]}>{'>'}</Text>
+                </View>
+              </Pressable>
+
+              {/* 性別（0=未選，1=男，2=女）：iOS 固定列 + 底部選單；Android 維持內嵌 Picker */}
+              {Platform.OS === 'ios' ? (
+                <Pressable style={styles.inputRow} onPress={() => setShowGenderPicker(true)}>
+                  <Text style={[styles.label, { fontSize: labelFontSize }]}>性別</Text>
+                  <View style={styles.valueBox}>
+                    <Text
+                      style={[
+                        styles.valueText,
+                        { fontSize: bodyFontSize },
+                        gender === 0 && styles.valueTextPlaceholder,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {genderDisplayLabel(gender)}
+                    </Text>
+                    <Text style={[styles.arrow, { fontSize: bodyFontSize }]}>{'>'}</Text>
+                  </View>
+                </Pressable>
+              ) : (
+                <View style={styles.inputRow}>
+                  <Text style={[styles.label, { fontSize: labelFontSize }]}>性別</Text>
+                  <View style={styles.pickerBox}>
+                    <Picker
+                      selectedValue={gender}
+                      onValueChange={(v) => setGender(v as GenderCode)}
+                      dropdownIconColor="#cdd4db"
+                      style={styles.picker}
+                      itemStyle={{ color: '#e7eef6', fontSize: bodyFontSize }}
+                    >
+                      <Picker.Item label="請選擇" value={0} />
+                      <Picker.Item label="男性" value={1} />
+                      <Picker.Item label="女性" value={2} />
+                    </Picker>
+                  </View>
+                </View>
+              )}
+
+              {/* CTA：未完成個人資料（無生日且未選性別）→ 完成並領獎；否則 → 僅更新 */}
+              <Pressable
+                style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
+                onPress={showCompleteProfileClaimCta ? handleCompleteProfileAndClaim : handleUpdateProfileOnly}
+                disabled={isSubmitting}
+              >
+                <View style={styles.btnRow}>
+                  {isSubmitting ? (
+                    <ActivityIndicator color="#eafff9" size="small" />
+                  ) : showCompleteProfileClaimCta ? (
+                    <>
+                      <Text
+                        style={[styles.submitText, { fontSize: submitFontSize }]}
+                        numberOfLines={2}
+                        adjustsFontSizeToFit={Platform.OS === 'ios'}
+                        minimumFontScale={0.82}
+                      >
+                        {translate('profileCompleteAndClaimCoins')}
+                      </Text>
+                      <Image style={[styles.coinIcon, { width: coinIconBtn, height: coinIconBtn }]} source={require('../../assets/coin.png')} />
+                    </>
+                  ) : (
+                    <Text
+                      style={[styles.submitText, { fontSize: submitFontSize }]}
+                      numberOfLines={2}
+                      adjustsFontSizeToFit={Platform.OS === 'ios'}
+                      minimumFontScale={0.85}
+                    >
+                      {translate('profileUpdatePersonalInfo')}
+                    </Text>
+                  )}
+                </View>
+              </Pressable>
+
+              {/* 刪除帳號（防誤觸：需輸入 DELETE 確認） */}
+              <Pressable style={styles.deleteAccountRow} onPress={openDeleteModal} disabled={isDeleting}>
+                <Text style={[styles.deleteAccountText, { fontSize: Math.round(14 * Math.min(scale, 1.06)) }]}>{routes.REMOVE}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* 刪除帳號確認 Modal */}
       <Modal
@@ -291,7 +448,7 @@ export default function ProfileScreen() {
         onRequestClose={closeDeleteModal}
       >
         <Pressable style={styles.modalBackdrop} onPress={closeDeleteModal}>
-          <Pressable style={styles.modalBox} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.modalBox, { maxWidth: modalBoxMaxWidth, width: '100%' }]} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>刪除帳號</Text>
             <Text style={styles.modalMessage}>
               請輸入{' '}
@@ -328,23 +485,96 @@ export default function ProfileScreen() {
         </Pressable>
       </Modal>
 
-      {/* 日期選擇器 */}
-      {showDatePicker && (
+      {/* Android：系統日期選擇器 */}
+      {showDatePicker && Platform.OS === 'android' && (
         <DateTimePicker
           value={birthday}
           mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          display="default"
           onChange={onChangeBirthday}
           maximumDate={new Date()}
         />
       )}
-    </SafeAreaView>
+
+      {/* iOS：底部 sheet，避免 spinner 內嵌撐破版面 */}
+      {Platform.OS === 'ios' && (
+        <Modal transparent animationType="slide" visible={showDatePicker} onRequestClose={() => setShowDatePicker(false)}>
+          <Pressable style={styles.datePickerBackdrop} onPress={() => setShowDatePicker(false)}>
+            <Pressable
+              style={[styles.datePickerSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={[styles.datePickerToolbar, { paddingTop: Math.max(insets.top, 12) }]}>
+                <View style={styles.datePickerToolbarSpacer} />
+                <Pressable onPress={() => setShowDatePicker(false)} hitSlop={12}>
+                  <Text style={styles.datePickerDoneText}>{translate('ok')}</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={birthday}
+                mode="date"
+                display="spinner"
+                onChange={onChangeBirthday}
+                maximumDate={new Date()}
+                themeVariant="dark"
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* iOS：性別 — bottom sheet 滾輪選單，與生日列一致「先顯示值再點選」 */}
+      {Platform.OS === 'ios' && (
+        <Modal transparent animationType="slide" visible={showGenderPicker} onRequestClose={() => setShowGenderPicker(false)}>
+          <Pressable style={styles.datePickerBackdrop} onPress={() => setShowGenderPicker(false)}>
+            <Pressable
+              style={[styles.datePickerSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View
+                style={[
+                  styles.datePickerToolbar,
+                  styles.genderSheetToolbar,
+                  { paddingTop: Math.max(insets.top, 12) },
+                ]}
+              >
+                <Pressable onPress={() => setShowGenderPicker(false)} hitSlop={12}>
+                  <Text style={styles.genderSheetCancelText}>{translate('cancel')}</Text>
+                </Pressable>
+                <View style={styles.datePickerToolbarSpacer} />
+                <Pressable onPress={() => setShowGenderPicker(false)} hitSlop={12}>
+                  <Text style={styles.datePickerDoneText}>{translate('ok')}</Text>
+                </Pressable>
+              </View>
+              <View style={styles.genderPickerWrap}>
+                <Picker
+                  selectedValue={gender}
+                  onValueChange={(v) => setGender(v as GenderCode)}
+                  itemStyle={{ color: '#e7eef6', fontSize: bodyFontSize }}
+                  style={styles.genderPickerIOS}
+                >
+                  <Picker.Item label="請選擇" value={0} />
+                  <Picker.Item label="男性" value={1} />
+                  <Picker.Item label="女性" value={2} />
+                </Picker>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   // ---- 全域底色 ----
   safe: { flex: 1, backgroundColor: '#2b2f33' },
+  keyboardAvoid: { flex: 1 },
+  scrollView: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 28,
+  },
 
   topBar: {
     width: '100%',
@@ -354,7 +584,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   profileIconTop: {},
-  title: { color: '#e7eef6', fontWeight: '700', fontSize: 18, marginBottom: 6, textAlign: 'center' },
+  title: { color: '#e7eef6', fontWeight: '700', marginBottom: 6, textAlign: 'center' },
 
   contentWrap: {
     flex: 1,
@@ -386,11 +616,23 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end', // 讓「查看紀錄」與「加值」的底部對齊
     marginLeft: 14,
   },
+  balanceBlockCompact: {
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  walletRowCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
 
   // 餘額方塊（你指定的樣式）
   balanceBox: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   coin: { width: 16, height: 16, resizeMode: 'contain' },
-  balanceText: { color: '#e7eef6', fontSize: 16, fontWeight: '700' },
+  balanceText: { color: '#e7eef6', fontWeight: '700' },
 
   // 操作列（加值 / 查看紀錄）
   walletRow: {
@@ -419,10 +661,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 14,
   },
-  label: { color: '#9aa3ad', fontSize: 12, marginBottom: 6 },
+  label: { color: '#9aa3ad', marginBottom: 6 },
   input: {
     color: '#e7eef6',
-    fontSize: 16,
     backgroundColor: '#1f2226',
     borderRadius: 8,
     paddingHorizontal: 12,
@@ -439,8 +680,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  valueText: { color: '#e7eef6', fontSize: 16 },
-  arrow: { color: '#cdd4db', fontSize: 16 },
+  valueText: { color: '#e7eef6', flexShrink: 1 },
+  arrow: { color: '#cdd4db' },
+  valueTextPlaceholder: { color: '#9aa3ad' },
 
   // ---- 性別選單 ----
   pickerBox: { backgroundColor: '#1f2226', borderRadius: 8 },
@@ -452,7 +694,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#00a99d',
     borderRadius: 12,
     paddingVertical: 12,
+    paddingHorizontal: 14,
     alignItems: 'center',
+    alignSelf: 'stretch',
   },
   submitBtnDisabled: {
     opacity: 0.6,
@@ -462,12 +706,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    maxWidth: '100%',
   },
   submitText: {
     color: '#eafff9',
     fontWeight: '800',
-    fontSize: 16,
     letterSpacing: 0.3,
+    textAlign: 'center',
+    flexShrink: 1,
+    paddingHorizontal: 4,
   },
   // 金幣圖示（按鈕內）
   coinIcon: {
@@ -486,7 +735,6 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#e7eef6',
     marginTop: 12,
-    fontSize: 16,
   },
 
   // ---- 刪除帳號 ----
@@ -497,9 +745,55 @@ const styles = StyleSheet.create({
   },
   deleteAccountText: {
     color: '#9aa3ad',
-    fontSize: 14,
     fontWeight: '600',
     textDecorationLine: 'underline',
+  },
+
+  // ---- iOS 生日選擇 bottom sheet ----
+  datePickerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  datePickerSheet: {
+    backgroundColor: '#2c2f34',
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    overflow: 'hidden',
+  },
+  datePickerToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#3a3f44',
+  },
+  /** 性別 sheet：左取消、右確定 */
+  genderSheetToolbar: {
+    justifyContent: 'flex-start',
+    width: '100%',
+  },
+  datePickerToolbarSpacer: { flex: 1 },
+  datePickerDoneText: {
+    color: '#00a99d',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  genderSheetCancelText: {
+    color: '#9aa3ad',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  genderPickerWrap: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  /** iOS UIPicker 滾輪高度約 216px */
+  genderPickerIOS: {
+    width: '100%',
+    height: 216,
   },
 
   // ---- 刪除帳號 Modal ----

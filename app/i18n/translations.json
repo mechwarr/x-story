@@ -288,5 +288,40 @@
         "zh-TW": "完成並領取 50 金幣",
         "zh-CN": "完成并领取 50 金币",
         "en": "Complete and claim 50 coins"
+    },
+    "profileUpdatePersonalInfo": {
+        "zh-TW": "更新個人資訊",
+        "zh-CN": "更新个人信息",
+        "en": "Update profile"
+    },
+    "profileUpdatedSuccessTitle": {
+        "zh-TW": "成功",
+        "zh-CN": "成功",
+        "en": "Success"
+    },
+    "profileUpdatedSuccessMessage": {
+        "zh-TW": "個人資料已更新！",
+        "zh-CN": "个人资料已更新！",
+        "en": "Your profile has been updated."
+    },
+    "profileCompletedRewardSuccessMessage": {
+        "zh-TW": "個人資料已完成，獎勵已領取！",
+        "zh-CN": "个人资料已完成，奖励已领取！",
+        "en": "Profile completed and reward claimed."
+    },
+    "profileRewardClaimFailedTitle": {
+        "zh-TW": "領取獎勵失敗",
+        "zh-CN": "领取奖励失败",
+        "en": "Could not claim reward"
+    },
+    "profileRewardClaimFailedMessage": {
+        "zh-TW": "個人資料已更新，但領取獎勵時發生錯誤。請稍後再試。",
+        "zh-CN": "个人资料已更新，但领取奖励时发生错误。请稍后再试。",
+        "en": "Your profile was updated, but the reward could not be claimed. Please try again later."
+    },
+    "profileSelectGenderForBonus": {
+        "zh-TW": "請先選擇性別以完成個人資料並領取獎勵。",
+        "zh-CN": "请先选择性别以完成个人资料并领取奖励。",
+        "en": "Please select your gender to complete your profile and claim the reward."
     }
 }

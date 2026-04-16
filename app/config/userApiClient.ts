@@ -302,6 +302,40 @@ export async function updateUserProfile(
   }
 }
 
+/** 領取活動獎勵（例如個人資料完成任務） */
+export interface ClaimActivityRewardRequest {
+  activityName: string;
+}
+
+export interface ClaimActivityRewardResponse {
+  success?: boolean;
+  message?: string;
+  data?: unknown;
+}
+
+/**
+ * POST api/activities/claim-reward
+ * 需 Authorization: Bearer token；body 帶 activityName（例如 PROFILE_COMPLETED）
+ */
+export async function claimActivityReward(
+  payload: ClaimActivityRewardRequest
+): Promise<ClaimActivityRewardResponse> {
+  try {
+    const endpoint = "api/activities/claim-reward";
+    const token = await tokenStorage.getToken();
+    const headers: Record<string, string> = { accept: "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    const res = await userApi.post<ClaimActivityRewardResponse>(endpoint, payload, headers);
+    console.log("[userApiClient] ✓ 領取活動獎勵:", res);
+    return res;
+  } catch (error) {
+    console.error("[userApiClient] 領取活動獎勵時發生錯誤:", error);
+    throw error;
+  }
+}
+
 /**
  * 刪除帳號 Response（API 成功格式）
  */
