@@ -23,7 +23,7 @@ import { useRoute } from '@react-navigation/native';
 import _ from 'lodash';
 import apiclient from '../config/apiClient';
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate';
-import { purchaseStoryWithCoins } from '../config/userApiClient';
+import { purchaseStoryWithCoins, recordBookRead } from '../config/userApiClient';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
 import { useCoins } from '../store/coinContext';
 import { translate } from '../i18n/i18n';
@@ -66,6 +66,7 @@ function StoryScreen({ route }) {
 
   const flatlistRef = useRef(null);
   const choseRef = useRef(false);
+  const hasRecordedReadRef = useRef(false);
   const [shouldScrollInit, setShouldScrollInit] = useState(false);
   const prevStoryLength = useRef(0);
   const [showPurchaseOverlay, setShowPurchaseOverlay] = useState(false);
@@ -230,6 +231,14 @@ function StoryScreen({ route }) {
       ]
     );
   }, [storyId, priceCoins, coins, name, navigation, refreshCoins, storyData, author, nochapter]);
+
+  // 進入場次、對話內容首次載入時寫入一次閱讀紀錄
+  useEffect(() => {
+    if (hasRecordedReadRef.current) return;
+    if (!queryInfo.content?.length || !storyId) return;
+    hasRecordedReadRef.current = true;
+    recordBookRead(Number(storyId));
+  }, [queryInfo.content, storyId]);
 
   // 內容或索引改變時，設定 story
   useEffect(() => {

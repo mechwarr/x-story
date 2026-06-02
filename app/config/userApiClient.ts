@@ -71,6 +71,45 @@ export async function getBookstoreList(): Promise<BookstoreItem[]> {
 }
 
 /**
+ * 寫入閱讀紀錄 Response
+ */
+export interface RecordBookReadResponse {
+  success?: boolean;
+  message?: string;
+  [key: string]: any;
+}
+
+/**
+ * 寫入閱讀紀錄（使用者開始閱讀某本書時呼叫）
+ * POST api/books/{bookId}/read，需 Authorization: Bearer token
+ * @param bookId 書籍 ID（即 storyListId）
+ * @returns Promise<RecordBookReadResponse | null> 寫入結果，失敗時返回 null
+ */
+export async function recordBookRead(
+  bookId: number
+): Promise<RecordBookReadResponse | null> {
+  try {
+    const endpoint = `api/books/${bookId}/read`;
+
+    const token = await tokenStorage.getToken();
+    const headers: Record<string, string> = {
+      accept: "application/json",
+      "Content-Type": "application/json",
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await userApi.post<RecordBookReadResponse>(endpoint, {}, headers);
+    console.log("[userApiClient] ✓ 寫入閱讀紀錄成功，bookId:", bookId, res);
+    return res;
+  } catch (error) {
+    console.error("[userApiClient] 寫入閱讀紀錄時發生錯誤，bookId:", bookId, error);
+    return null;
+  }
+}
+
+/**
  * 我的已購買書籍項目（GET api/me/entitlements 單筆）
  */
 export interface BookEntitlementItem {
