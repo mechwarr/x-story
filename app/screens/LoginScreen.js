@@ -1,4 +1,4 @@
-import { AppleButton } from "@invertase/react-native-apple-authentication";
+import { AntDesign } from "@expo/vector-icons";
 import React from "react";
 import {
   Image,
@@ -77,24 +77,13 @@ export default function LoginScreen(props) {
         {loginOptions.map(({ key, title, onPressProp, icon }) => (
           <TouchableOpacity
             key={key}
-            style={[
-              styles.button,
-              {
-                width: buttonWidth,              // ← 動態寬度
-                alignSelf: "center",             // ← 置中
-                justifyContent: "center",        // ← 內部置中（不再用 paddingLeft 假置中）
-                backgroundColor: "#000000",
-                borderColor: "#0abab5",
-                borderWidth: 2,
-                borderRadius: 25,
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-              },
-            ]}
+            style={[styles.button, { width: buttonWidth }]}
             onPress={() => handlePress(onPressProp)}
             activeOpacity={0.7}
           >
-            {icon && <Image source={icon} style={styles.icon} />}
+            <View style={styles.iconWrap}>
+              {icon && <Image source={icon} style={styles.icon} />}
+            </View>
             <Text
               style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
               numberOfLines={1}
@@ -106,51 +95,34 @@ export default function LoginScreen(props) {
         ))}
 
         {Platform.OS === "ios" && (
-          <View
-            style={[
-              { width: buttonWidth, alignSelf: "center" },
-            ]}
-            pointerEvents={"auto"}
+          <TouchableOpacity
+            style={[styles.button, { width: buttonWidth }]}
+            onPress={() => handlePress("onAppleLogin")}
+            activeOpacity={0.7}
+            accessibilityRole="button"
           >
-            <AppleButton
-              buttonType={AppleButton.Type.SIGN_IN}
-              buttonStyle={AppleButton.Style.BLACK}
-              cornerRadius={25}
-              style={[
-                styles.appleButton,
-                {
-                  borderColor: "#0abab5",
-                  borderWidth: 1,
-                  borderRadius: 25,
-                },
-              ]}
-              onPress={() => handlePress("onAppleLogin")}
-              accessibilityRole="button"
-            />
-          </View>
+            <View style={styles.iconWrap}>
+              <AntDesign name="apple1" size={24} color="white" />
+            </View>
+            <Text
+              style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {translate("signInWithApple")}
+            </Text>
+          </TouchableOpacity>
         )}
 
 
-        <View style={{ height: 15 }} />
+        <View style={{ height: 0 }} />
 
         <TouchableOpacity
-          style={[
-            styles.button,
-            {
-              width: buttonWidth,              // 同寬
-              alignSelf: "center",
-              justifyContent: "center",
-              backgroundColor: "#000000",
-              borderColor: "#0abab5",
-              borderWidth: 2,
-              borderRadius: 25,
-              paddingHorizontal: 16,
-              paddingVertical: 12,
-            },
-          ]}
+          style={[styles.button, { width: buttonWidth }]}
           onPress={handleTestLoginSuccess}
           activeOpacity={0.7}
         >
+          <View style={styles.iconWrap} />
           <Text
             style={[styles.buttonText, { color: "#0abab5", flexShrink: 1 }]}
             numberOfLines={1}
@@ -176,7 +148,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "flex-start",
-    paddingTop: "10%",
+    paddingTop: "20%",
     paddingHorizontal: 20,
     backgroundColor: "#39393B",
   },
@@ -196,25 +168,30 @@ const styles = StyleSheet.create({
   button: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-start",
+    alignSelf: "center",
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     marginBottom: 15,
     borderRadius: 25,
+    backgroundColor: "#000000",
+    borderColor: "#0abab5",
+    borderWidth: 1,
   },
   buttonText: {
     fontSize: 16,
-    marginLeft: 10,
+  },
+  iconWrap: {
+    width: 24,
+    height: 24,
+    marginRight: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   icon: {
     width: 24,
     height: 24,
     resizeMode: "contain",
-    marginRight: 10,
-  },
-  appleButton: {
-    width: "100%",
-    height: 54,
-    marginTop: 10,
   },
   linkUnderlineOrangeText: {
     color: "#f0ad57",

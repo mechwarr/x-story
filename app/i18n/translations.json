@@ -145,9 +145,9 @@
         "en": "Sign up with Wechat"
     },
     "termsAgreement": {
-        "zh-TW": "我已閱讀並同意 X Stories 的《[c=tos]服務條款[/c]》及《[c=pp]隱私政策[/c]》。",
-        "zh-CN": "我已阅读并同意 X Stories 的《[c=tos]服务条款[/c]》及《[c=pp]隐私政策[/c]》。",
-        "en": "By creating an account, I accept X Stories’ 《[c=tos]Terms of Service[/c]》 and confirm that I have read the 《[c=pp]Privacy Policy[/c]》."
+        "zh-TW": "我已閱讀並同意 X Stories 的[c=tos]《服務條款》[/c]及[c=pp]《隱私政策》[/c]。",
+        "zh-CN": "我已阅读并同意 X Stories 的[c=tos]《服务条款》[/c]及[c=pp]《隐私政策》[/c]。",
+        "en": "By creating an account, I accept X Stories’ [c=tos]《Terms of Service》[/c] and confirm that I have read the [c=pp]《Privacy Policy》[/c]."
     },
     "alreadyHaveAccount": {
         "zh-TW": "已有帳號？",

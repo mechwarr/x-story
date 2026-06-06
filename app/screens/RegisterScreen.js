@@ -1,4 +1,4 @@
-import { AppleButton } from "@invertase/react-native-apple-authentication";
+import { AntDesign } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
   Image,
@@ -92,15 +92,9 @@ export default function RegisterScreen(props) {
                 styles.button,
                 {
                   width: buttonWidth,
-                  alignSelf: "center",
-                  justifyContent: "center",
                   backgroundColor: disabled ? "#555555" : "#000000",
                   borderColor: disabled ? "#999999" : "#0abab5",
-                  borderWidth: 1,
-                  borderRadius: 25,
                   opacity: disabled ? 0.5 : 1, // <--- 禁用時的灰階效果
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
                 },
               ]}
               onPress={() => {
@@ -109,7 +103,9 @@ export default function RegisterScreen(props) {
               activeOpacity={disabled ? 1 : 0.7}
               disabled={disabled}
             >
-              {icon && <Image source={icon} style={styles.icon} />}
+              <View style={styles.iconWrap}>
+                {icon && <Image source={icon} style={styles.icon} />}
+              </View>
               <Text
                 style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
                 numberOfLines={1}
@@ -120,71 +116,47 @@ export default function RegisterScreen(props) {
           );
         })}
 
-        {Platform.OS === "ios" && (
-          <View
-            style={[
-              { 
-                width: buttonWidth, 
-                alignSelf: "center",
-                marginTop: 10,
-                marginBottom: 15,
-              }
-            ]}
-          >
-            <AppleButton
-              buttonType={AppleButton.Type.SIGN_UP}
-              buttonStyle={AppleButton.Style.BLACK}
-              cornerRadius={25}
+        {Platform.OS === "ios" && (() => {
+          const disabled = !agreeChecked;
+          return (
+            <TouchableOpacity
               style={[
-                styles.appleButton,
+                styles.button,
                 {
-                  // 根據 agreeChecked 調整邊框顏色
-                  borderColor: agreeChecked ? "#0abab5" : "transparent",
-                  // 統一邊框寬度，禁用時隱藏邊框
-                  borderWidth: agreeChecked ? 2 : 0, 
-                  // 確保邊框有圓角
-                  borderRadius: 25,
-                  opacity: agreeChecked ? 1 : 0.5,
+                  width: buttonWidth,
+                  backgroundColor: disabled ? "#555555" : "#000000",
+                  borderColor: disabled ? "#999999" : "#0abab5",
+                  opacity: disabled ? 0.5 : 1,
                 },
               ]}
-              onPress={() => handlePress("onAppleRegister")}
+              onPress={() => {
+                if (!disabled) handlePress("onAppleRegister");
+              }}
+              activeOpacity={disabled ? 1 : 0.7}
+              disabled={disabled}
               accessibilityRole="button"
-            />
-            {/* 覆蓋層 - 蓋在按鈕上方 */}
-            {!agreeChecked && (
-              <View
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: "#555555",
-                  borderRadius: 25,
-                  zIndex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  paddingHorizontal: 20,
-                }}
-                pointerEvents="auto"
-              >
-                <Text
-                  style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {translate("signUpWithApple")}
-                </Text>
+            >
+              <View style={styles.iconWrap}>
+                <AntDesign name="apple1" size={24} color="white" />
               </View>
-            )}
-          </View>
-        )}
+              <Text
+                style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {translate("signUpWithApple")}
+              </Text>
+            </TouchableOpacity>
+          );
+        })()}
 
 
         {/* 服務條款勾選區 */}
         <TouchableOpacity
-          style={styles.agreeContainer}
+          style={[
+            styles.agreeContainer,
+            isTablet && { width: buttonWidth, alignSelf: "center", marginHorizontal: 0 },
+          ]}
           onPress={toggleAgree}
           activeOpacity={0.7}
         >
@@ -227,7 +199,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "flex-start",
-    paddingTop: "10%",
+    paddingTop: "20%",
     paddingHorizontal: 20,
     backgroundColor: "#39393B",
   },
@@ -247,24 +219,28 @@ const styles = StyleSheet.create({
   button: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-start",
+    alignSelf: "center",
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     marginBottom: 15,
     borderRadius: 25,
+    borderWidth: 1,
   },
   buttonText: {
     fontSize: 16,
-    marginLeft: 10,
+  },
+  iconWrap: {
+    width: 24,
+    height: 24,
+    marginRight: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   icon: {
     width: 24,
     height: 24,
     resizeMode: "contain",
-    marginRight: 10,
-  },
-  appleButton: {
-    width: "100%",
-    height: 54,
   },
   bottomRow: {
     marginTop: 40,

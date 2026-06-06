@@ -508,8 +508,7 @@ export default function LoginContainer({ onLoginSuccess }) {
   // 開啟服務條款（在 App 內瀏覽器）
   const handleOpenTOS = async () => {
     try {
-      // TODO: 替換為實際的服務條款 URL
-      const termsUrl = 'https://your-domain.com/terms-of-service';
+      const termsUrl = 'https://xstoryline.com/terms.html';
       await WebBrowser.openBrowserAsync(termsUrl, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
         controlsColor: '#0abab5', // 使用品牌色作為控制項顏色
@@ -524,8 +523,7 @@ export default function LoginContainer({ onLoginSuccess }) {
   // 開啟隱私政策（在 App 內瀏覽器）
   const handleOpenPP = async () => {
     try {
-      // TODO: 替換為實際的隱私政策 URL
-      const privacyUrl = 'https://your-domain.com/privacy-policy';
+      const privacyUrl = 'https://xstoryline.com/privacy.html';
       await WebBrowser.openBrowserAsync(privacyUrl, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
         controlsColor: '#0abab5', // 使用品牌色作為控制項顏色
