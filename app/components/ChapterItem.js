@@ -20,7 +20,7 @@ import apiclient from '../config/apiClient';
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins } from '../config/userApiClient';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
-import { translate } from '../i18n/i18n';
+import { translate, getCurrentStoryLang } from '../i18n/i18n';
 import colors from '../config/colors';
 import storage from '../storage/storage';
 import { canAccessChapter } from '../services/bookAccessService';
@@ -159,7 +159,8 @@ const ChapterItem = (props) => {
     }
   };
 
-  if (lang !== '繁體中文') return null;
+  // 只顯示與 App 啟動語系相符的章節（取代原本寫死的「繁體中文」）
+  if (lang !== getCurrentStoryLang()) return null;
   return (
     <>
       <Pressable

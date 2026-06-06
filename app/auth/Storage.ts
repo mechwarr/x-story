@@ -11,6 +11,7 @@ const LAST_REFRESH_TIME_KEY = "lastRefreshTime"; // 上次刷新時間戳記
 const EMAIL_KEY = "userEmail";
 const COIN_KEY = "userCoin";
 const LANG_KEY = "userLangCode";
+const ROLE_LEVEL_KEY = "userRoleLevel"; // 權限級別 (1:普通, 5:小編, 9:Admin)
 
 // ----------- ACCESS TOKEN FUNCTIONS ----------- //
 const setStoreToken = async (token: string) => {
@@ -292,12 +293,32 @@ const getUserLangCode = async (): Promise<string | null> => {
   }
 };
 
+// Role Level（權限級別，9 = Admin）
+const setUserRoleLevel = async (roleLevel: number) => {
+  try {
+    await SecureStore.setItemAsync(ROLE_LEVEL_KEY, String(roleLevel));
+  } catch (e) {
+    console.error("setUserRoleLevel error", e);
+  }
+};
+
+const getUserRoleLevel = async (): Promise<number | null> => {
+  try {
+    const value = await SecureStore.getItemAsync(ROLE_LEVEL_KEY);
+    return value !== null ? parseInt(value, 10) : null;
+  } catch (e) {
+    console.error("getUserRoleLevel error", e);
+    return null;
+  }
+};
+
 // 清除全部 user profile 資料
 const clearUserProfile = async () => {
   try {
     await SecureStore.deleteItemAsync(EMAIL_KEY);
     await SecureStore.deleteItemAsync(COIN_KEY);
     await SecureStore.deleteItemAsync(LANG_KEY);
+    await SecureStore.deleteItemAsync(ROLE_LEVEL_KEY);
   } catch (e) {
     console.error("clearUserProfile error", e);
   }
@@ -339,5 +360,7 @@ export default {
   getUserCoin,
   setUserLangCode,
   getUserLangCode,
+  setUserRoleLevel,
+  getUserRoleLevel,
   clearUserProfile
 };

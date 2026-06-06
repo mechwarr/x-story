@@ -10,7 +10,8 @@ import AppHeader from '../components/AppHeader';
 import Books from '../components/Book/Books';
 import storage from '../storage/storage';
 import apiclient  from '../config/apiClient';
-import { getBookstoreList } from '../config/userApiClient';
+import { getBookstoreList, getUserProfile } from '../config/userApiClient';
+import tokenStorage from '../auth/Storage';
 import routes from '../navigations/routes';
 import { consumePendingProfileRedirect } from '../auth/firstLoginRedirect';
 
@@ -93,11 +94,13 @@ function HomeScreen() {
         bookstoreList.forEach(item => {
           bookstoreMap.set(item.storyListId, item);
         });
-        
-        // 合併兩個 API 的資料：以 story-list 為主，補充 bookstorelist 的購買資訊
-        const storyList = (originalStoryList?.data || []).map((storyItem) => {
+
+        // 合併兩個 API 的資料：以 story-list 為主，補充 bookstorelist 的購買資訊。
+        // 同時標記 inBookstore：該書是否存在於 GET /api/bookstorelist
+        //（用來決定一般用戶能否看到；管理員不受此限）。
+        const fullStoryList = (originalStoryList?.data || []).map((storyItem) => {
           const bookstoreItem = bookstoreMap.get(storyItem.id);
-          
+
           // 如果有對應的 bookstore 資料，合併購買資訊
           if (bookstoreItem) {
             return {
@@ -107,21 +110,56 @@ function HomeScreen() {
               currency: bookstoreItem.currency,
               isActive: bookstoreItem.isActive,
               soldCount: bookstoreItem.soldCount,
+              inBookstore: true,
             };
           }
-          
-          // 如果沒有對應的 bookstore 資料，返回原始資料
-          return storyItem;
+
+          // 沒有對應的 bookstore 資料：保留原始資料，標記為「未上架」
+          return { ...storyItem, inBookstore: false };
         });
-        
-        console.log('[HomeScreen] 合併後的書店列表數量:', storyList.length);
+
+        // 先把「完整書籍資料（無論是否公開/上架）」堆疊快取起來，供離線或其他流程使用
+        try {
+          await AsyncStorage.setItem('fullStoryListCache', JSON.stringify(fullStoryList));
+        } catch (cacheError) {
+          console.warn('[HomeScreen] 完整書籍資料快取失敗（可能資料過大）:', cacheError.message);
+        }
+
+        // 判斷是否為管理員（roleLevel >= 9）：優先讀本地快取，避免每次聚焦都打 api/users/me
+        let isAdmin = false;
+        try {
+          const token = await tokenStorage.getToken();
+          if (token) {
+            let roleLevel = await tokenStorage.getUserRoleLevel();
+            // 本地無快取（例如此功能上線前已登入的用戶）→ 回退查詢一次並補寫快取
+            if (roleLevel === null) {
+              const profile = await getUserProfile();
+              roleLevel = Number(profile?.roleLevel) || 0;
+              await tokenStorage.setUserRoleLevel(roleLevel);
+            }
+            isAdmin = Number(roleLevel) >= 9;
+          }
+        } catch (roleError) {
+          console.warn('[HomeScreen] 取得用戶權限失敗，預設為一般用戶:', roleError.message);
+        }
+
+        // 決定實際顯示的書籍：
+        // - 管理員（role >= 9）：全部顯示（含未上架書籍）
+        // - 一般用戶：僅顯示存在於 GET /api/bookstorelist 的書籍
+        const displayStoryList = isAdmin
+          ? fullStoryList
+          : fullStoryList.filter((item) => item.inBookstore);
+
+        console.log(
+          `[HomeScreen] 書籍數量 — 完整: ${fullStoryList.length}, 顯示: ${displayStoryList.length}, 管理員: ${isAdmin}`
+        );
 
         setStoryInfo({
           type: type?.data ?? [],
           config: config?.data ?? [],
           news: newsData?.data?.[0]?.news_content ?? '',
           nochapter: nochapter?.data ?? [],
-          storyList: storyList,
+          storyList: displayStoryList,
         });
       } catch (error) {
         console.error('API 請求失敗「HomeScreen」：', error.message);

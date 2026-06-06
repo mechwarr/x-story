@@ -52,13 +52,12 @@ export default function ProfileScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState<string>('');
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
-  /** 後端尚未有生日且性別未選（1/2）時，顯示「完成並領取」按鈕並隱藏「更新個人資訊」 */
+  /** 個人資料未完成（生日或性別任一缺）時，顯示「完成並領取」任務獎勵按鈕；
+   *  生日與性別皆齊全 → 視為已完成，顯示「更新個人資訊」 */
   const [showCompleteProfileClaimCta, setShowCompleteProfileClaimCta] = useState<boolean>(false);
   const { contentWidth, isTablet, maxContentWidth, horizontalPadding, scale } = useResponsive();
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  /** 窄螢幕改為上下排列，避免餘額與按鈕同一行擠壓 */
-  const compactBalanceRow = windowWidth < 420;
   const modalBoxMaxWidth = Math.min(340, windowWidth - 32);
   const titleFontSize = Math.round(20 * Math.min(scale, 1.12));
   const bodyFontSize = Math.round(17 * Math.min(scale, 1.08));
@@ -91,7 +90,9 @@ export default function ProfileScreen() {
         }
         const hasBirthday = !!(userData.birthday && String(userData.birthday).trim());
         const hasGender = userData.gender === 1 || userData.gender === 2;
-        setShowCompleteProfileClaimCta(!hasBirthday && !hasGender);
+        // 生日 + 性別皆齊全 = 已完成個人資料；任一缺 → 仍顯示任務獎勵 CTA
+        const profileComplete = hasBirthday && hasGender;
+        setShowCompleteProfileClaimCta(!profileComplete);
         console.log('[ProfileScreen] ✓ 成功載入用戶資料:', userData);
       } else {
         console.warn('[ProfileScreen] 無法獲取用戶資料，使用預設值');
@@ -314,39 +315,23 @@ export default function ProfileScreen() {
 
               <Text style={[styles.title, { fontSize: titleFontSize }]}>我的資料</Text>
 
-              {/* 餘額 + 操作列：寬螢幕單行置中；窄螢幕改直向堆疊避免 iOS 擠壓 */}
-              {compactBalanceRow ? (
-                <View style={styles.balanceBlockCompact}>
-                  <View style={styles.balanceBox}>
-                    <Image style={[styles.coin, { width: coinIconSmall, height: coinIconSmall }]} source={require('../../assets/coin.png')} />
-                    <Text style={[styles.balanceText, { fontSize: bodyFontSize }]}>{coins}</Text>
-                  </View>
-                  <View style={[styles.walletRow, styles.walletRowCompact]}>
-                    <Pressable style={styles.chargeBtn} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
-                      <Text style={[styles.chargeText, { fontSize: bodyFontSize }]}>加值</Text>
-                    </Pressable>
-                    <Pressable onPress={() => navigation.navigate(routes.HISTORY as never)}>
-                      <Text style={[styles.linkText, { fontSize: bodyFontSize }]}>查看紀錄</Text>
-                    </Pressable>
-                  </View>
+              {/* 餘額 + 操作列：iOS / Android 一致，皆為單行 —— 金幣 icon + 金額 後方
+                  平行排列「加值」「查看紀錄」，不換行、不堆疊到下方 */}
+              <View style={styles.balanceActionsRow}>
+                <View style={styles.flexSpacer} />
+                <View style={styles.balanceBox}>
+                  <Image style={[styles.coin, { width: coinIconSmall, height: coinIconSmall }]} source={require('../../assets/coin.png')} />
+                  <Text style={[styles.balanceText, { fontSize: bodyFontSize }]} numberOfLines={1}>{coins}</Text>
                 </View>
-              ) : (
-                <View style={styles.balanceActionsRow}>
-                  <View style={styles.flexSpacer} />
-                  <View style={styles.balanceBox}>
-                    <Image style={[styles.coin, { width: coinIconSmall, height: coinIconSmall }]} source={require('../../assets/coin.png')} />
-                    <Text style={[styles.balanceText, { fontSize: bodyFontSize }]}>{coins}</Text>
-                  </View>
-                  <View style={[styles.walletRow, styles.walletRowRight]}>
-                    <Pressable style={styles.chargeBtn} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
-                      <Text style={[styles.chargeText, { fontSize: bodyFontSize }]}>加值</Text>
-                    </Pressable>
-                    <Pressable onPress={() => navigation.navigate(routes.HISTORY as never)}>
-                      <Text style={[styles.linkText, { fontSize: bodyFontSize }]}>查看紀錄</Text>
-                    </Pressable>
-                  </View>
+                <View style={[styles.walletRow, styles.walletRowRight]}>
+                  <Pressable style={styles.chargeBtn} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
+                    <Text style={[styles.chargeText, { fontSize: bodyFontSize }]} numberOfLines={1}>加值</Text>
+                  </Pressable>
+                  <Pressable onPress={() => navigation.navigate(routes.HISTORY as never)}>
+                    <Text style={[styles.linkText, { fontSize: bodyFontSize }]} numberOfLines={1}>查看紀錄</Text>
+                  </Pressable>
                 </View>
-              )}
+              </View>
 
               {/* 暱稱 */}
               <View style={styles.inputRow}>
@@ -645,19 +630,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end', // 讓「查看紀錄」與「加值」的底部對齊
     marginLeft: 14,
   },
-  balanceBlockCompact: {
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 12,
-  },
-  walletRowCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-
   // 餘額方塊（你指定的樣式）
   balanceBox: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   coin: { width: 16, height: 16, resizeMode: 'contain' },
