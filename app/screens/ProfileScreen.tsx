@@ -41,7 +41,8 @@ export default function ProfileScreen() {
 
   // ---- 狀態 ----
   const [name, setName] = useState<string>('');
-  const [birthday, setBirthday] = useState<Date>(new Date(1995, 7, 5));
+  /** null 表示尚未帶入/設定生日，畫面顯示 yyyy/mm/dd 占位字串 */
+  const [birthday, setBirthday] = useState<Date | null>(null);
   const [gender, setGender] = useState<GenderCode>(0);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   /** iOS：性別以列顯示選中值，點擊後開 bottom sheet（Picker） */
@@ -59,11 +60,11 @@ export default function ProfileScreen() {
   /** 窄螢幕改為上下排列，避免餘額與按鈕同一行擠壓 */
   const compactBalanceRow = windowWidth < 420;
   const modalBoxMaxWidth = Math.min(340, windowWidth - 32);
-  const titleFontSize = Math.round(18 * Math.min(scale, 1.12));
-  const bodyFontSize = Math.round(16 * Math.min(scale, 1.08));
-  const labelFontSize = Math.round(12 * Math.min(scale, 1.06));
+  const titleFontSize = Math.round(20 * Math.min(scale, 1.12));
+  const bodyFontSize = Math.round(17 * Math.min(scale, 1.08));
+  const labelFontSize = Math.round(14 * Math.min(scale, 1.06));
   const submitFontSize = Math.round(16 * Math.min(scale, 1.08));
-  const avatarSize = Math.min(Math.round(contentWidth / 4), 120);
+  const avatarSize = Math.min(Math.round(contentWidth / 3), 160);
   const iconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
   // ---- 載入用戶資料（換帳號後每次進入此畫面都重新拉取，避免顯示上一帳號名稱/生日/性別）----
@@ -72,7 +73,7 @@ export default function ProfileScreen() {
       setIsLoading(true);
       // 先清空顯示，避免在請求完成前短暫顯示上一帳號資料
       setName('');
-      setBirthday(new Date(1995, 7, 5));
+      setBirthday(null);
       setGender(0);
 
       const userData = await getUserProfile();
@@ -116,7 +117,12 @@ export default function ProfileScreen() {
     if (date) setBirthday(date);
   };
 
-  const birthdayText = `${birthday.getFullYear()}/${birthday.getMonth() + 1}/${birthday.getDate()}`;
+  /** 首次/未設定生日時的選擇器預設值（不會送出，僅供 picker 起始顯示） */
+  const birthdayPickerValue = birthday ?? new Date(1995, 7, 5);
+  const hasBirthday = !!birthday;
+  const birthdayText = birthday
+    ? `${birthday.getFullYear()}/${birthday.getMonth() + 1}/${birthday.getDate()}`
+    : 'yyyy/mm/dd';
 
   const genderDisplayLabel = (g: GenderCode) => {
     if (g === 1) return '男性';
@@ -124,7 +130,7 @@ export default function ProfileScreen() {
     return '請選擇';
   };
 
-  const buildBirthdayPayload = () => birthday.toISOString().split('T')[0];
+  const buildBirthdayPayload = () => (birthday ? birthday.toISOString().split('T')[0] : undefined);
 
   /** 僅更新個人資料（一般模式按鈕） */
   const handleUpdateProfileOnly = async () => {
@@ -263,8 +269,13 @@ export default function ProfileScreen() {
     );
   }
 
-  const coinIconSmall = Math.round(16 * Math.min(scale, 1.08));
-  const coinIconBtn = Math.round(18 * Math.min(scale, 1.08));
+  // 與 AppHeader（Android 主畫面）金幣 icon 一致：20 * scale
+  const coinIconSmall = Math.round(20 * scale);
+  const coinIconBtn = Math.round(20 * scale);
+  /** 首次完成個人資料（生日 + 性別）尚未填妥 → 鎖定底部更新按鈕 */
+  const isProfileIncomplete =
+    showCompleteProfileClaimCta && (!birthday || (gender !== 1 && gender !== 2));
+  const isSubmitDisabled = isSubmitting || isProfileIncomplete;
 
   return (
     <View style={styles.safe}>
@@ -353,7 +364,14 @@ export default function ProfileScreen() {
               <Pressable style={styles.inputRow} onPress={() => setShowDatePicker(true)}>
                 <Text style={[styles.label, { fontSize: labelFontSize }]}>生日</Text>
                 <View style={styles.valueBox}>
-                  <Text style={[styles.valueText, { fontSize: bodyFontSize }]} numberOfLines={1}>
+                  <Text
+                    style={[
+                      styles.valueText,
+                      { fontSize: bodyFontSize },
+                      !hasBirthday && styles.valueTextPlaceholder,
+                    ]}
+                    numberOfLines={1}
+                  >
                     {birthdayText}
                   </Text>
                   <Text style={[styles.arrow, { fontSize: bodyFontSize }]}>{'>'}</Text>
@@ -397,44 +415,55 @@ export default function ProfileScreen() {
                 </View>
               )}
 
-              {/* CTA：未完成個人資料（無生日且未選性別）→ 完成並領獎；否則 → 僅更新 */}
-              <Pressable
-                style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
-                onPress={showCompleteProfileClaimCta ? handleCompleteProfileAndClaim : handleUpdateProfileOnly}
-                disabled={isSubmitting}
-              >
-                <View style={styles.btnRow}>
-                  {isSubmitting ? (
-                    <ActivityIndicator color="#eafff9" size="small" />
-                  ) : showCompleteProfileClaimCta ? (
-                    <>
+              {/* 更新鈕 + 刪除帳號：以 marginTop:'auto' 對齊至內容底部 */}
+              <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+                {/* CTA：未完成個人資料（無生日且未選性別）→ 完成並領獎；否則 → 僅更新 */}
+                <Pressable
+                  style={[
+                    styles.submitBtn,
+                    isProfileIncomplete && styles.submitBtnLocked,
+                    isSubmitting && styles.submitBtnDisabled,
+                  ]}
+                  onPress={showCompleteProfileClaimCta ? handleCompleteProfileAndClaim : handleUpdateProfileOnly}
+                  disabled={isSubmitDisabled}
+                >
+                  <View style={styles.btnRow}>
+                    {isSubmitting ? (
+                      <ActivityIndicator color="#eafff9" size="small" />
+                    ) : showCompleteProfileClaimCta ? (
+                      <>
+                        <Text
+                          style={[
+                            styles.submitText,
+                            { fontSize: submitFontSize },
+                            isProfileIncomplete && styles.submitTextLocked,
+                          ]}
+                          numberOfLines={2}
+                          adjustsFontSizeToFit={Platform.OS === 'ios'}
+                          minimumFontScale={0.82}
+                        >
+                          {translate('profileCompleteAndClaimCoins')}
+                        </Text>
+                        <Image style={[styles.coinIcon, { width: coinIconBtn, height: coinIconBtn }]} source={require('../../assets/coin.png')} />
+                      </>
+                    ) : (
                       <Text
                         style={[styles.submitText, { fontSize: submitFontSize }]}
                         numberOfLines={2}
                         adjustsFontSizeToFit={Platform.OS === 'ios'}
-                        minimumFontScale={0.82}
+                        minimumFontScale={0.85}
                       >
-                        {translate('profileCompleteAndClaimCoins')}
+                        {translate('profileUpdatePersonalInfo')}
                       </Text>
-                      <Image style={[styles.coinIcon, { width: coinIconBtn, height: coinIconBtn }]} source={require('../../assets/coin.png')} />
-                    </>
-                  ) : (
-                    <Text
-                      style={[styles.submitText, { fontSize: submitFontSize }]}
-                      numberOfLines={2}
-                      adjustsFontSizeToFit={Platform.OS === 'ios'}
-                      minimumFontScale={0.85}
-                    >
-                      {translate('profileUpdatePersonalInfo')}
-                    </Text>
-                  )}
-                </View>
-              </Pressable>
+                    )}
+                  </View>
+                </Pressable>
 
-              {/* 刪除帳號（防誤觸：需輸入 DELETE 確認） */}
-              <Pressable style={styles.deleteAccountRow} onPress={openDeleteModal} disabled={isDeleting}>
-                <Text style={[styles.deleteAccountText, { fontSize: Math.round(14 * Math.min(scale, 1.06)) }]}>{routes.REMOVE}</Text>
-              </Pressable>
+                {/* 刪除帳號（防誤觸：需輸入 DELETE 確認） */}
+                <Pressable style={styles.deleteAccountRow} onPress={openDeleteModal} disabled={isDeleting}>
+                  <Text style={[styles.deleteAccountText, { fontSize: Math.round(14 * Math.min(scale, 1.06)) }]}>{routes.REMOVE}</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -488,7 +517,7 @@ export default function ProfileScreen() {
       {/* Android：系統日期選擇器 */}
       {showDatePicker && Platform.OS === 'android' && (
         <DateTimePicker
-          value={birthday}
+          value={birthdayPickerValue}
           mode="date"
           display="default"
           onChange={onChangeBirthday}
@@ -511,7 +540,7 @@ export default function ProfileScreen() {
                 </Pressable>
               </View>
               <DateTimePicker
-                value={birthday}
+                value={birthdayPickerValue}
                 mode="date"
                 display="spinner"
                 onChange={onChangeBirthday}
@@ -632,7 +661,7 @@ const styles = StyleSheet.create({
   // 餘額方塊（你指定的樣式）
   balanceBox: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   coin: { width: 16, height: 16, resizeMode: 'contain' },
-  balanceText: { color: '#e7eef6', fontWeight: '700' },
+  balanceText: { color: '#f0ad57', fontWeight: '700' },
 
   // 操作列（加值 / 查看紀錄）
   walletRow: {
@@ -701,6 +730,13 @@ const styles = StyleSheet.create({
   submitBtnDisabled: {
     opacity: 0.6,
   },
+  // 首次資料未填妥：白字灰底、不可按
+  submitBtnLocked: {
+    backgroundColor: '#6b7280',
+  },
+  submitTextLocked: {
+    color: '#ffffff',
+  },
   // 按鈕內橫向排列容器（文字 + 圖示）
   btnRow: {
     flexDirection: 'row',
@@ -735,6 +771,12 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#e7eef6',
     marginTop: 12,
+  },
+
+  // ---- 底部對齊容器（更新鈕 + 刪除帳號）----
+  footer: {
+    marginTop: 'auto',
+    paddingTop: 16,
   },
 
   // ---- 刪除帳號 ----

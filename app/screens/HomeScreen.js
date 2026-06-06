@@ -1,4 +1,4 @@
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import { FlatList } from 'react-native';
@@ -11,11 +11,22 @@ import Books from '../components/Book/Books';
 import storage from '../storage/storage';
 import apiclient  from '../config/apiClient';
 import { getBookstoreList } from '../config/userApiClient';
+import routes from '../navigations/routes';
+import { consumePendingProfileRedirect } from '../auth/firstLoginRedirect';
 
 const url = apiclient.currentBaseUrl();
 
 function HomeScreen() {
   const isFocus = useIsFocused();
+  const navigation = useNavigation();
+
+  // 首次登入且個人資料未完成 → 進入主畫面後自動導向 ProfileScreen（僅觸發一次）
+  useEffect(() => {
+    if (consumePendingProfileRedirect()) {
+      navigation.navigate(routes.PROFILE);
+    }
+  }, [navigation]);
+
   const [storyInfo, setStoryInfo] = useState({
     type: [],
     config: {},

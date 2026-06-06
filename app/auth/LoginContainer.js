@@ -22,6 +22,8 @@ import {
   wechatLoginWithXStory
 } from '../config/authApiClient';
 import { useCoins } from '../store/coinContext';
+import { getUserProfile } from '../config/userApiClient';
+import { setPendingProfileRedirect } from './firstLoginRedirect';
 
 export default function LoginContainer({ onLoginSuccess }) {
   const { refreshCoins } = useCoins();
@@ -57,9 +59,18 @@ export default function LoginContainer({ onLoginSuccess }) {
     setShowEmailLogin(false);
   };
 
-  /** 登入成功：先觸發金幣刷新（新帳號餘額），再切換至主畫面 */
-  const handleLoginSuccess = useCallback(() => {
+  /** 登入成功：先觸發金幣刷新（新帳號餘額），再切換至主畫面；
+   *  若個人資料未完成（無生日且未選性別），標記首次登入需導向 ProfileScreen */
+  const handleLoginSuccess = useCallback(async () => {
     refreshCoins(true);
+    try {
+      const userData = await getUserProfile();
+      const hasBirthday = !!(userData?.birthday && String(userData.birthday).trim());
+      const hasGender = userData?.gender === 1 || userData?.gender === 2;
+      setPendingProfileRedirect(!hasBirthday && !hasGender);
+    } catch (e) {
+      setPendingProfileRedirect(false);
+    }
     onLoginSuccess();
   }, [onLoginSuccess, refreshCoins]);
 
