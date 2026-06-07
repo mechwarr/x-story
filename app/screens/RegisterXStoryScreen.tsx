@@ -92,6 +92,7 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
             style={styles.input}
             placeholder={translate("enterEmail")}
             placeholderTextColor="#7F7F7F"
+            selectionColor="#009688"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -105,6 +106,7 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
               style={styles.passwordInput}
               placeholder={translate("enterPassword")}
               placeholderTextColor="#7F7F7F"
+              selectionColor="#009688"
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
@@ -129,6 +131,7 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
               style={styles.passwordInput}
               placeholder={translate("confirmPassword")}
               placeholderTextColor="#7F7F7F"
+              selectionColor="#009688"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry={!showConfirmPassword}
@@ -189,6 +192,7 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
               style={styles.input}
               placeholder="請輸入 Email"
               placeholderTextColor="#7F7F7F"
+              selectionColor="#009688"
               value={resendEmail}
               onChangeText={setResendEmail}
               keyboardType="email-address"

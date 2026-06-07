@@ -342,6 +342,7 @@ export default function ProfileScreen() {
                   onChangeText={setName}
                   placeholder="請輸入暱稱"
                   placeholderTextColor="#9aa3ad"
+                  selectionColor="#009688"
                   style={[styles.input, { fontSize: bodyFontSize }]}
                 />
               </View>
@@ -476,6 +477,7 @@ export default function ProfileScreen() {
               onChangeText={setDeleteConfirmInput}
               placeholder="輸入 DELETE"
               placeholderTextColor="#9aa3ad"
+              selectionColor="#009688"
               autoCapitalize="characters"
               autoCorrect={false}
               editable={!isDeleting}
@@ -532,6 +534,7 @@ export default function ProfileScreen() {
                 onChange={onChangeBirthday}
                 maximumDate={new Date()}
                 themeVariant="dark"
+                accentColor="#009688"
               />
             </Pressable>
           </Pressable>

@@ -45,6 +45,7 @@ export function XStoryLogin({ onLoginSuccess, onCancel }: Props) {
                 style={styles.input}
                 placeholder={translate("email")}
                 placeholderTextColor="#7F7F7F"
+                selectionColor="#009688"
                 value={email}
                 onChangeText={setEmail}  // ← 綁定內部狀態
                 keyboardType="email-address"
@@ -57,6 +58,7 @@ export function XStoryLogin({ onLoginSuccess, onCancel }: Props) {
                     style={styles.passwordInput}
                     placeholder={translate("password")}
                     placeholderTextColor="#7F7F7F"
+                    selectionColor="#009688"
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}

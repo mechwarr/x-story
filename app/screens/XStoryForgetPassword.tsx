@@ -63,7 +63,7 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
       </View>
 
       <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
-      <Text style={styles.title}>{translate("forgotPasswordTitle") || "忘記密碼"}</Text>
+      <Text style={styles.title}>{translate("forgotPassword")}</Text>
 
       {!waitingVerification ? (
         <>
@@ -72,6 +72,7 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
               style={styles.input}
               placeholder={translate("pleaseEnterEmail") || "請輸入您的Email"}
               placeholderTextColor="#7F7F7F"
+              selectionColor="#009688"
               value={email}
               onChangeText={(v) => {
                 setEmail(v);  

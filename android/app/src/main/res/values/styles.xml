@@ -2,6 +2,9 @@
   <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
     <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
     <item name="colorPrimary">@color/colorPrimary</item>
+    <item name="colorAccent">#009688</item>
+    <item name="colorControlActivated">#009688</item>
+    <item name="colorControlHighlight">#33009688</item>
     <item name="android:statusBarColor">#000000</item>
     <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
   </style>

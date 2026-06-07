@@ -111,6 +111,7 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
                     style={styles.input}
                     placeholder={translate("newPassword")}
                     placeholderTextColor="#7F7F7F"
+                    selectionColor="#009688"
                     secureTextEntry={!showPwd}
                     value={pwd}
                     onChangeText={setPwd}
@@ -140,6 +141,7 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
                     style={styles.input}
                     placeholder={translate("confirmPassword")}
                     placeholderTextColor="#7F7F7F"
+                    selectionColor="#009688"
                     secureTextEntry={!showPwd2}
                     value={pwd2}
                     onChangeText={setPwd2}
