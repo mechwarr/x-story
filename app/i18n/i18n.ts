@@ -44,9 +44,31 @@ export const getCurrentStoryLang = (lang?: string): string => {
 };
 
 // 取得翻譯字串
-export const translate = (key: string, lang?: string): string => {
-  const langToUse = normalizeLang(lang || currentLang);
+// 支援 {placeholder} 內插：translate('key', { price: 100, name: '書名' })
+// 向後相容：第二參數若為字串，仍視為語言碼（translate('key', 'zh-TW')）
+type TranslateParams = Record<string, string | number>;
+export const translate = (
+  key: string,
+  paramsOrLang?: TranslateParams | string,
+  lang?: string
+): string => {
+  let params: TranslateParams | undefined;
+  let langArg = lang;
+  if (typeof paramsOrLang === 'string') {
+    langArg = paramsOrLang;
+  } else {
+    params = paramsOrLang;
+  }
+
+  const langToUse = normalizeLang(langArg || currentLang);
   const entry = mutiLanguage[key];
   if (!entry) return `[${key}]`;
-  return entry[langToUse] || entry["en"] || `[${key}]`;
+  const template = entry[langToUse] || entry["en"];
+  if (!template) return `[${key}]`;
+  if (!params) return template;
+
+  // 將 {name} 之類的佔位符替換為傳入的變數；缺值時保留原樣
+  return template.replace(/\{(\w+)\}/g, (match, name) =>
+    params[name] != null ? String(params[name]) : match
+  );
 };

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Alert } from "react-native";
 import { useAuth } from "../auth/AuthContext";
+import { translate } from "../i18n/i18n";
 
 /** 與正式登出相同：後端 token 失效 + clearAllUserData + 金幣狀態重置 */
 export function ResetScreen({ navigation }) {
@@ -13,12 +14,12 @@ export function ResetScreen({ navigation }) {
         "確定要重置所有登入資料嗎？",
         [
           {
-            text: "取消",
+            text: translate('cancel'),
             style: "cancel",
             onPress: () => navigation.goBack(),
           },
           {
-            text: "確定",
+            text: translate('ok'),
             style: "destructive",
             onPress: async () => {
               await logout();

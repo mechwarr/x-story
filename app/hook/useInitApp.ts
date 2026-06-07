@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Platform, AppState, InteractionManager } from 'react-native';
 import tokenStorage from '../auth/Storage';
 import {initLanguageByLoginStatus} from '../i18n/initLanguage';
+import { translate } from '../i18n/i18n';
 import { initWeChatSDK } from '../../components/utils/wechatAuth';
 import { tokenRefreshService } from '../config/authApiClient';
 import { clearAllUserData } from '../services/clearUserDataService';
@@ -37,7 +38,7 @@ export default function useInitApp(
             '您的登入已超過 30 天，為了帳戶安全，請重新登入。',
             [
               {
-                text: '確定',
+                text: translate('ok'),
                 onPress: async () => {
                   onBeforeLogout?.(); // 例如重置金幣 Context，避免換帳號後殘留
                   await clearAllUserData();
@@ -57,7 +58,7 @@ export default function useInitApp(
             '您的登入權限已過期，請重新登入。',
             [
               {
-                text: '確定',
+                text: translate('ok'),
                 onPress: async () => {
                   onBeforeLogout?.(); // 例如重置金幣 Context，避免換帳號後殘留
                   await clearAllUserData();
@@ -116,7 +117,7 @@ export default function useInitApp(
                 Alert.alert(
                   '微信功能初始化失敗',
                   `${errorMessage}\n\n微信登入功能可能無法使用。如果問題持續，請聯繫客服。`,
-                  [{ text: '確定' }]
+                  [{ text: translate('ok') }]
                 );
               });
           }, 500); // 額外等待 500ms，確保 Bridge 有時間初始化

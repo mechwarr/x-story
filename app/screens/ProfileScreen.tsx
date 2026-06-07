@@ -166,7 +166,8 @@ export default function ProfileScreen() {
     if (isSubmitting) return;
 
     if (gender !== 1 && gender !== 2) {
-      Alert.alert(translate('passwordUpdateErrorTitle'), translate('profileSelectGenderForBonus'));
+      // 非真正錯誤（輸入提示）→ 標題用 "Alert"，與 server 回傳錯誤的「發生錯誤」區隔
+      Alert.alert(translate('commonAlertTitle'), translate('profileSelectGenderForBonus'));
       return;
     }
 
@@ -197,7 +198,7 @@ export default function ProfileScreen() {
         }
         setShowCompleteProfileClaimCta(false);
         await refreshCoins(true);
-        Alert.alert(translate('profileUpdatedSuccessTitle'), translate('profileCompletedRewardSuccessMessage'), [
+        Alert.alert(translate('profileSubmittedSuccessTitle'), translate('profileCompletedRewardSuccessMessage'), [
           { text: translate('ok'), onPress: () => {} },
         ]);
       } catch (claimErr: any) {

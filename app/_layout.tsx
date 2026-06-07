@@ -14,6 +14,7 @@ import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
 import { AuthProvider } from "./auth/AuthContext";
 import { CoinProvider } from './store/coinContext';
 import { clearAllUserData } from './services/clearUserDataService';
+import { translate } from './i18n/i18n';
 
 // 內部組件，用於訪問 LoadingContext
 function RootLayoutContent() {
@@ -45,7 +46,7 @@ function RootLayoutContent() {
       '您的登入權限已過期，請重新登入。',
       [
         {
-          text: '確定',
+          text: translate('ok'),
           onPress: async () => {
             coinResetRef.current?.(); // 換帳號後不殘留上一用戶金幣
             await clearAllUserData();
@@ -108,7 +109,7 @@ function RootLayoutContent() {
               '您的登入已超過 30 天，為了帳戶安全，請重新登入。',
               [
                 {
-                  text: '確定',
+                  text: translate('ok'),
                   onPress: async () => {
                     coinResetRef.current?.(); // 換帳號後不殘留上一用戶金幣
                     await clearAllUserData();
@@ -126,7 +127,7 @@ function RootLayoutContent() {
             Alert.alert(
               '網路異常',
               '無法連線更新登入狀態，請檢查網路後再試。您可繼續使用，下次回到 App 時會再嘗試更新。',
-              [{ text: '確定' }]
+              [{ text: translate('ok') }]
             );
           };
 

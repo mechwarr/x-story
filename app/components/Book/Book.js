@@ -13,6 +13,7 @@ import AppText from '../AppText';
 import colors from '../../config/colors';
 import apiclient  from '../../config/apiClient';
 import { isTabletWidth } from '../../config/responsive';
+import { translate } from '../../i18n/i18n';
 import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins } from '../../config/userApiClient';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../../config/idempotencyKeyCache';
@@ -83,25 +84,25 @@ function Book(props) {
   // 處理購買故事
   const handlePurchaseStory = async () => {
     if (!id) {
-      Alert.alert('錯誤', '找不到故事 ID');
+      Alert.alert(translate('genericErrorTitle'), translate('storyIdNotFound'));
       return;
     }
 
     // 檢查是否有價格資訊
     if (!priceCoins || priceCoins <= 0) {
-      Alert.alert('提示', '此故事無法購買');
+      Alert.alert(translate('noticeTitle'), translate('storyNotPurchasable'));
       return;
     }
 
     // 檢查金幣餘額
     if (coins < priceCoins) {
       Alert.alert(
-        '金幣不足',
-        `此故事需要 ${priceCoins} 金幣，您目前有 ${coins} 金幣。\n請前往商城購買更多金幣。`,
+        translate('coinsInsufficientTitle'),
+        translate('coinsInsufficientMessage', { price: priceCoins, coins }),
         [
-          { text: '取消', style: 'cancel' },
+          { text: translate('cancel'), style: 'cancel' },
           {
-            text: '前往商城',
+            text: translate('goToShop'),
             onPress: () => {
               navigation.navigate(routes.HOME, {
                 screen: routes.SHOP,
@@ -115,12 +116,12 @@ function Book(props) {
 
     // 確認購買
     Alert.alert(
-      '確認購買',
-      `確定要使用 ${priceCoins} 金幣購買「${main_menu_name}」嗎？`,
+      translate('confirmPurchase'),
+      translate('confirmPurchaseMessage', { price: priceCoins, name: main_menu_name }),
       [
-        { text: '取消', style: 'cancel' },
+        { text: translate('cancel'), style: 'cancel' },
         {
-          text: '確認購買',
+          text: translate('confirmPurchase'),
           onPress: async () => {
             try {
               // 獲取或創建 idempotencyKey（如果緩存中存在，使用緩存的；否則創建新的）
@@ -150,11 +151,11 @@ function Book(props) {
                 await refreshCoins(true);
                 
                 Alert.alert(
-                  '購買成功',
-                  `您已成功購買「${main_menu_name}」！\n\n花費 ${result.coinsSpent || priceCoins} 金幣`,
+                  translate('purchaseSuccessTitle'),
+                  translate('purchaseSuccessMessage', { name: main_menu_name, coins: result.coinsSpent || priceCoins }),
                   [
                     {
-                      text: '確定',
+                      text: translate('ok'),
                       onPress: () => {
                         // 購買成功後，導航到故事頁面
                         if (hasChapter) {
@@ -180,13 +181,13 @@ function Book(props) {
               } else {
                 // 購買失敗，保留 idempotencyKey 緩存，以便重試時使用同一個 key
                 console.log('[Book] ⚠️ 購買失敗，保留 idempotencyKey 緩存以便重試');
-                Alert.alert('購買失敗', '請稍後再試');
+                Alert.alert(translate('purchaseFailedTitle'), translate('purchaseFailedRetry'));
               }
             } catch (error) {
               // 發生錯誤，保留 idempotencyKey 緩存，以便重試時使用同一個 key
               console.error('[Book] ❌ 購買失敗:', error);
               console.log('[Book] ⚠️ 發生錯誤，保留 idempotencyKey 緩存以便重試');
-              Alert.alert('購買失敗', error?.message || '發生錯誤，請稍後再試');
+              Alert.alert(translate('purchaseFailedTitle'), error?.message || translate('purchaseErrorGeneric'));
             }
           },
         },
@@ -272,7 +273,7 @@ function Book(props) {
                   },
                 },
                 {
-                  text: main_menu_btn_right,
+                  text: translate('ok'),
                   onPress: () => {
                     navigation.navigate(routes.CONTINUE);
                   },

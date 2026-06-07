@@ -453,7 +453,7 @@ export default function LoginContainer({ onLoginSuccess }) {
             Alert.alert(
               "微信登入錯誤",
               "Token 保存失敗，請重試。\n\n錯誤: " + (saveError?.message || String(saveError)),
-              [{ text: "確定" }]
+              [{ text: translate("ok") }]
             );
           }
         } else {
@@ -463,7 +463,7 @@ export default function LoginContainer({ onLoginSuccess }) {
           Alert.alert(
             "微信登入失敗",
             "無法從伺服器取得登入憑證，請稍後再試。\n\n如果問題持續，請聯繫客服。",
-            [{ text: "確定" }]
+            [{ text: translate("ok") }]
           );
         }
       } catch (wechatError) {
@@ -488,7 +488,7 @@ export default function LoginContainer({ onLoginSuccess }) {
         Alert.alert(
           "微信登入錯誤",
           errorMessage + "\n\n如果問題持續，請聯繫客服。",
-          [{ text: "確定" }]
+          [{ text: translate("ok") }]
         );
         return;
       }
@@ -503,7 +503,7 @@ export default function LoginContainer({ onLoginSuccess }) {
       Alert.alert(
         "微信登入錯誤",
         "發生未預期的錯誤: " + (e?.message ?? String(e)),
-        [{ text: "確定" }]
+        [{ text: translate("ok") }]
       );
     }
   };

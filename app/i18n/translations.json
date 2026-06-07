@@ -40,9 +40,104 @@
         "en": "We’ve sent you a link to complete your registration. Click the link in the email to verify your account."
     },
     "ok": {
-        "zh-TW": "確定",
-        "zh-CN": "确定",
+        "zh-TW": "OK",
+        "zh-CN": "OK",
         "en": "OK"
+    },
+    "confirmPurchase": {
+        "zh-TW": "確認購買",
+        "zh-CN": "确认购买",
+        "en": "Confirm Purchase"
+    },
+    "confirmPurchaseMessage": {
+        "zh-TW": "確定要使用 {price} 金幣購買「{name}」嗎？",
+        "zh-CN": "确定要使用 {price} 金币购买「{name}」吗？",
+        "en": "Use {price} coins to purchase “{name}”?"
+    },
+    "genericErrorTitle": {
+        "zh-TW": "錯誤",
+        "zh-CN": "错误",
+        "en": "Error"
+    },
+    "noticeTitle": {
+        "zh-TW": "提示",
+        "zh-CN": "提示",
+        "en": "Notice"
+    },
+    "storyIdNotFound": {
+        "zh-TW": "找不到故事 ID",
+        "zh-CN": "找不到故事 ID",
+        "en": "Story ID not found"
+    },
+    "storyNotPurchasable": {
+        "zh-TW": "此故事無法購買",
+        "zh-CN": "此故事无法购买",
+        "en": "This story cannot be purchased"
+    },
+    "coinsInsufficientTitle": {
+        "zh-TW": "金幣不足",
+        "zh-CN": "金币不足",
+        "en": "Insufficient Coins"
+    },
+    "coinsInsufficientMessage": {
+        "zh-TW": "此故事需要 {price} 金幣，您目前有 {coins} 金幣。\n請前往商城購買更多金幣。",
+        "zh-CN": "此故事需要 {price} 金币，您目前有 {coins} 金币。\n请前往商城购买更多金币。",
+        "en": "This story costs {price} coins, but you have {coins}.\nPlease visit the shop to get more coins."
+    },
+    "goToShop": {
+        "zh-TW": "前往商城",
+        "zh-CN": "前往商城",
+        "en": "Go to Shop"
+    },
+    "purchaseSuccessTitle": {
+        "zh-TW": "購買成功",
+        "zh-CN": "购买成功",
+        "en": "Purchase Successful"
+    },
+    "purchaseSuccessMessage": {
+        "zh-TW": "您已成功購買「{name}」！\n\n花費 {coins} 金幣",
+        "zh-CN": "您已成功购买「{name}」！\n\n花费 {coins} 金币",
+        "en": "You’ve successfully purchased “{name}”!\n\nSpent {coins} coins"
+    },
+    "purchaseFailedTitle": {
+        "zh-TW": "購買失敗",
+        "zh-CN": "购买失败",
+        "en": "Purchase Failed"
+    },
+    "purchaseFailedRetry": {
+        "zh-TW": "請稍後再試",
+        "zh-CN": "请稍后再试",
+        "en": "Please try again later"
+    },
+    "purchaseErrorGeneric": {
+        "zh-TW": "發生錯誤，請稍後再試",
+        "zh-CN": "发生错误，请稍后再试",
+        "en": "Something went wrong. Please try again later."
+    },
+    "iapPurchaseSuccessMessage": {
+        "zh-TW": "您已成功購買 {product}！\n\n獲得 {coins} 金幣",
+        "zh-CN": "您已成功购买 {product}！\n\n获得 {coins} 金币",
+        "en": "You’ve successfully purchased {product}!\n\nReceived {coins} coins"
+    },
+    "restorePurchaseTitle": {
+        "zh-TW": "恢復購買",
+        "zh-CN": "恢复购买",
+        "en": "Restore Purchases"
+    },
+    "restorePurchaseNone": {
+        "zh-TW": "沒有找到可恢復的購買記錄",
+        "zh-CN": "没有找到可恢复的购买记录",
+        "en": "No purchases available to restore"
+    },
+    "restorePurchaseSuccessMessage": {
+        "zh-TW": "已恢復 {count} 筆購買記錄",
+        "zh-CN": "已恢复 {count} 笔购买记录",
+        "en": "Restored {count} purchase(s)"
+    },
+    "restorePurchaseFailedTitle": {
+        "zh-TW": "恢復購買失敗",
+        "zh-CN": "恢复购买失败",
+        "en": "Restore Failed"
     },
     "resetPassword": {
         "zh-TW": "重設密碼\n（至少 8 個字元）",
@@ -299,15 +394,20 @@
         "zh-CN": "成功",
         "en": "Success"
     },
+    "profileSubmittedSuccessTitle": {
+        "zh-TW": "資料提交成功",
+        "zh-CN": "资料提交成功",
+        "en": "Profile submitted successfully"
+    },
     "profileUpdatedSuccessMessage": {
         "zh-TW": "個人資料已更新！",
         "zh-CN": "个人资料已更新！",
         "en": "Your profile has been updated."
     },
     "profileCompletedRewardSuccessMessage": {
-        "zh-TW": "個人資料已完成，獎勵已領取！",
-        "zh-CN": "个人资料已完成，奖励已领取！",
-        "en": "Profile completed and reward claimed."
+        "zh-TW": "感謝您完成基本資料，代幣將於 24 小時內發送至您的帳戶。",
+        "zh-CN": "感谢您完成基本资料，代币将于 24 小时内发送至您的账户。",
+        "en": "Thank you for completing your profile. Coins will be credited to your account within 24 hours."
     },
     "profileRewardClaimFailedTitle": {
         "zh-TW": "領取獎勵失敗",
@@ -323,5 +423,10 @@
         "zh-TW": "請先選擇性別以完成個人資料並領取獎勵。",
         "zh-CN": "请先选择性别以完成个人资料并领取奖励。",
         "en": "Please select your gender to complete your profile and claim the reward."
+    },
+    "commonAlertTitle": {
+        "zh-TW": "Alert",
+        "zh-CN": "Alert",
+        "en": "Alert"
     }
 }

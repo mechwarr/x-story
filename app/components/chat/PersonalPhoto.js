@@ -10,6 +10,7 @@ import {
 import apiclient  from '../../config/apiClient';
 
 import AppText from '../AppText';
+import { translate } from '../../i18n/i18n';
 const domain = apiclient.currentBaseUrl() + 'images/update/';
 
 function PersonalPhoto(props) {
@@ -29,7 +30,7 @@ function PersonalPhoto(props) {
         onPress={() => {
           Alert.alert(role_foolproof_title, role_infor, [
             {
-              text: role_foolproof_content ?? '',
+              text: translate('ok'),
               cancelable: true,
             },
           ]);

@@ -11,6 +11,7 @@ import { useCoins } from '../store/coinContext';
 import type { Product, Purchase, PurchaseError } from 'react-native-iap';
 import { logKeyValue, logSection, logStringList } from '../utils/iapDebugLogger';
 import { buildAppStoreSkuListFromBackendProductIds } from '../utils/iosIapSkuMapping';
+import { translate } from '../i18n/i18n';
 
 function normalizePlatformValue(value: unknown): 'GOOGLE' | 'APPLE' | 'UNKNOWN' {
   const normalized = String(value ?? '').trim().toUpperCase();
@@ -255,9 +256,9 @@ export function useIAP(): UseIAPReturn {
         
         // 顯示購買成功訊息（使用平台產品名稱以支援多國語系）
         Alert.alert(
-          '購買成功',
-          `您已成功購買 ${productName}！\n\n獲得 ${coinsAdded} 金幣`,
-          [{ text: '確定' }]
+          translate('purchaseSuccessTitle'),
+          translate('iapPurchaseSuccessMessage', { product: productName, coins: coinsAdded }),
+          [{ text: translate('ok') }]
         );
 
         // 購買成功後強制刷新金幣餘額（略過 30s 防抖）
@@ -341,7 +342,7 @@ export function useIAP(): UseIAPReturn {
       const purchases = await iapService.getAvailablePurchases();
       
       if (purchases.length === 0) {
-        Alert.alert('恢復購買', '沒有找到可恢復的購買記錄');
+        Alert.alert(translate('restorePurchaseTitle'), translate('restorePurchaseNone'));
         return;
       }
 
@@ -352,11 +353,11 @@ export function useIAP(): UseIAPReturn {
         await iapService.finishTransaction(purchase, true);
       }
 
-      Alert.alert('恢復購買', `已恢復 ${purchases.length} 筆購買記錄`);
+      Alert.alert(translate('restorePurchaseTitle'), translate('restorePurchaseSuccessMessage', { count: purchases.length }));
     } catch (err) {
       const error = err instanceof Error ? err : new Error('恢復購買失敗');
       setError(error);
-      Alert.alert('恢復購買失敗', error.message);
+      Alert.alert(translate('restorePurchaseFailedTitle'), error.message);
     } finally {
       setIsLoading(false);
     }

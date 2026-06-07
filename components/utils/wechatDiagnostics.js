@@ -1,5 +1,6 @@
 // 微信登入診斷工具 - 用於在 TestFlight 環境中診斷問題
 import { NativeModules, Platform, Alert } from 'react-native';
+import { translate } from '../../app/i18n/i18n';
 
 /**
  * 診斷微信模組狀態
@@ -64,7 +65,7 @@ export function diagnoseWeChatModule() {
     message += `${index + 1}. ${module}\n`;
   });
 
-  Alert.alert('微信模組診斷', message, [{ text: '確定' }]);
+  Alert.alert('微信模組診斷', message, [{ text: translate('ok') }]);
   
   // 同時輸出到 console（如果可用）
   console.log('=== 微信模組診斷 ===');
