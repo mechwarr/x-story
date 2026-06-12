@@ -1,6 +1,7 @@
 // hooks/useInitApp.ts
 import { useEffect, useState } from 'react';
-import { Alert, Platform, AppState, InteractionManager } from 'react-native';
+import { Platform, AppState, InteractionManager } from 'react-native';
+import { showAlert } from "../components/CustomAlert";
 import tokenStorage from '../auth/Storage';
 import {initLanguageByLoginStatus} from '../i18n/initLanguage';
 import { translate } from '../i18n/i18n';
@@ -38,7 +39,7 @@ export default function useInitApp(
         
         // 創建登入過期處理函數（超過 30 天需要重新登入）
         const handleLoginExpired = () => {
-          Alert.alert(
+          showAlert(
             '登入已過期',
             '您的登入已超過 30 天，為了帳戶安全，請重新登入。',
             [
@@ -58,7 +59,7 @@ export default function useInitApp(
         
         // 創建刷新失敗處理函數（可以訪問內部的 setIsLoggedIn）
         const handleRefreshFailed = () => {
-          Alert.alert(
+          showAlert(
             '帳戶權限過期',
             '您的登入權限已過期，請重新登入。',
             [
@@ -119,7 +120,7 @@ export default function useInitApp(
                 });
                 
                 // 顯示 Alert 通知用戶
-                Alert.alert(
+                showAlert(
                   '微信功能初始化失敗',
                   `${errorMessage}\n\n微信登入功能可能無法使用。如果問題持續，請聯繫客服。`,
                   [{ text: translate('ok') }]

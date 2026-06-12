@@ -4,6 +4,7 @@ export default Object.freeze({
   CONTINUE: "繼續觀看",
   REVIEW: "再次回味",
   OTHERS: "其他頁面",
+  LANGUAGE: "語系設定",
   VERSION: "版本資訊",
   RESET: "重設應用程序",
   REMOVE: "刪除帳號",

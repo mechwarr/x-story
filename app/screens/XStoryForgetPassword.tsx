@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  Alert,
   TextInput,
   View,
   Text,
@@ -11,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { showAlert } from "../components/CustomAlert";
 import { forgotXStoryPassword } from "../config/authApiClient";
 import { translate } from "../i18n/i18n";
 import useResponsive from "../hook/useResponsive";
@@ -29,17 +29,17 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
   const [email, setEmail] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [waitingVerification, setWaitingVerification] = useState(false);
-  const { isTablet, maxContentWidth, scale } = useResponsive();
-  const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
+  const { isTablet, maxContentWidth, ms } = useResponsive();
+  const headerIconSize = ms(HEADER_ICON_BASE_SIZE);
 
   const sendResetEmail = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
-      Alert.alert(translate("genericErrorTitle"), translate("emailRequired"));
+      showAlert(translate("genericErrorTitle"), translate("emailRequired"));
       return;
     }
     if (!EMAIL_REGEX.test(normalizedEmail)) {
-      Alert.alert(translate("genericErrorTitle"), translate("invalidEmailMessage"));
+      showAlert(translate("genericErrorTitle"), translate("invalidEmailMessage"));
       return;
     }
     setIsSending(true);
@@ -53,7 +53,7 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
       // 同步回父層（可選）
       onEmailChange(normalizedEmail);
 
-      Alert.alert(
+      showAlert(
         translate("resetEmailSentTitle"),
         translate("resetEmailSentMessage"),
         [{ text: translate("ok"), onPress: onSuccess }]

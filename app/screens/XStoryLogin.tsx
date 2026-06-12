@@ -7,8 +7,8 @@ import {
     StyleSheet,
     Image,
     Modal,
-    Alert,
 } from "react-native";
+import { showAlert } from "../components/CustomAlert";
 import { XStoryForgetPassword } from "./XStoryForgetPassword";
 import { translate } from "../i18n/i18n";
 import { loginWithXStory, LoginTokenResult } from "../config/authApiClient";
@@ -31,17 +31,17 @@ export function XStoryLogin({ onLoginSuccess, onCancel }: Props) {
     const [password, setPassword] = useState("");
     const [showForgetPassword, setShowForgetPassword] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const { isTablet, maxContentWidth, scale } = useResponsive();
-    const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
+    const { isTablet, maxContentWidth, ms } = useResponsive();
+    const headerIconSize = ms(HEADER_ICON_BASE_SIZE);
 
     const handleLogin = async () => {
         // 前端先驗證，通過才送出 request
         const normalizedEmail = email.trim().toLowerCase();
-        if (!normalizedEmail) { Alert.alert(translate("genericErrorTitle"), translate("emailRequired")); return; }
-        if (!EMAIL_REGEX.test(normalizedEmail)) { Alert.alert(translate("genericErrorTitle"), translate("invalidEmailMessage")); return; }
-        if (!password) { Alert.alert(translate("genericErrorTitle"), translate("passwordRequired")); return; }
+        if (!normalizedEmail) { showAlert(translate("genericErrorTitle"), translate("emailRequired")); return; }
+        if (!EMAIL_REGEX.test(normalizedEmail)) { showAlert(translate("genericErrorTitle"), translate("invalidEmailMessage")); return; }
+        if (!password) { showAlert(translate("genericErrorTitle"), translate("passwordRequired")); return; }
         if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
-            Alert.alert(translate("genericErrorTitle"), translate("passwordPolicyMessage"));
+            showAlert(translate("genericErrorTitle"), translate("passwordPolicyMessage"));
             return;
         }
 

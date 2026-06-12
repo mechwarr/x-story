@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-    Alert,
     TextInput,
     View,
     Text,
@@ -12,6 +11,7 @@ import {
     ScrollView,
     Platform,
 } from "react-native";
+import { showAlert as showCustomAlert } from "../components/CustomAlert";
 import { translate } from "../i18n/i18n";
 import { resetXStoryPassword } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
@@ -48,7 +48,7 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
             messageKey: string,
             opts?: { success?: boolean }
         ) => {
-            Alert.alert(
+            showCustomAlert(
                 translate(titleKey),
                 translate(messageKey),
                 [{ text: translate("ok"), onPress: opts?.success ? onSuccess : undefined }],
@@ -95,8 +95,8 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
     };
 
 
-    const { isTablet, maxContentWidth, scale } = useResponsive();
-    const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
+    const { isTablet, maxContentWidth, ms } = useResponsive();
+    const headerIconSize = ms(HEADER_ICON_BASE_SIZE);
 
     return (
         <KeyboardAvoidingView

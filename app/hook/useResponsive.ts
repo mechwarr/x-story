@@ -5,6 +5,7 @@ import {
   TABLET_HORIZONTAL_PADDING,
   isTabletWidth,
   getContentWidth,
+  getUiScale,
 } from '../config/responsive';
 
 export type ResponsiveValues = {
@@ -19,6 +20,10 @@ export type ResponsiveValues = {
   horizontalPadding: number;
   /** 依寬度縮放係數，用於字體/圖標（以 375 為基準，平板不無限制放大） */
   scale: number;
+  /** 統一 UI 放大係數：手機 1、平板 TABLET_UI_SCALE。字體/圖標/間距請優先用此值或 ms() */
+  uiScale: number;
+  /** 統一尺寸換算：Math.round(size * uiScale)。手機回傳原值，平板一致放大 */
+  ms: (size: number) => number;
 };
 
 export default function useResponsive(): ResponsiveValues {
@@ -27,8 +32,11 @@ export default function useResponsive(): ResponsiveValues {
   const contentWidth = getContentWidth(width);
   const maxContentWidth = isTablet ? MAX_CONTENT_WIDTH : width;
   const horizontalPadding = isTablet ? TABLET_HORIZONTAL_PADDING : 10;
-  // 以 375 為基準，平板約 768 時 scale 約 1.2，但不超過 1.4
+  // 以 375 為基準，平板約 768 時 scale 約 1.2，但不超過 1.4（保留向後相容）
   const scale = Math.min(1.4, Math.max(1, width / 375));
+  // 統一 UI 係數：手機 1、平板 1.15
+  const uiScale = getUiScale(width);
+  const ms = (size: number) => Math.round(size * uiScale);
 
   return {
     width,
@@ -38,5 +46,7 @@ export default function useResponsive(): ResponsiveValues {
     contentWidth,
     horizontalPadding,
     scale,
+    uiScale,
+    ms,
   };
 }

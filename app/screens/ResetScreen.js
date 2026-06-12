@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Alert } from "react-native";
+import { showAlert } from "../components/CustomAlert";
 import { useAuth } from "../auth/AuthContext";
 import { translate } from "../i18n/i18n";
 
@@ -9,7 +9,7 @@ export function ResetScreen({ navigation }) {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
-      Alert.alert(
+      showAlert(
         "確認重置",
         "確定要重置所有登入資料嗎？",
         [
@@ -23,7 +23,7 @@ export function ResetScreen({ navigation }) {
             style: "destructive",
             onPress: async () => {
               await logout();
-              Alert.alert("已重置", "資料已清除");
+              showAlert("已重置", "資料已清除");
             },
           },
         ],

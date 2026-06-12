@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import routes from '../navigations/routes';
 import { iapService, PRODUCT_IDS } from '../services/iapService';
 import type { IapReceipt } from '../config/shopApiClient';
+import useResponsive from '../hook/useResponsive';
 
 type Purchase = {
   id: string;          // 收據編號
@@ -55,6 +56,7 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
   const Wrapper: any = embedded ? View : SafeAreaView;
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { isTablet, maxContentWidth, ms } = useResponsive();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,13 +108,13 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
       {!embedded && (
         <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
           <Pressable onPress={() => navigation.navigate(routes.PROFILE as never)} hitSlop={8}>
-            <Image style={styles.profileIcon} source={require('../../assets/profile.png')} />
+            <Image style={[styles.profileIcon, { width: ms(32), height: ms(32), borderRadius: ms(16) }]} source={require('../../assets/profile.png')} />
           </Pressable>
         </View>
       )}
 
       <View style={styles.header}>
-        <Text style={styles.title}>購買記錄</Text>
+        <Text style={[styles.title, { fontSize: ms(18) }]}>購買記錄</Text>
       </View>
 
       {isLoading ? (
@@ -133,7 +135,7 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
           <Text style={styles.emptyText}>暫無購買記錄</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.list}>
+        <ScrollView contentContainerStyle={[styles.list, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
           {purchases.map((p) => (
             <View key={p.id} style={styles.card}>
               <Row label="訂單編號" value={p.id} mono />

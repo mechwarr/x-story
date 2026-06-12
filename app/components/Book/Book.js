@@ -5,9 +5,9 @@ import {
   Pressable,
   Image,
   Dimensions,
-  Alert,
   Platform,
 } from 'react-native';
+import { showAlert } from '../CustomAlert';
 import routes from '../../navigations/routes';
 import AppText from '../AppText';
 import colors from '../../config/colors';
@@ -81,22 +81,42 @@ function Book(props) {
     read_range_end: read_range_end ?? chapter?.read_range_end,
   };
 
+  // 從頭開始：有章節進章節列表，否則進故事頁
+  const goToStart = () => {
+    if (hasChapter) {
+      navigation.navigate(routes.HOME, {
+        screen: routes.CHAPTER,
+        params: {
+          name: main_menu_name,
+          author,
+          storyId: id,
+          storyData,
+        },
+      });
+    } else {
+      navigation.navigate(routes.HOME, {
+        screen: routes.STORY,
+        params: storyPayload,
+      });
+    }
+  };
+
   // 處理購買故事
   const handlePurchaseStory = async () => {
     if (!id) {
-      Alert.alert(translate('genericErrorTitle'), translate('storyIdNotFound'));
+      showAlert(translate('genericErrorTitle'), translate('storyIdNotFound'));
       return;
     }
 
     // 檢查是否有價格資訊
     if (!priceCoins || priceCoins <= 0) {
-      Alert.alert(translate('noticeTitle'), translate('storyNotPurchasable'));
+      showAlert(translate('noticeTitle'), translate('storyNotPurchasable'));
       return;
     }
 
     // 檢查金幣餘額
     if (coins < priceCoins) {
-      Alert.alert(
+      showAlert(
         translate('coinsInsufficientTitle'),
         translate('coinsInsufficientMessage', { price: priceCoins, coins }),
         [
@@ -115,7 +135,7 @@ function Book(props) {
     }
 
     // 確認購買
-    Alert.alert(
+    showAlert(
       translate('confirmPurchase'),
       translate('confirmPurchaseMessage', { price: priceCoins, name: main_menu_name }),
       [
@@ -150,7 +170,7 @@ function Book(props) {
                 // 購買成功後強制刷新金幣餘額
                 await refreshCoins(true);
                 
-                Alert.alert(
+                showAlert(
                   translate('purchaseSuccessTitle'),
                   translate('purchaseSuccessMessage', { name: main_menu_name, coins: result.coinsSpent || priceCoins }),
                   [
@@ -181,13 +201,13 @@ function Book(props) {
               } else {
                 // 購買失敗，保留 idempotencyKey 緩存，以便重試時使用同一個 key
                 console.log('[Book] ⚠️ 購買失敗，保留 idempotencyKey 緩存以便重試');
-                Alert.alert(translate('purchaseFailedTitle'), translate('purchaseFailedRetry'));
+                showAlert(translate('purchaseFailedTitle'), translate('purchaseFailedRetry'));
               }
             } catch (error) {
               // 發生錯誤，保留 idempotencyKey 緩存，以便重試時使用同一個 key
               console.error('[Book] ❌ 購買失敗:', error);
               console.log('[Book] ⚠️ 發生錯誤，保留 idempotencyKey 緩存以便重試');
-              Alert.alert(translate('purchaseFailedTitle'), error?.message || translate('purchaseErrorGeneric'));
+              showAlert(translate('purchaseFailedTitle'), error?.message || translate('purchaseErrorGeneric'));
             }
           },
         },
@@ -246,42 +266,18 @@ function Book(props) {
               });
             }
           } else {
-            // 一般 Alert 選項
-            Alert.alert(
+            // 一般選項：自訂介紹彈窗（雙平台一致）
+            showAlert(
               main_menu_title,
               main_menu_content,
               [
-                {
-                  text: main_menu_btn_left,
-                  onPress: () => {
-                    if (hasChapter) {
-                      navigation.navigate(routes.HOME, {
-                        screen: routes.CHAPTER,
-                        params: {
-                          name: main_menu_name,
-                          author,
-                          storyId: id,
-                          storyData,
-                        },
-                      });
-                    } else {
-                      navigation.navigate(routes.HOME, {
-                        screen: routes.STORY,
-                        params: storyPayload,
-                      });
-                    }
-                  },
-                },
+                { text: main_menu_btn_left, onPress: goToStart },
                 {
                   text: translate('ok'),
-                  onPress: () => {
-                    navigation.navigate(routes.CONTINUE);
-                  },
+                  onPress: () => navigation.navigate(routes.CONTINUE),
                 },
               ],
-              {
-                cancelable: true,
-              }
+              { cancelable: true }
             );
           }
         }}

@@ -1,6 +1,6 @@
 // RootLayout.tsx
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { ActivityIndicator, StyleSheet, AppState, AppStateStatus, Alert } from 'react-native';
+import { ActivityIndicator, StyleSheet, AppState, AppStateStatus } from 'react-native';
 import SafeAreaWrapper from './components/SafeAreaWrapper';
 import AppNavigator from './navigations/AppNavigator';
 import LoginContainer from './auth/LoginContainer';
@@ -15,6 +15,15 @@ import { AuthProvider } from "./auth/AuthContext";
 import { CoinProvider } from './store/coinContext';
 import { clearAllUserData } from './services/clearUserDataService';
 import { translate } from './i18n/i18n';
+import { CustomAlertHost, showAlert } from './components/CustomAlert';
+import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
+
+// 以目前語系為 key 包住主畫面：手動切換語系時整個子樹重新掛載，
+// 讓所有畫面重新讀取 translate() 並套用新語系（translate 本身不會觸發重繪）。
+function LanguageGate({ children }: { children: React.ReactNode }) {
+  const { lang } = useLanguage();
+  return <React.Fragment key={lang}>{children}</React.Fragment>;
+}
 
 // 內部組件，用於訪問 LoadingContext
 function RootLayoutContent() {
@@ -41,7 +50,7 @@ function RootLayoutContent() {
 
   // 處理 token 刷新失敗：顯示 alert 並清除資料（用於應用喚醒場景）
   const handleTokenRefreshFailed = useCallback(() => {
-    Alert.alert(
+    showAlert(
       '帳戶權限過期',
       '您的登入權限已過期，請重新登入。',
       [
@@ -104,7 +113,7 @@ function RootLayoutContent() {
           
           // 創建登入過期處理函數（超過 30 天需要重新登入）
           const handleLoginExpired = () => {
-            Alert.alert(
+            showAlert(
               '登入已過期',
               '您的登入已超過 30 天，為了帳戶安全，請重新登入。',
               [
@@ -124,7 +133,7 @@ function RootLayoutContent() {
 
           // 網路異常時僅提示、不登出（超過一小時回來若網路未就緒常會觸發）
           const handleNetworkError = () => {
-            Alert.alert(
+            showAlert(
               '網路異常',
               '無法連線更新登入狀態，請檢查網路後再試。您可繼續使用，下次回到 App 時會再嘗試更新。',
               [{ text: translate('ok') }]
@@ -238,7 +247,9 @@ function RootLayoutContent() {
   return (
     <AuthProvider value={{ isLoggedIn, setIsLoggedIn, logout, logoutLocalOnly }}>
       <CoinProvider resetRef={coinResetRef}>
+        <LanguageProvider>
         <SafeAreaWrapper style={{ flex: 1 }}>
+        <LanguageGate>
         {isLoggedIn ? (
           // ✅ 已登入：進入主導覽
           <AppNavigator />
@@ -253,10 +264,14 @@ function RootLayoutContent() {
           // 🔑 尚未登入：顯示登入容器
           <LoginContainer onLoginSuccess={() => setIsLoggedIn(true)} />
         )}
+        </LanguageGate>
 
         {/* 全域載入覆蓋層 */}
         <LoadingOverlay />
+        {/* 全域自訂 Alert 覆蓋層（取代原生 Alert.alert） */}
+        <CustomAlertHost />
         </SafeAreaWrapper>
+        </LanguageProvider>
       </CoinProvider>
     </AuthProvider>
   );

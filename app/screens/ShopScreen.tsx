@@ -1,8 +1,9 @@
 // app/screens/ShopScreen.tsx
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import {
-  SafeAreaView, View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator, Platform, Alert,
+  SafeAreaView, View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator, Platform,
 } from 'react-native';
+import { showAlert } from "../components/CustomAlert";
 import { useNavigation } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import PackCard, { PackItem } from '../components/Purchase/PackCard';
@@ -133,7 +134,7 @@ export default function ShopScreen() {
       setCoinPacks([]);
       if (Platform.OS !== 'ios' && !hasAlertedBackendError.current) {
         hasAlertedBackendError.current = true;
-        Alert.alert('後端金幣包取得失敗', `階段 1（後端）失敗：${msg}`);
+        showAlert('後端金幣包取得失敗', `階段 1（後端）失敗：${msg}`);
       }
     } finally {
       setIsLoadingCoinPacks(false);
@@ -150,7 +151,7 @@ export default function ShopScreen() {
       console.error('[ShopScreen] 階段 2（平台）錯誤:', error.message);
       if (!hasAlertedIAPError.current) {
         hasAlertedIAPError.current = true;
-        Alert.alert('載入商品失敗', error.message);
+        showAlert('載入商品失敗', error.message);
       }
     } else {
       hasAlertedIAPError.current = false;
@@ -193,7 +194,8 @@ export default function ShopScreen() {
         name: extractProductName(product.title) || product.title, // 僅用平台產品名稱，不用後端回傳
         coins: coinPackData?.amount ?? 0,
         bonus: coinPackData?.bonusAmount ?? 0,
-        priceUsd: price, // 使用 IAP 的價格
+        priceUsd: price, // 使用 IAP 的價格（僅供數值用途）
+        displayPrice: product.displayPrice ?? undefined, // 商店原始價格字串，含正確幣別符號，直接顯示
         productId: pid as ProductId,
         isAvailable: true, // IAP 商品已載入，標記為可用
       } as PackItem & { productId?: ProductId; isAvailable?: boolean };
@@ -238,13 +240,13 @@ export default function ShopScreen() {
   const handlePressPack = async (p: PackItem & { productId?: ProductId; isAvailable?: boolean }) => {
     if (!p.productId) {
       console.warn('[ShopScreen] 找不到對應的商品 ID:', p.id);
-      Alert.alert('操作失敗', '找不到對應的商品 ID');
+      showAlert('操作失敗', '找不到對應的商品 ID');
       return;
     }
 
     if (!p.isAvailable) {
       console.warn('[ShopScreen] 商品尚未載入或不可用:', p.productId);
-      Alert.alert('無法購買', '商品尚未載入或不可用');
+      showAlert('無法購買', '商品尚未載入或不可用');
       return;
     }
 
@@ -254,12 +256,12 @@ export default function ShopScreen() {
       const msg = err instanceof Error ? err.message : String(err);
 
       console.error('[ShopScreen] 購買失敗:', msg);
-      Alert.alert('購買失敗', msg);
+      showAlert('購買失敗', msg);
     }
   };
 
-  const { isTablet, maxContentWidth, horizontalPadding, scale } = useResponsive();
-  const iconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
+  const { isTablet, maxContentWidth, horizontalPadding, ms } = useResponsive();
+  const iconSize = ms(HEADER_ICON_BASE_SIZE);
   const TITLE_TOP_PADDING = 56;
 
   return (

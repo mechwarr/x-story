@@ -11,6 +11,7 @@ const LAST_REFRESH_TIME_KEY = "lastRefreshTime"; // 上次刷新時間戳記
 const EMAIL_KEY = "userEmail";
 const COIN_KEY = "userCoin";
 const LANG_KEY = "userLangCode";
+const LANG_MANUAL_KEY = "userLangManual"; // "1" 表示使用者曾於設定中手動切換語系
 const ROLE_LEVEL_KEY = "userRoleLevel"; // 權限級別 (1:普通, 5:小編, 9:Admin)
 
 // ----------- ACCESS TOKEN FUNCTIONS ----------- //
@@ -293,6 +294,25 @@ const getUserLangCode = async (): Promise<string | null> => {
   }
 };
 
+// 是否曾由使用者在「語系設定」中手動切換語系。
+// 一旦為 true，App 啟動時的語系初始化就不再依裝置語系自動覆蓋。
+const setUserLangManual = async (manual: boolean) => {
+  try {
+    await SecureStore.setItemAsync(LANG_MANUAL_KEY, manual ? "1" : "0");
+  } catch (e) {
+    console.error("setUserLangManual error", e);
+  }
+};
+
+const getUserLangManual = async (): Promise<boolean> => {
+  try {
+    return (await SecureStore.getItemAsync(LANG_MANUAL_KEY)) === "1";
+  } catch (e) {
+    console.error("getUserLangManual error", e);
+    return false;
+  }
+};
+
 // Role Level（權限級別，9 = Admin）
 const setUserRoleLevel = async (roleLevel: number) => {
   try {
@@ -317,7 +337,8 @@ const clearUserProfile = async () => {
   try {
     await SecureStore.deleteItemAsync(EMAIL_KEY);
     await SecureStore.deleteItemAsync(COIN_KEY);
-    await SecureStore.deleteItemAsync(LANG_KEY);
+    // 語系（LANG_KEY / LANG_MANUAL_KEY）為裝置層級的偏好設定，登出時刻意保留，
+    // 讓使用者手動選擇的語言在切換帳號／重新登入後仍然有效。
     await SecureStore.deleteItemAsync(ROLE_LEVEL_KEY);
   } catch (e) {
     console.error("clearUserProfile error", e);
@@ -360,6 +381,8 @@ export default {
   getUserCoin,
   setUserLangCode,
   getUserLangCode,
+  setUserLangManual,
+  getUserLangManual,
   setUserRoleLevel,
   getUserRoleLevel,
   clearUserProfile

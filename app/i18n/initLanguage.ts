@@ -17,7 +17,17 @@ export const initLanguageByLoginStatus = async (isLoggedIn: boolean) => {
   try {
     let langCode: string | null = null;
 
-    if (isLoggedIn) {
+    // 使用者若曾於「語系設定」中手動切換，啟動時一律沿用已儲存的語系，
+    // 不再依裝置語系自動覆蓋（無論登入與否）。
+    const isManual = await Storage.getUserLangManual();
+    if (isManual) {
+      langCode = await Storage.getUserLangCode();
+      if (!langCode) {
+        // 理論上手動切換時一定有存語系；萬一缺失才退回裝置語系（不覆蓋手動旗標）
+        langCode = normalizeLang(getDeviceLangCode());
+        await Storage.setUserLangCode(langCode);
+      }
+    } else if (isLoggedIn) {
       langCode = await Storage.getUserLangCode();
       if (!langCode) {
         // 存入前先正規化，SecureStore 只保留 en / zh-TW / zh-CN

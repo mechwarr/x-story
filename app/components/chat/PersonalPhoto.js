@@ -4,9 +4,9 @@ import {
   StyleSheet,
   Image,
   Pressable,
-  Alert,
   Platform,
 } from 'react-native';
+import { showAlert } from "../CustomAlert";
 import apiclient  from '../../config/apiClient';
 
 import AppText from '../AppText';
@@ -28,7 +28,7 @@ function PersonalPhoto(props) {
     return (
       <Pressable
         onPress={() => {
-          Alert.alert(role_foolproof_title, role_infor, [
+          showAlert(role_foolproof_title, role_infor, [
             {
               text: translate('ok'),
               cancelable: true,

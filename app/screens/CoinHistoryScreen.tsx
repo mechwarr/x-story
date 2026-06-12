@@ -16,6 +16,7 @@ import routes from '../navigations/routes';
 import { getCoinLedger, getEntitlements, CoinLedgerItem, BookEntitlementItem } from '../config/userApiClient';
 import { useCoins } from '../store/coinContext';
 import { PRODUCT_NAMES } from '../services/iapService';
+import useResponsive from '../hook/useResponsive';
 
 /** 後端 type 對應顯示文字（api/me/coins/ledger 的 type 欄位） */
 const TYPE_LABELS: Record<string, string> = {
@@ -88,6 +89,7 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
   const Wrapper: any = embedded ? View : SafeAreaView;
   const navigation = useNavigation();
   const { coins: balance, refreshCoins } = useCoins();
+  const { isTablet, maxContentWidth, ms } = useResponsive();
 
   const [logs, setLogs] = useState<CoinLedgerItem[]>([]);
   const [entitlements, setEntitlements] = useState<BookEntitlementItem[]>([]);
@@ -124,8 +126,8 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
 
   return (
     <Wrapper style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.title}>金幣紀錄</Text>
+      <View style={[styles.header, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
+        <Text style={[styles.title, { fontSize: ms(18) }]}>金幣紀錄</Text>
         <View style={styles.balanceChargeRow}>
           <View style={styles.balanceRowSpacer} />
           {loading && !logs.length ? (
@@ -134,8 +136,8 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
             </View>
           ) : (
             <View style={styles.balanceRow}>
-              <Image style={styles.coin} source={require('../../assets/coin.png')} />
-              <Text style={styles.balanceText}>{balance}</Text>
+              <Image style={[styles.coin, { width: ms(20), height: ms(20) }]} source={require('../../assets/coin.png')} />
+              <Text style={[styles.balanceText, { fontSize: ms(16) }]}>{balance}</Text>
             </View>
           )}
           <View style={styles.chargeBtnWrap}>
@@ -160,7 +162,7 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
           <ActivityIndicator size="small" color="#f0ad57" />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.list}>
+        <ScrollView contentContainerStyle={[styles.list, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
           {logs.length === 0 ? (
             <Text style={styles.emptyText}>尚無金幣紀錄</Text>
           ) : (
@@ -174,21 +176,22 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
               return (
               <View key={log.id} style={styles.row}>
                 <View style={styles.left}>
-                  <Text style={styles.rowTitle}>
+                  <Text style={[styles.rowTitle, { fontSize: ms(15) }]}>
                     {rowTitle}
                   </Text>
                   {rowNote ? (
-                    <Text style={styles.note} numberOfLines={1} ellipsizeMode="middle">
+                    <Text style={[styles.note, { fontSize: ms(13) }]} numberOfLines={1} ellipsizeMode="middle">
                       {rowNote}
                     </Text>
                   ) : null}
-                  <Text style={styles.date}>{formatDate(log.createdAt)}</Text>
+                  <Text style={[styles.date, { fontSize: ms(12) }]}>{formatDate(log.createdAt)}</Text>
                 </View>
 
                 <View style={styles.right}>
                   <Text
                     style={[
                       styles.amount,
+                      { fontSize: ms(18) },
                       log.amount >= 0 ? styles.plus : styles.minus,
                     ]}
                   >

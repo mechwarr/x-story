@@ -22,8 +22,8 @@ type TabKey = 'coin' | 'purchase';
 export default function HistoryScreen() {
   const [tab, setTab] = useState<TabKey>('coin');
   const navigation = useNavigation();
-  const { isTablet, maxContentWidth, horizontalPadding, scale } = useResponsive();
-  const iconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
+  const { isTablet, maxContentWidth, horizontalPadding, ms } = useResponsive();
+  const iconSize = ms(HEADER_ICON_BASE_SIZE);
 
   return (
     <SafeAreaView style={styles.safe}>

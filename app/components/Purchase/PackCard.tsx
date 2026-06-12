@@ -8,6 +8,7 @@ export type PackItem = {
   coins: number;
   bonus?: number;
   priceUsd: number;
+  displayPrice?: string;                // 商店原始價格字串（含幣別符號），優先顯示此字段
 };
 
 // 產品 ID 到 coins 和 bonus 的映射表
@@ -36,7 +37,7 @@ type Props = {
 };
 
 export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style, disabled = false }: Props) {
-  const { name, title, priceUsd } = data;
+  const { name, title, priceUsd, displayPrice } = data;
   // 優先使用 name，如果沒有則使用 title
   const displayName = name || title;
   
@@ -117,7 +118,7 @@ export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style,
 
       {/* 右：價格區塊 */}
       <View style={[styles.right, { backgroundColor: rightColor }]}>
-        <Text style={styles.price}>${priceUsd}</Text>
+        <Text style={styles.price}>{displayPrice || String(priceUsd)}</Text>
       </View>
     </Pressable>
   );

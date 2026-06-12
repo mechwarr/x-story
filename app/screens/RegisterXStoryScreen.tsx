@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  Alert,
   TextInput,
   View,
   Text,
@@ -12,6 +11,7 @@ import {
   ScrollView,
   Platform,
 } from "react-native";
+import { showAlert } from "../components/CustomAlert";
 import { translate } from "../i18n/i18n";
 import { registerWithXStory, resentRegisterMail, ResentRegisterMailRequest } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
@@ -46,12 +46,12 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
     // 正規化：去除前後空白並轉小寫，避免鍵盤建議列/貼上帶入空白導致驗證失敗
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (!normalizedEmail) { Alert.alert(translate("genericErrorTitle"), translate("emailRequired")); return; }
-    if (!EMAIL_REGEX.test(normalizedEmail)) { Alert.alert(translate("genericErrorTitle"), translate("invalidEmailMessage")); return; }
-    if (!password) { Alert.alert(translate("genericErrorTitle"), translate("passwordRequired")); return; }
-    if (!confirmPassword) { Alert.alert(translate("genericErrorTitle"), translate("confirmPasswordRequired")); return; }
-    if (password !== confirmPassword) { Alert.alert(translate("passwordMismatchTitle"), translate("passwordMismatchMessage")); return; }
-    if (!PASSWORD_REGEX.test(password)) { Alert.alert(translate("genericErrorTitle"), translate("passwordPolicyMessage")); return; }
+    if (!normalizedEmail) { showAlert(translate("genericErrorTitle"), translate("emailRequired")); return; }
+    if (!EMAIL_REGEX.test(normalizedEmail)) { showAlert(translate("genericErrorTitle"), translate("invalidEmailMessage")); return; }
+    if (!password) { showAlert(translate("genericErrorTitle"), translate("passwordRequired")); return; }
+    if (!confirmPassword) { showAlert(translate("genericErrorTitle"), translate("confirmPasswordRequired")); return; }
+    if (password !== confirmPassword) { showAlert(translate("passwordMismatchTitle"), translate("passwordMismatchMessage")); return; }
+    if (!PASSWORD_REGEX.test(password)) { showAlert(translate("genericErrorTitle"), translate("passwordPolicyMessage")); return; }
 
     setIsSending(true);
     const registerAccount = await registerWithXStory({ email: normalizedEmail, password });
@@ -68,8 +68,8 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
   // --- 重發驗證信：送出 ---
   const onResendSubmit = async () => {
     const normalizedEmail = resendEmail.trim().toLowerCase();
-    if (!normalizedEmail) { Alert.alert(translate("genericErrorTitle"), translate("emailRequired")); return; }
-    if (!EMAIL_REGEX.test(normalizedEmail)) { Alert.alert(translate("genericErrorTitle"), translate("invalidEmailMessage")); return; }
+    if (!normalizedEmail) { showAlert(translate("genericErrorTitle"), translate("emailRequired")); return; }
+    if (!EMAIL_REGEX.test(normalizedEmail)) { showAlert(translate("genericErrorTitle"), translate("invalidEmailMessage")); return; }
     try {
       setIsResending(true);
       const request: ResentRegisterMailRequest = { email: normalizedEmail };
@@ -77,14 +77,14 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
       const ok = await resentRegisterMail(request);
       if (ok) setShowResendOverlay(false); // 僅成功才關閉覆蓋層
     } catch (e: any) {
-      Alert.alert(translate("resendFailed"), e?.message ?? String(e));
+      showAlert(translate("resendFailed"), e?.message ?? String(e));
     } finally {
       setIsResending(false);
     }
   };
 
-  const { isTablet, maxContentWidth, scale } = useResponsive();
-  const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
+  const { isTablet, maxContentWidth, ms } = useResponsive();
+  const headerIconSize = ms(HEADER_ICON_BASE_SIZE);
 
   return (
     <KeyboardAvoidingView

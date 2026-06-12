@@ -2,13 +2,13 @@ import {
   View,
   StyleSheet,
   Pressable,
-  Alert,
   Image,
   ImageBackground,
   Platform,
   Modal,
   Text,
 } from 'react-native';
+import { showAlert } from "./CustomAlert";
 import React, { useState, useCallback } from 'react';
 import AppText from './AppText';
 import routes from '../navigations/routes';
@@ -83,15 +83,15 @@ const ChapterItem = (props) => {
 
   const handlePurchaseStory = useCallback(() => {
     if (!storyId) {
-      Alert.alert(translate('genericErrorTitle'), translate('storyIdNotFound'));
+      showAlert(translate('genericErrorTitle'), translate('storyIdNotFound'));
       return;
     }
     if (!priceCoins || priceCoins <= 0) {
-      Alert.alert(translate('noticeTitle'), translate('storyNotPurchasable'));
+      showAlert(translate('noticeTitle'), translate('storyNotPurchasable'));
       return;
     }
     if (coins < priceCoins) {
-      Alert.alert(
+      showAlert(
         translate('coinsInsufficientTitle'),
         translate('coinsInsufficientMessage', { price: priceCoins, coins }),
         [
@@ -104,7 +104,7 @@ const ChapterItem = (props) => {
       );
       return;
     }
-    Alert.alert(
+    showAlert(
       translate('confirmPurchase'),
       translate('confirmPurchaseMessage', { price: priceCoins, name: storyName }),
       [
@@ -124,17 +124,17 @@ const ChapterItem = (props) => {
                 await storage.addLocalPurchasedStoryId(storyId);
                 onPurchaseSuccess?.();
                 setShowPurchaseModal(false);
-                Alert.alert(
+                showAlert(
                   translate('purchaseSuccessTitle'),
                   translate('purchaseSuccessMessage', { name: storyName, coins: result.coinsSpent || priceCoins }),
                   [{ text: translate('ok') }]
                 );
               } else {
-                Alert.alert(translate('purchaseFailedTitle'), translate('purchaseFailedRetry'));
+                showAlert(translate('purchaseFailedTitle'), translate('purchaseFailedRetry'));
               }
             } catch (error) {
               console.error('[ChapterItem] 購買失敗:', error);
-              Alert.alert(translate('purchaseFailedTitle'), error?.message || translate('purchaseErrorGeneric'));
+              showAlert(translate('purchaseFailedTitle'), error?.message || translate('purchaseErrorGeneric'));
             }
           },
         },
@@ -146,11 +146,11 @@ const ChapterItem = (props) => {
     if (canView) {
       // 試閱章節但後端未設定試閱範圍（試閱場次範圍尾為 0）：警告且不進入，避免進場後空白／彈回
       if (isTrialRangeInvalid) {
-        Alert.alert(translate('noticeTitle'), translate('trialRangeNotSet'));
+        showAlert(translate('noticeTitle'), translate('trialRangeNotSet'));
         return;
       }
       if (isFreeOpen) {
-        Alert.alert(
+        showAlert(
           window_title,
           chapter_infor,
           [

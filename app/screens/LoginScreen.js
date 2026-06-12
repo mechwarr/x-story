@@ -41,9 +41,9 @@ const loginOptions = [
 ];
 
 export default function LoginScreen(props) {
-  const { contentWidth, isTablet, maxContentWidth, scale } = useResponsive();
+  const { contentWidth, isTablet, maxContentWidth, ms } = useResponsive();
   const buttonWidth = Math.min(420, Math.max(260, Math.round(contentWidth * 0.82)));
-  const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
+  const headerIconSize = ms(HEADER_ICON_BASE_SIZE);
 
   // 量測「最長按鈕內容」的自然寬度，再用 minWidth 把所有內層容器拉齊到它
   // → 最長按鈕看起來置中、其餘 icon 對齊它，整塊視覺即置中（不再用比例猜）

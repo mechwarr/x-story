@@ -11,7 +11,8 @@ import LoginScreen from "../screens/LoginScreen";
 import RegisterScreen from "../screens/RegisterScreen"
 import { RegisterXStoryScreen } from "../screens/RegisterXStoryScreen";
 import { XStoryLogin } from "../screens/XStoryLogin"
-import { Alert, View, BackHandler, Keyboard, KeyboardAvoidingView, TouchableWithoutFeedback, Platform } from 'react-native';
+import { View, BackHandler, Keyboard, KeyboardAvoidingView, TouchableWithoutFeedback, Platform } from 'react-native';
+import { showAlert } from "../components/CustomAlert";
 import * as WebBrowser from 'expo-web-browser';
 import tokenStorage from './Storage';
 import { translate } from "../i18n/i18n";
@@ -240,14 +241,14 @@ export default function LoginContainer({ onLoginSuccess }) {
         }
         const errorMsg = res?.message || res?.code || 'Google 登入失敗，請稍後再試';
         console.error('[Google Login] 顯示錯誤訊息:', errorMsg);
-        Alert.alert('Google 登入錯誤', errorMsg);
+        showAlert('Google 登入錯誤', errorMsg);
         return;
       }
       
       // 檢查是否有有效的 idToken
       if (!res.idToken || res.idToken.length === 0) {
         console.error('[Google Login] 登入成功但沒有有效的 idToken');
-        Alert.alert('Google 登入錯誤', '未取得有效的登入憑證，請重試');
+        showAlert('Google 登入錯誤', '未取得有效的登入憑證，請重試');
         return;
       }
       
@@ -276,14 +277,14 @@ export default function LoginContainer({ onLoginSuccess }) {
         } catch (tokenError) {
           console.error('[Google Login] 重新取得 tokens 失敗:', tokenError);
           const errorMsg = tokenError?.message || String(tokenError) || '無法取得登入憑證';
-          Alert.alert('Google 登入錯誤', `無法取得登入憑證：${errorMsg}`);
+          showAlert('Google 登入錯誤', `無法取得登入憑證：${errorMsg}`);
           return;
         }
       }
 
       if (!idToken || idToken.length === 0) {
         console.error('[Google Login] 最終 idToken 為空，無法繼續');
-        Alert.alert('Google 登入錯誤', '未取得 Google 登入憑證，請重試');
+        showAlert('Google 登入錯誤', '未取得 Google 登入憑證，請重試');
         return;
       }
 
@@ -323,13 +324,13 @@ export default function LoginContainer({ onLoginSuccess }) {
           console.error('[Google Login] 後端返回的 accessToken 為空');
           console.error('[Google Login] 請檢查 console 中的 [Google Login API] 後端回應 日誌，查看具體錯誤訊息');
           console.error('[Google Login] ✅ 送往後端的 idToken:', idToken);
-          Alert.alert('Google 登入錯誤', '伺服器驗證失敗，請稍後再試');
+          showAlert('Google 登入錯誤', '伺服器驗證失敗，請稍後再試');
         }
       } catch (apiError) {
         console.error('[Google Login] 後端 API 調用失敗:', apiError);
         const errorMsg = apiError?.message || '網路請求失敗，請檢查網路連線';
         console.error('[Google Login] ✅ 送往後端的 idToken:', idToken);
-        Alert.alert('Google 登入錯誤', errorMsg);
+        showAlert('Google 登入錯誤', errorMsg);
       }
     } catch (e) {
       // 所有錯誤都顯示 Alert
@@ -344,7 +345,7 @@ export default function LoginContainer({ onLoginSuccess }) {
       // 其他錯誤都顯示
       const errorMsg = e?.message || String(e) || 'Google 登入發生錯誤，請稍後再試';
       console.error('[Google Login] ✅ 送往後端的 idToken（若有）:', idToken);
-      Alert.alert('Google 登入錯誤', errorMsg);
+      showAlert('Google 登入錯誤', errorMsg);
     }
   };
 
@@ -450,7 +451,7 @@ export default function LoginContainer({ onLoginSuccess }) {
             console.error('[WeChat Login] ❌ Token 保存失敗:', saveError);
             console.error('[WeChat Login] ✅ 已取得的 code（用於換 token）:', code);
             console.error('[WeChat Login] ✅ 已取得的 accessToken（若有）:', tokenResult?.accessToken);
-            Alert.alert(
+            showAlert(
               "微信登入錯誤",
               "Token 保存失敗，請重試。\n\n錯誤: " + (saveError?.message || String(saveError)),
               [{ text: translate("ok") }]
@@ -460,7 +461,7 @@ export default function LoginContainer({ onLoginSuccess }) {
           console.error('[WeChat Login] ❌ 後端 API 未返回有效的 token');
           console.error('[WeChat Login] tokenResult 內容:', JSON.stringify(tokenResult, null, 2));
           console.error('[WeChat Login] ✅ 送往後端的 code:', code);
-          Alert.alert(
+          showAlert(
             "微信登入失敗",
             "無法從伺服器取得登入憑證，請稍後再試。\n\n如果問題持續，請聯繫客服。",
             [{ text: translate("ok") }]
@@ -485,7 +486,7 @@ export default function LoginContainer({ onLoginSuccess }) {
         
         // 在 TestFlight 中顯示詳細錯誤信息
         // 注意：這裡的 code 若未成功取得就可能是 null
-        Alert.alert(
+        showAlert(
           "微信登入錯誤",
           errorMessage + "\n\n如果問題持續，請聯繫客服。",
           [{ text: translate("ok") }]
@@ -500,7 +501,7 @@ export default function LoginContainer({ onLoginSuccess }) {
       }
       console.error('[WeChat Login] 發生未預期的錯誤:', e);
       console.error('[WeChat Login] ✅ 送往後端的 code（若有）:', code);
-      Alert.alert(
+      showAlert(
         "微信登入錯誤",
         "發生未預期的錯誤: " + (e?.message ?? String(e)),
         [{ text: translate("ok") }]
@@ -530,7 +531,7 @@ export default function LoginContainer({ onLoginSuccess }) {
     } catch (error) {
       console.error('開啟服務條款失敗:', error);
       // 可選：顯示錯誤提示
-      // Alert.alert('錯誤', '無法開啟服務條款頁面，請稍後再試');
+      // showAlert('錯誤', '無法開啟服務條款頁面，請稍後再試');
     }
   };
 
@@ -545,7 +546,7 @@ export default function LoginContainer({ onLoginSuccess }) {
     } catch (error) {
       console.error('開啟隱私政策失敗:', error);
       // 可選：顯示錯誤提示
-      // Alert.alert('錯誤', '無法開啟隱私政策頁面，請稍後再試');
+      // showAlert('錯誤', '無法開啟隱私政策頁面，請稍後再試');
     }
   };
 
@@ -622,7 +623,7 @@ export default function LoginContainer({ onLoginSuccess }) {
               onCancel={handleEmailVerificationCancel}
               onSuccess={() => {
                 setShowEmailVerification(false);
-                Alert.alert(
+                showAlert(
                   translate("registerEmailSentTitle"),
                   translate("registerEmailSentMessage"),
                   [{ text: translate("ok") }]

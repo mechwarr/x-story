@@ -8,13 +8,13 @@ import {
   TextInput,
   Pressable,
   Platform,
-  Alert,
   ActivityIndicator,
   Modal,
   ScrollView,
   KeyboardAvoidingView,
   useWindowDimensions,
 } from 'react-native';
+import { showAlert } from "../components/CustomAlert";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import routes from '../navigations/routes';
@@ -85,16 +85,16 @@ export default function ProfileScreen() {
   /** 個人資料未完成（生日或性別任一缺）時，顯示「完成並領取」任務獎勵按鈕；
    *  生日與性別皆齊全 → 視為已完成，顯示「更新個人資訊」 */
   const [showCompleteProfileClaimCta, setShowCompleteProfileClaimCta] = useState<boolean>(false);
-  const { contentWidth, isTablet, maxContentWidth, horizontalPadding, scale } = useResponsive();
+  const { contentWidth, isTablet, maxContentWidth, horizontalPadding, ms } = useResponsive();
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const modalBoxMaxWidth = Math.min(340, windowWidth - 32);
-  const titleFontSize = Math.round(20 * Math.min(scale, 1.12));
-  const bodyFontSize = Math.round(17 * Math.min(scale, 1.08));
-  const labelFontSize = Math.round(14 * Math.min(scale, 1.06));
-  const submitFontSize = Math.round(16 * Math.min(scale, 1.08));
-  const avatarSize = Math.min(Math.round(contentWidth / 3), 160);
-  const iconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
+  const titleFontSize = ms(20);
+  const bodyFontSize = ms(17);
+  const labelFontSize = ms(14);
+  const submitFontSize = ms(16);
+  const avatarSize = Math.min(Math.round(contentWidth / 12), 40);
+  const iconSize = ms(HEADER_ICON_BASE_SIZE);
 
   // ---- 載入用戶資料（換帳號後每次進入此畫面都重新拉取，避免顯示上一帳號名稱/生日/性別）----
   const loadUserProfile = useCallback(async () => {
@@ -180,15 +180,15 @@ export default function ProfileScreen() {
       });
 
       if (result.success !== false) {
-        Alert.alert(translate('profileUpdatedSuccessTitle'), translate('profileUpdatedSuccessMessage'), [
+        showAlert(translate('profileUpdatedSuccessTitle'), translate('profileUpdatedSuccessMessage'), [
           { text: translate('ok'), onPress: () => {} },
         ]);
       } else {
-        Alert.alert(translate('passwordUpdateErrorTitle'), result.message || translate('passwordUpdateErrorMessage'));
+        showAlert(translate('passwordUpdateErrorTitle'), result.message || translate('passwordUpdateErrorMessage'));
       }
     } catch (error: any) {
       console.error('更新用戶資料錯誤:', error);
-      Alert.alert(translate('passwordUpdateErrorTitle'), error?.message || translate('passwordUpdateErrorMessage'));
+      showAlert(translate('passwordUpdateErrorTitle'), error?.message || translate('passwordUpdateErrorMessage'));
     } finally {
       setIsSubmitting(false);
     }
@@ -200,7 +200,7 @@ export default function ProfileScreen() {
 
     if (gender !== 1 && gender !== 2) {
       // 非真正錯誤（輸入提示）→ 標題用 "Alert"，與 server 回傳錯誤的「發生錯誤」區隔
-      Alert.alert(translate('commonAlertTitle'), translate('profileSelectGenderForBonus'));
+      showAlert(translate('commonAlertTitle'), translate('profileSelectGenderForBonus'));
       return;
     }
 
@@ -214,7 +214,7 @@ export default function ProfileScreen() {
       });
 
       if (result.success === false) {
-        Alert.alert(translate('passwordUpdateErrorTitle'), result.message || translate('passwordUpdateErrorMessage'));
+        showAlert(translate('passwordUpdateErrorTitle'), result.message || translate('passwordUpdateErrorMessage'));
         return;
       }
 
@@ -223,7 +223,7 @@ export default function ProfileScreen() {
         if (claimResult.success === false) {
           setShowCompleteProfileClaimCta(false);
           await refreshCoins(true);
-          Alert.alert(
+          showAlert(
             translate('profileRewardClaimFailedTitle'),
             claimResult.message || translate('profileRewardClaimFailedMessage')
           );
@@ -231,21 +231,21 @@ export default function ProfileScreen() {
         }
         setShowCompleteProfileClaimCta(false);
         await refreshCoins(true);
-        Alert.alert(translate('profileSubmittedSuccessTitle'), translate('profileCompletedRewardSuccessMessage'), [
+        showAlert(translate('profileSubmittedSuccessTitle'), translate('profileCompletedRewardSuccessMessage'), [
           { text: translate('ok'), onPress: () => {} },
         ]);
       } catch (claimErr: any) {
         setShowCompleteProfileClaimCta(false);
         await refreshCoins(true);
         console.error('[ProfileScreen] 領取獎勵錯誤:', claimErr);
-        Alert.alert(
+        showAlert(
           translate('profileRewardClaimFailedTitle'),
           claimErr?.message || translate('profileRewardClaimFailedMessage')
         );
       }
     } catch (error: any) {
       console.error('更新用戶資料錯誤:', error);
-      Alert.alert(translate('passwordUpdateErrorTitle'), error?.message || translate('passwordUpdateErrorMessage'));
+      showAlert(translate('passwordUpdateErrorTitle'), error?.message || translate('passwordUpdateErrorMessage'));
     } finally {
       setIsSubmitting(false);
     }
@@ -267,7 +267,7 @@ export default function ProfileScreen() {
   const handleDeleteAccountConfirm = async () => {
     const trimmed = deleteConfirmInput.trim();
     if (trimmed !== 'DELETE') {
-      Alert.alert('輸入錯誤', '請輸入 \'DELETE\' 以確認刪除帳號。');
+      showAlert(translate('deleteAccountInputErrorTitle'), translate('deleteAccountInputErrorMessage'));
       return;
     }
     try {
@@ -278,10 +278,10 @@ export default function ProfileScreen() {
         setDeleteConfirmInput('');
         await logoutLocalOnly();
       } else {
-        Alert.alert('刪除失敗', result.message || '無法刪除帳號，請稍後再試。');
+        showAlert(translate('deleteAccountFailedTitle'), result.message || translate('deleteAccountFailedMessage'));
       }
     } catch (e: any) {
-      Alert.alert('錯誤', e?.message || '刪除帳號時發生錯誤。');
+      showAlert(translate('deleteAccountErrorTitle'), e?.message || translate('deleteAccountErrorMessage'));
     } finally {
       setIsDeleting(false);
     }
@@ -325,9 +325,9 @@ export default function ProfileScreen() {
     );
   }
 
-  // 與 AppHeader（Android 主畫面）金幣 icon 一致：20 * scale
-  const coinIconSmall = Math.round(20 * scale);
-  const coinIconBtn = Math.round(20 * scale);
+  // 與 AppHeader（Android 主畫面）金幣 icon 一致：ms(20)
+  const coinIconSmall = ms(20);
+  const coinIconBtn = ms(20);
   /** 首次完成個人資料（生日 + 性別）尚未填妥 → 鎖定底部更新按鈕 */
   const isProfileIncomplete =
     showCompleteProfileClaimCta && (!birthday || (gender !== 1 && gender !== 2));
@@ -502,7 +502,7 @@ export default function ProfileScreen() {
 
                 {/* 刪除帳號（防誤觸：需輸入 DELETE 確認） */}
                 <Pressable style={styles.deleteAccountRow} onPress={openDeleteModal} disabled={isDeleting}>
-                  <Text style={[styles.deleteAccountText, { fontSize: Math.round(14 * Math.min(scale, 1.06)) }]}>{routes.REMOVE}</Text>
+                  <Text style={[styles.deleteAccountText, { fontSize: labelFontSize }]}>{routes.REMOVE}</Text>
                 </Pressable>
               </View>
             </View>
@@ -519,17 +519,17 @@ export default function ProfileScreen() {
       >
         <Pressable style={styles.modalBackdrop} onPress={closeDeleteModal}>
           <Pressable style={[styles.modalBox, { maxWidth: modalBoxMaxWidth, width: '100%' }]} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>刪除帳號</Text>
+            <Text style={styles.modalTitle}>{translate('deleteAccountTitle')}</Text>
             <Text style={styles.modalMessage}>
-              請輸入{' '}
+              {translate('deleteAccountMessageBefore')}
               <Text style={styles.modalDeleteKeyword}>DELETE</Text>
-              {' '}以確認刪除帳號，此操作無法復原。
+              {translate('deleteAccountMessageAfter')}
             </Text>
             <TextInput
               style={styles.modalInput}
               value={deleteConfirmInput}
               onChangeText={setDeleteConfirmInput}
-              placeholder="輸入 DELETE"
+              placeholder={translate('deleteAccountInputPlaceholder')}
               placeholderTextColor="#9aa3ad"
               selectionColor="#009688"
               autoCapitalize="characters"
@@ -538,7 +538,7 @@ export default function ProfileScreen() {
             />
             <View style={styles.modalButtons}>
               <Pressable style={styles.modalCancelBtn} onPress={closeDeleteModal} disabled={isDeleting}>
-                <Text style={styles.modalCancelText}>取消</Text>
+                <Text style={styles.modalCancelText}>{translate('cancel')}</Text>
               </Pressable>
               <Pressable
                 style={[styles.modalConfirmBtn, isDeleting && styles.modalConfirmBtnDisabled]}
@@ -548,7 +548,7 @@ export default function ProfileScreen() {
                 {isDeleting ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.modalConfirmText}>確定</Text>
+                  <Text style={styles.modalConfirmText}>{translate('confirm')}</Text>
                 )}
               </Pressable>
             </View>

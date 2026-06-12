@@ -4,7 +4,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
+import { showAlert } from "../components/CustomAlert";
 import { iapService, PRODUCT_IDS, type ProductId } from '../services/iapService';
 import { getCoinPacks } from '../config/shopApiClient';
 import { useCoins } from '../store/coinContext';
@@ -255,7 +256,7 @@ export function useIAP(): UseIAPReturn {
         console.log('[useIAP] 獲取金幣:', coinsAdded);
         
         // 顯示購買成功訊息（使用平台產品名稱以支援多國語系）
-        Alert.alert(
+        showAlert(
           translate('purchaseSuccessTitle'),
           translate('iapPurchaseSuccessMessage', { product: productName, coins: coinsAdded }),
           [{ text: translate('ok') }]
@@ -303,7 +304,7 @@ export function useIAP(): UseIAPReturn {
         const alertBody = isVerifyFailure
           ? errorMessage.slice(verifyPrefix.length)
           : errorMessage || '購買過程中發生錯誤，請稍後再試';
-        Alert.alert(isVerifyFailure ? '驗證失敗' : '購買失敗', alertBody);
+        showAlert(isVerifyFailure ? '驗證失敗' : '購買失敗', alertBody);
       };
 
       const catalogHasSku = products.some(
@@ -314,7 +315,7 @@ export function useIAP(): UseIAPReturn {
           '商店列表中尚無此商品，請先在商城重新載入後再試。（需先 fetchProducts 成功再購買）';
         setError(new Error(msg));
         setIsPurchasing(false);
-        Alert.alert('無法購買', msg);
+        showAlert('無法購買', msg);
         return;
       }
 
@@ -324,7 +325,7 @@ export function useIAP(): UseIAPReturn {
       const error = err instanceof Error ? err : new Error('購買失敗');
       setError(error);
       setIsPurchasing(false);
-      Alert.alert('購買失敗', error.message);
+      showAlert('購買失敗', error.message);
     }
   }, [products, refreshCoins]);
 
@@ -342,7 +343,7 @@ export function useIAP(): UseIAPReturn {
       const purchases = await iapService.getAvailablePurchases();
       
       if (purchases.length === 0) {
-        Alert.alert(translate('restorePurchaseTitle'), translate('restorePurchaseNone'));
+        showAlert(translate('restorePurchaseTitle'), translate('restorePurchaseNone'));
         return;
       }
 
@@ -353,11 +354,11 @@ export function useIAP(): UseIAPReturn {
         await iapService.finishTransaction(purchase, true);
       }
 
-      Alert.alert(translate('restorePurchaseTitle'), translate('restorePurchaseSuccessMessage', { count: purchases.length }));
+      showAlert(translate('restorePurchaseTitle'), translate('restorePurchaseSuccessMessage', { count: purchases.length }));
     } catch (err) {
       const error = err instanceof Error ? err : new Error('恢復購買失敗');
       setError(error);
-      Alert.alert(translate('restorePurchaseFailedTitle'), error.message);
+      showAlert(translate('restorePurchaseFailedTitle'), error.message);
     } finally {
       setIsLoading(false);
     }

@@ -1,4 +1,14 @@
 {
+    "languageSettings": {
+        "zh-TW": "語系設定",
+        "zh-CN": "语系设定",
+        "en": "Language"
+    },
+    "selectLanguage": {
+        "zh-TW": "選擇語言",
+        "zh-CN": "选择语言",
+        "en": "Select Language"
+    },
     "forgotPassword": {
         "zh-TW": "忘記密碼",
         "zh-CN": "忘记密码",
@@ -128,6 +138,61 @@
         "zh-TW": "OK",
         "zh-CN": "OK",
         "en": "OK"
+    },
+    "confirm": {
+        "zh-TW": "確定",
+        "zh-CN": "确定",
+        "en": "Confirm"
+    },
+    "deleteAccountTitle": {
+        "zh-TW": "刪除帳號",
+        "zh-CN": "删除帐号",
+        "en": "Delete Account"
+    },
+    "deleteAccountMessageBefore": {
+        "zh-TW": "請輸入 ",
+        "zh-CN": "请输入 ",
+        "en": "Please enter "
+    },
+    "deleteAccountMessageAfter": {
+        "zh-TW": " 以確認刪除帳號，此操作無法復原。",
+        "zh-CN": " 以确认删除帐号，此操作无法复原。",
+        "en": " to confirm account deletion. This action cannot be undone."
+    },
+    "deleteAccountInputPlaceholder": {
+        "zh-TW": "輸入 DELETE",
+        "zh-CN": "输入 DELETE",
+        "en": "Enter DELETE"
+    },
+    "deleteAccountInputErrorTitle": {
+        "zh-TW": "輸入錯誤",
+        "zh-CN": "输入错误",
+        "en": "Input Error"
+    },
+    "deleteAccountInputErrorMessage": {
+        "zh-TW": "請輸入 'DELETE' 以確認刪除帳號。",
+        "zh-CN": "请输入 'DELETE' 以确认删除帐号。",
+        "en": "Please enter 'DELETE' to confirm account deletion."
+    },
+    "deleteAccountFailedTitle": {
+        "zh-TW": "刪除失敗",
+        "zh-CN": "删除失败",
+        "en": "Deletion Failed"
+    },
+    "deleteAccountFailedMessage": {
+        "zh-TW": "無法刪除帳號，請稍後再試。",
+        "zh-CN": "无法删除帐号，请稍后再试。",
+        "en": "Unable to delete account. Please try again later."
+    },
+    "deleteAccountErrorTitle": {
+        "zh-TW": "錯誤",
+        "zh-CN": "错误",
+        "en": "Error"
+    },
+    "deleteAccountErrorMessage": {
+        "zh-TW": "刪除帳號時發生錯誤。",
+        "zh-CN": "删除帐号时发生错误。",
+        "en": "An error occurred while deleting your account."
     },
     "confirmPurchase": {
         "zh-TW": "確認購買",

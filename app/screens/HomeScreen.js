@@ -9,13 +9,15 @@ import Screen from './Screen';
 import AppHeader from '../components/AppHeader';
 import Books from '../components/Book/Books';
 import storage from '../storage/storage';
-import apiclient  from '../config/apiClient';
+import { bookDataBaseUrl } from '../config/apiClient';
 import { getBookstoreList, getAllAdminBookstores, getEffectiveRoleLevel, refreshRoleLevelCache } from '../config/userApiClient';
 import { canViewUnlisted } from '../config/roles';
 import routes from '../navigations/routes';
 import { consumePendingProfileRedirect } from '../auth/firstLoginRedirect';
 
-const url = apiclient.currentBaseUrl();
+// 書籍資料端點（menu / news / story-type / nochapter / story-list）統一使用 bookDataBaseUrl，
+// 固定走正式站、不隨 __DEV__ 切換（原因與來源詳見 config/apiClient.ts 的 bookDataBaseUrl 註解）。
+const url = bookDataBaseUrl;
 
 function HomeScreen() {
   const isFocus = useIsFocused();

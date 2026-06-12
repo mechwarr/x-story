@@ -10,8 +10,8 @@ import {
   View,
   Text,
   Image,
-  Alert,
 } from 'react-native';
+import { showAlert } from "../components/CustomAlert";
 import axios from 'axios';
 import colors from '../config/colors';
 import routes from '../navigations/routes';
@@ -30,6 +30,7 @@ import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempo
 import { useCoins } from '../store/coinContext';
 import { translate } from '../i18n/i18n';
 import { syncPurchasedStoryIds } from '../services/bookAccessService';
+import useResponsive from '../hook/useResponsive';
 
 const domain = apiclient.currentBaseUrl() + 'images/update/';
 const initStoryIdx = null;
@@ -37,6 +38,7 @@ const initStoryIdx = null;
 function StoryScreen({ route }) {
   const navigation = useGuardedNavigate();
   const router = useRoute();
+  const { ms } = useResponsive();
   const {
     storyId = 1,
     chapterId,
@@ -197,7 +199,7 @@ function StoryScreen({ route }) {
     if (free_open !== '開放' || isBookPurchased) return;
     const n = Number(read_range_end);
     if (!Number.isFinite(n) || n > 0) return;
-    Alert.alert(translate('noticeTitle'), translate('trialRangeNotSet'), [
+    showAlert(translate('noticeTitle'), translate('trialRangeNotSet'), [
       {
         text: translate('ok'),
         onPress: () => {
@@ -213,15 +215,15 @@ function StoryScreen({ route }) {
 
   const handlePurchaseStory = useCallback(() => {
     if (!storyId) {
-      Alert.alert(translate('genericErrorTitle'), translate('storyIdNotFound'));
+      showAlert(translate('genericErrorTitle'), translate('storyIdNotFound'));
       return;
     }
     if (!priceCoins || priceCoins <= 0) {
-      Alert.alert(translate('noticeTitle'), translate('storyNotPurchasable'));
+      showAlert(translate('noticeTitle'), translate('storyNotPurchasable'));
       return;
     }
     if (coins < priceCoins) {
-      Alert.alert(
+      showAlert(
         translate('coinsInsufficientTitle'),
         translate('coinsInsufficientMessage', { price: priceCoins, coins }),
         [
@@ -234,7 +236,7 @@ function StoryScreen({ route }) {
       );
       return;
     }
-    Alert.alert(
+    showAlert(
       translate('confirmPurchase'),
       translate('confirmPurchaseMessage', { price: priceCoins, name }),
       [
@@ -255,7 +257,7 @@ function StoryScreen({ route }) {
                 await syncPurchasedStoryIds();
                 setIsBookPurchased(true);
                 setShowPurchaseOverlay(false);
-                Alert.alert(
+                showAlert(
                   translate('purchaseSuccessTitle'),
                   translate('purchaseSuccessMessage', { name, coins: result.coinsSpent || priceCoins }),
                   [
@@ -274,11 +276,11 @@ function StoryScreen({ route }) {
                   ]
                 );
               } else {
-                Alert.alert(translate('purchaseFailedTitle'), translate('purchaseFailedRetry'));
+                showAlert(translate('purchaseFailedTitle'), translate('purchaseFailedRetry'));
               }
             } catch (error) {
               console.error('[StoryScreen] 購買失敗:', error);
-              Alert.alert(translate('purchaseFailedTitle'), error?.message || translate('purchaseErrorGeneric'));
+              showAlert(translate('purchaseFailedTitle'), error?.message || translate('purchaseErrorGeneric'));
             }
           },
         },
@@ -491,14 +493,14 @@ function StoryScreen({ route }) {
               <View style={styles.purchaseButtonWrap}>
                 <Pressable style={styles.purchaseButton} onPress={handlePurchaseStory}>
                   <View style={styles.purchaseButtonRow}>
-                    <Text style={styles.purchaseButtonText}>
+                    <Text style={[styles.purchaseButtonText, { fontSize: ms(24) }]}>
                       {translate('purchase')}
                     </Text>
                     <Image
-                      style={styles.purchaseButtonCoin}
+                      style={[styles.purchaseButtonCoin, { width: ms(27), height: ms(27) }]}
                       source={require('../../assets/coin.png')}
                     />
-                    <Text style={styles.purchaseButtonText}>{priceCoins}</Text>
+                    <Text style={[styles.purchaseButtonText, { fontSize: ms(24) }]}>{priceCoins}</Text>
                   </View>
                 </Pressable>
               </View>
@@ -506,7 +508,7 @@ function StoryScreen({ route }) {
                 style={styles.closeOverlayButton}
                 onPress={() => setShowPurchaseOverlay(false)}
               >
-                <Text style={styles.closeOverlayButtonText}>關閉</Text>
+                <Text style={[styles.closeOverlayButtonText, { fontSize: ms(16) }]}>關閉</Text>
               </Pressable>
             </Pressable>
           </Pressable>

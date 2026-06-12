@@ -10,10 +10,10 @@ import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
 function AppHeader({ news, config, onNewsPress }) {
   const navigation = useNavigation();
   const { coins, refreshCoins } = useCoins();
-  const { horizontalPadding, scale } = useResponsive();
-  const iconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
-  const coinIconSize = Math.round(20 * scale);
-  const headerHeight = Math.max(50, Math.round(50 * scale));
+  const { horizontalPadding, ms } = useResponsive();
+  const iconSize = ms(HEADER_ICON_BASE_SIZE);
+  const coinIconSize = ms(20);
+  const headerHeight = Math.max(50, ms(50));
 
   // 組件掛載時刷新金幣餘額
   useEffect(() => {
