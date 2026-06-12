@@ -17,13 +17,15 @@ import colors from '../config/colors';
 import routes from '../navigations/routes';
 import Narrator from '../components/narrator/Narrator';
 import StoryHeader from '../components/StoryHeader';
+import ScreeningSwitcher from '../components/ScreeningSwitcher';
 import Chat from '../components/chat/Chat';
 import storage from '../storage/storage';
 import { useRoute } from '@react-navigation/native';
 import _ from 'lodash';
 import apiclient from '../config/apiClient';
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate';
-import { purchaseStoryWithCoins, recordBookRead } from '../config/userApiClient';
+import { purchaseStoryWithCoins, recordBookRead, getEffectiveRoleLevel } from '../config/userApiClient';
+import { canSwitchScreening } from '../config/roles';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
 import { useCoins } from '../store/coinContext';
 import { translate } from '../i18n/i18n';
@@ -58,7 +60,7 @@ function StoryScreen({ route }) {
   const [story, setStory] = useState([]);
   const [queryInfo, setQueryInfo] = useState({
     config: [],
-    screenings: {},
+    screenings: null, // null = 尚未載入；[] = 載入後確實沒有場次（兩者需區分，避免誤判為「已播完」而彈回章節）
     content: null,
     role: {},
     imageUrl: '',
@@ -71,8 +73,32 @@ function StoryScreen({ route }) {
   const prevStoryLength = useRef(0);
   const [showPurchaseOverlay, setShowPurchaseOverlay] = useState(false);
   const [isBookPurchased, setIsBookPurchased] = useState(false);
+  const [purchaseChecked, setPurchaseChecked] = useState(false);
   const { coins, refreshCoins } = useCoins();
   const priceCoins = storyData?.priceCoins ?? 0;
+
+  // 場次快速切換器：取得使用者權限級別（role >= 6 才顯示）
+  const [roleLevel, setRoleLevel] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    getEffectiveRoleLevel().then((lv) => { if (mounted) setRoleLevel(lv); });
+    return () => { mounted = false; };
+  }, []);
+
+  const screeningList = Array.isArray(queryInfo.screenings) ? queryInfo.screenings : [];
+
+  // 跳到指定場次（複用既有「story:null → 重抓內容」機制）
+  const goToScreening = useCallback(
+    (targetScreen) => {
+      if (targetScreen < 0 || targetScreen >= screeningList.length) return;
+      if (targetScreen === index.screen) return;
+      choseRef.current = false;
+      hasRecordedReadRef.current = false; // 換場次重新計一次閱讀
+      setStory([]);
+      setIndex({ story: initStoryIdx, screen: targetScreen });
+    },
+    [index.screen, screeningList.length]
+  );
 
   const cacheData = useMemo(
     () => ({
@@ -114,7 +140,8 @@ function StoryScreen({ route }) {
     // 取得篩選內容
     const fetchStories = async () => {
       try {
-        const _id = queryInfo.screenings?.[index.screen]?.id;
+        const screenings = Array.isArray(queryInfo.screenings) ? queryInfo.screenings : [];
+        const _id = screenings[index.screen]?.id;
         if (_id) {
           const content = await axios.get(apiclient.currentBaseUrl() + `api/v1/admin/content/${storyId}/${chapterId}/${_id}`
           );
@@ -123,11 +150,13 @@ function StoryScreen({ route }) {
             setQueryInfo((prev) => ({
               ...prev,
               content: storyContent,
-              imageUrl: domain + queryInfo.screenings?.[index.screen]?.bg_view,
+              imageUrl: domain + screenings[index.screen]?.bg_view,
             }));
             setStory([]); // 先清空舊資料
           }
-        } else if (!_id && index.screen >= queryInfo.screenings.length) {
+        } else if (screenings.length > 0 && index.screen >= screenings.length) {
+          // 場次清單已載入且確實播完（screen 超過尾端）才返回；
+          // 空清單（length === 0，可能是設定問題）不在此彈回，避免一進章節就被踢出
           // 免費章節滑到底：若未持有本書則顯示購買按鈕
           if (free_open === '開放' && !isBookPurchased) {
             setShowPurchaseOverlay(true);
@@ -146,16 +175,41 @@ function StoryScreen({ route }) {
       }
     };
 
-    if (queryInfo.screenings) fetchStories();
+    if (Array.isArray(queryInfo.screenings)) fetchStories();
   }, [index.screen, queryInfo.screenings, free_open, isBookPurchased]);
 
   useEffect(() => {
     let mounted = true;
     syncPurchasedStoryIds().then((ids) => {
-      if (mounted) setIsBookPurchased(ids.includes(Number(storyId)));
+      if (mounted) {
+        setIsBookPurchased(ids.includes(Number(storyId)));
+        setPurchaseChecked(true);
+      }
     });
     return () => { mounted = false; };
   }, [storyId]);
+
+  // 安全網：非章節選單入口（如「繼續觀看」）進入試閱章節時，
+  // 若後端「試閱場次範圍(尾)」(read_range_end) 為 0／非正數，代表沒有設定試閱長度 → 警告並返回。
+  // 章節選單入口已在 ChapterItem 先攔截，購買後則為完整內容、不受此限。
+  useEffect(() => {
+    if (!purchaseChecked) return;
+    if (free_open !== '開放' || isBookPurchased) return;
+    const n = Number(read_range_end);
+    if (!Number.isFinite(n) || n > 0) return;
+    Alert.alert(translate('noticeTitle'), translate('trialRangeNotSet'), [
+      {
+        text: translate('ok'),
+        onPress: () => {
+          if (storyData?.chapter_type === '章節') {
+            navigation.navigate(routes.CHAPTER, { name, author, storyId, storyData });
+          } else {
+            navigation.navigate(routes.MAIN);
+          }
+        },
+      },
+    ]);
+  }, [purchaseChecked, isBookPurchased, free_open, read_range_end]);
 
   const handlePurchaseStory = useCallback(() => {
     if (!storyId) {
@@ -282,12 +336,14 @@ function StoryScreen({ route }) {
     if (shouldScrollInit) {
       setTimeout(() => {
         if (flatlistRef.current && story.length > 0) {
+          // 夾住索引，避免 cachedIndex.story 大於實際內容數時 scrollToIndex 越界、無限重試卡死
+          const safeIndex = Math.min(Math.max(index.story ?? 0, 0), story.length - 1);
           flatlistRef.current.scrollToIndex({
-            index: index.story >= 0 ? index.story : 0,
+            index: safeIndex,
             animated: true,
             viewPosition: 0,
           });
-          console.log('初始化滾動到 index:', index.story);
+          console.log('初始化滾動到 index:', safeIndex);
         }
         setShouldScrollInit(false);
       }, 200);
@@ -315,14 +371,28 @@ function StoryScreen({ route }) {
         const role = await axios.get(URL + `api/v1/admin/role`);
         const roleConf = await axios.get(URL + `api/v1/admin/setup-story-role`);
 
-        const screenData = screenings?.data?.[cachedIndex?.screen ?? 0];
+        const rawScreenings = Array.isArray(screenings?.data) ? screenings.data : [];
+        // read_range_end（試閱場次範圍尾）截斷試閱長度；先確保是陣列再 slice，避免 undefined.slice() 例外
+        const screeningsList = read_range_end
+          ? rawScreenings.slice(0, +read_range_end)
+          : rawScreenings;
+        // 夾住還原的場次索引，避免快取 screen 超過（伺服器更新或試閱截斷後）現有場次數而立即彈回
+        const safeScreen = screeningsList.length
+          ? Math.min(Math.max(cachedIndex?.screen ?? 0, 0), screeningsList.length - 1)
+          : 0;
+        const screenData = screeningsList[safeScreen];
 
         setQueryInfo({
-          config: config?.data[0] ?? {},
-          screenings: read_range_end ? screenings?.data.slice(0, +read_range_end) : screenings?.data ?? [],
+          config: config?.data?.[0] ?? {},
+          screenings: screeningsList,
           role: role?.data ?? {},
           imageUrl: domain + screenData?.bg_view,
           roleConf: roleConf?.data?.[0],
+        });
+
+        setIndex({
+          story: initialStoryIndex,
+          screen: safeScreen,
         });
       } catch (error) {
         console.error('API 請求失敗：', error);
@@ -331,11 +401,6 @@ function StoryScreen({ route }) {
 
     if (cachedIndex) setShouldScrollInit(true);
     fetchData();
-
-    setIndex({
-      story: initialStoryIndex,
-      screen: cachedIndex?.screen ?? 0,
-    });
   }, [read_range_end]);
 
   return (
@@ -353,6 +418,13 @@ function StoryScreen({ route }) {
     >
       <SafeAreaView style={{ flex: 1, position: 'relative' }}>
         <StoryHeader storyName={name} author={author} config={queryInfo.config} />
+        {canSwitchScreening(roleLevel) && screeningList.length > 0 && (
+          <ScreeningSwitcher
+            sessions={screeningList}
+            currentIndex={index.screen}
+            onSelect={goToScreening}
+          />
+        )}
         <Pressable
           onPress={_.debounce(() => onPressOption(null), 200)}
           style={{ flex: 1 }}
@@ -364,13 +436,16 @@ function StoryScreen({ route }) {
             scrollEnabled
             showsVerticalScrollIndicator={false}
             onScrollToIndexFailed={({ index }) => {
+              // 夾住到目前資料範圍內，避免用越界索引一再重試而卡死
+              const safeIndex = Math.min(Math.max(index, 0), story.length - 1);
+              if (safeIndex < 0) return;
               setTimeout(() => {
                 flatlistRef.current?.scrollToIndex({
-                  index,
+                  index: safeIndex,
                   animated: true,
                   viewPosition: 0.5,
                 });
-              }, 0);
+              }, 50);
             }}
             renderItem={({ item, index }) =>
               item?.contentPresent === '對話' ? (

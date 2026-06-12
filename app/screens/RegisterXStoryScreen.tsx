@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Alert,
   TextInput,
   View,
   Text,
@@ -7,11 +8,19 @@ import {
   ActivityIndicator,
   StyleSheet,
   Image,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
 } from "react-native";
 import { translate } from "../i18n/i18n";
 import { registerWithXStory, resentRegisterMail, ResentRegisterMailRequest } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
 import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
+
+// Email 格式驗證（與忘記密碼/登入共用同一規則）
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// 密碼政策：8-20 字、至少一個大寫、一個小寫、一個數字
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,20}$/;
 
 interface Props {
   onCancel: () => void;
@@ -34,41 +43,41 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
   const [isResending, setIsResending] = useState(false);
 
   const sendVerificationEmail = async () => {
-    if (!email) { alert("請輸入 Email"); return; }
-    if (!password) { alert("請輸入密碼"); return; }
-    if (!confirmPassword) { alert("請確認密碼"); return; }
-    if (password !== confirmPassword) { alert("兩次輸入的密碼不相同"); return; }
+    // 正規化：去除前後空白並轉小寫，避免鍵盤建議列/貼上帶入空白導致驗證失敗
+    const normalizedEmail = email.trim().toLowerCase();
 
-    const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,20}$/;
-    if (!passwordPattern.test(password)) {
-      alert("密碼需8-20字元，且包含至少一個大寫字母、一個小寫字母及一個數字");
-      return;
-    }
+    if (!normalizedEmail) { Alert.alert(translate("genericErrorTitle"), translate("emailRequired")); return; }
+    if (!EMAIL_REGEX.test(normalizedEmail)) { Alert.alert(translate("genericErrorTitle"), translate("invalidEmailMessage")); return; }
+    if (!password) { Alert.alert(translate("genericErrorTitle"), translate("passwordRequired")); return; }
+    if (!confirmPassword) { Alert.alert(translate("genericErrorTitle"), translate("confirmPasswordRequired")); return; }
+    if (password !== confirmPassword) { Alert.alert(translate("passwordMismatchTitle"), translate("passwordMismatchMessage")); return; }
+    if (!PASSWORD_REGEX.test(password)) { Alert.alert(translate("genericErrorTitle"), translate("passwordPolicyMessage")); return; }
 
     setIsSending(true);
-    const registerAccount = await registerWithXStory({ email, password });
+    const registerAccount = await registerWithXStory({ email: normalizedEmail, password });
     setIsSending(false);
-    setWaitingVerification(true);
 
     if (registerAccount) {
-      setWaitingVerification(false);
+      // 註冊成功：顯示「請至信箱收驗證信」等待畫面（onSuccess 由使用者按提示後流程決定）
+      setWaitingVerification(true);
       onSuccess();
-    } else {
-      setWaitingVerification(false);
     }
+    // 失敗時 registerWithXStory 內部已彈出錯誤訊息，這裡維持表單供重試
   };
 
   // --- 重發驗證信：送出 ---
   const onResendSubmit = async () => {
-    if (!resendEmail) { alert("請輸入 Email"); return; }
+    const normalizedEmail = resendEmail.trim().toLowerCase();
+    if (!normalizedEmail) { Alert.alert(translate("genericErrorTitle"), translate("emailRequired")); return; }
+    if (!EMAIL_REGEX.test(normalizedEmail)) { Alert.alert(translate("genericErrorTitle"), translate("invalidEmailMessage")); return; }
     try {
       setIsResending(true);
-      const request: ResentRegisterMailRequest = { email: resendEmail };
-      await resentRegisterMail(request);
-      alert("已寄出驗證信，請至信箱收信");
-      setShowResendOverlay(false); // 關閉覆蓋層
+      const request: ResentRegisterMailRequest = { email: normalizedEmail };
+      // 成功/失敗訊息由 resentRegisterMail 內部統一彈出，避免重複彈窗
+      const ok = await resentRegisterMail(request);
+      if (ok) setShowResendOverlay(false); // 僅成功才關閉覆蓋層
     } catch (e: any) {
-      alert("重發失敗：" + (e?.message ?? String(e)));
+      Alert.alert(translate("resendFailed"), e?.message ?? String(e));
     } finally {
       setIsResending(false);
     }
@@ -78,11 +87,19 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
   const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
   return (
-    <View style={[styles.container, isTablet && { paddingHorizontal: 24 }]}>
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
       <View style={styles.logoContainer}>
         <Image style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]} source={require("../../assets/blueeye.png")} />
       </View>
 
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, isTablet && { paddingHorizontal: 24 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
       <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
       <Text style={styles.title}>{translate("registerAccount")}</Text>
 
@@ -98,6 +115,10 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
+            textContentType="emailAddress"
+            autoComplete="email"
+            returnKeyType="next"
+            maxLength={254}
             editable={!isSending}
           />
 
@@ -113,6 +134,10 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
               editable={!isSending}
               autoCapitalize="none"
               autoCorrect={false}
+              textContentType="newPassword"
+              autoComplete="password-new"
+              returnKeyType="next"
+              maxLength={20}
             />
             <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(p => !p)}>
               <Image
@@ -138,6 +163,11 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
               editable={!isSending}
               autoCapitalize="none"
               autoCorrect={false}
+              textContentType="newPassword"
+              autoComplete="password-new"
+              returnKeyType="done"
+              maxLength={20}
+              onSubmitEditing={sendVerificationEmail}
             />
             <TouchableOpacity style={styles.eyeButton} onPress={() => setShowConfirmPassword(p => !p)}>
               <Image
@@ -151,7 +181,7 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.passwordHelpText}>{translate("createPassword")}</Text>
+          <Text style={styles.passwordHelpText}>{translate("passwordPolicyHint")}</Text>
 
           {isSending ? (
             <ActivityIndicator size="large" color="#0ABAB5" style={{ marginVertical: 20 }} />
@@ -174,23 +204,24 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
             }}
             disabled={isSending}
           >
-            <Text style={styles.resendmailtext}>重發驗證信</Text>
+            <Text style={styles.resendmailtext}>{translate("resendVerification")}</Text>
           </TouchableOpacity>
         </>
       ) : (
         <Text style={styles.waitingText}>{translate("verificationSent")}</Text>
       )}
       </View>
+      </ScrollView>
 
       {/* 覆蓋層：顯示重發驗證信表單（不使用 Modal / navigation） */}
       {showResendOverlay && (
         <View style={styles.overlay} pointerEvents="auto">
           <View style={styles.overlayCard}>
-            <Text style={styles.overlayTitle}>重發驗證信</Text>
+            <Text style={styles.overlayTitle}>{translate("resendVerification")}</Text>
 
             <TextInput
               style={styles.input}
-              placeholder="請輸入 Email"
+              placeholder={translate("enterEmail")}
               placeholderTextColor="#7F7F7F"
               selectionColor="#009688"
               value={resendEmail}
@@ -198,6 +229,11 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              textContentType="emailAddress"
+              autoComplete="email"
+              returnKeyType="done"
+              maxLength={254}
+              onSubmitEditing={onResendSubmit}
               editable={!isResending}
             />
 
@@ -205,7 +241,7 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
               <ActivityIndicator size="large" color="#0ABAB5" style={{ marginVertical: 20 }} />
             ) : (
               <TouchableOpacity style={styles.sendButton} onPress={onResendSubmit}>
-                <Text style={styles.sendButtonText}>送出</Text>
+                <Text style={styles.sendButtonText}>{translate("submit")}</Text>
               </TouchableOpacity>
             )}
 
@@ -214,17 +250,30 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
               onPress={() => setShowResendOverlay(false)}
               disabled={isResending}
             >
-              <Text style={styles.cancelButtonText}>取消</Text>
+              <Text style={styles.cancelButtonText}>{translate("cancel")}</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  // 共用：深色背景置中
+  // KeyboardAvoidingView 根容器
+  flex: {
+    flex: 1,
+    backgroundColor: "#39393B",
+  },
+  // ScrollView 內容：可捲動且在內容不滿一頁時置中
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 30,
+    paddingVertical: 40,
+  },
+  // 共用：深色背景置中（保留供其他樣式參考）
   container: {
     flex: 1,
     backgroundColor: "#39393B",

@@ -2,6 +2,7 @@
 import { RestfulApi } from "./api";
 import tokenStorage from '../auth/Storage';
 import { portURL } from "./apiClient";
+import { translate } from "../i18n/i18n";
 
 /**
  * 登入／註冊／refresh／logout 與 iapService 使用的 `api/me/iap-receipts` 等，實際都部署在
@@ -90,7 +91,7 @@ export async function registerWithXStory(
       return true;
     } else {
       console.warn("註冊失敗:", res.message);
-      alert(res?.message || "註冊失敗，請稍後再試");
+      alert(res?.message || translate("registerFailedMessage"));
       return false;
     }
   } catch (error) {
@@ -130,11 +131,11 @@ export async function resentRegisterMail(
     );
 
     if (res && res.success) {
-      alert("驗證信已重新寄出");
+      alert(translate("resendMailSuccessMessage"));
       return true;
     } else {
       console.warn("重發驗證信失敗:", res.message);
-      alert(res?.message || "重發驗證信失敗，請稍後再試");
+      alert(res?.message || translate("resendMailFailedMessage"));
       return false;
     }
   } catch (error) {
@@ -209,7 +210,7 @@ export async function forgotXStoryPassword(
     if (res && res.success) {
       return true;
     } else {
-      alert(res?.message || "重設密碼寄信失敗，請稍後再試");
+      alert(res?.message || translate("forgotPasswordFailedMessage"));
       console.warn("重設密碼寄信失敗:", res?.message);
       return false;
     }
@@ -328,7 +329,7 @@ export async function resetXStoryPassword(
     if (res && res.success) {
       return true;
     } else {
-      alert(res?.message || "密碼重設失敗，請稍後再試");
+      alert(res?.message || translate("resetPasswordFailedMessage"));
       console.warn("密碼重設失敗:", res?.message);
       return false;
     }

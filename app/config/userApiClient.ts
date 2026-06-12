@@ -70,6 +70,127 @@ export async function getBookstoreList(): Promise<BookstoreItem[]> {
   }
 }
 
+//=======================================================
+//============== 後台書店 API（roleLevel >= 6 可見未上架）==============
+//=======================================================
+
+/**
+ * 分頁資訊（GET api/admin/bookstores 回傳）
+ */
+export interface BookstorePaginationInfo {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+/**
+ * 後台書店清單 Response（GET api/admin/bookstores）
+ * 與公開的 api/bookstorelist 不同：回傳物件包了 data + pagination，
+ * 且包含所有狀態書籍（含已下架 isActive=false）。
+ */
+export interface GetAdminBookstoresResponse {
+  data: BookstoreItem[];
+  pagination: BookstorePaginationInfo;
+  /** 是否因權限驗證失敗（HTTP 401/403）而取不到資料。用於畫面端區分「沒權限」與「真的沒書」。 */
+  authError?: boolean;
+}
+
+/**
+ * 判斷錯誤是否為權限/驗證失敗（HTTP 401 未授權 / 403 權限不足）。
+ * RestfulApi 在非 2xx 時 throw `Error("HTTP <status>: ...")`，故以訊息比對。
+ */
+function isAuthError(error: any): boolean {
+  const msg = error?.message ?? "";
+  return msg.includes("HTTP 401") || msg.includes("HTTP 403");
+}
+
+/**
+ * 取得後台書店清單（單頁，需權限 roleLevel >= 6）
+ * GET api/admin/bookstores?page={page}&limit={limit}，需 Authorization: Bearer token
+ * @param page 頁碼，預設 1
+ * @param limit 每頁筆數，預設 20（最多 100）
+ * @returns Promise<GetAdminBookstoresResponse> 失敗時回傳空清單 + 預設分頁
+ */
+export async function getAdminBookstores(
+  page: number = 1,
+  limit: number = 20
+): Promise<GetAdminBookstoresResponse> {
+  const emptyResult: GetAdminBookstoresResponse = {
+    data: [],
+    pagination: { total: 0, page, limit, totalPages: 0 },
+  };
+  try {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    const endpoint = `api/admin/bookstores?${params.toString()}`;
+
+    const token = await tokenStorage.getToken();
+    const headers: Record<string, string> = { accept: "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await userApi.get<GetAdminBookstoresResponse>(endpoint, headers);
+
+    if (res && Array.isArray(res.data)) {
+      console.log(
+        "[userApiClient] ✓ 成功獲取後台書店清單，本頁數量:",
+        res.data.length,
+        "總數:",
+        res.pagination?.total
+      );
+      return {
+        data: res.data,
+        pagination: res.pagination ?? { total: res.data.length, page, limit, totalPages: 1 },
+      };
+    }
+    console.warn("[userApiClient] ✗ 獲取後台書店清單失敗，響應格式不正確:", res);
+    return emptyResult;
+  } catch (error) {
+    if (isAuthError(error)) {
+      console.warn("[userApiClient] ✗ 後台書店清單權限驗證失敗（401/403）:", (error as any)?.message);
+      return { ...emptyResult, authError: true };
+    }
+    console.error("[userApiClient] 獲取後台書店清單時發生錯誤:", error);
+    return emptyResult;
+  }
+}
+
+/**
+ * 取得後台書店「全部」書籍（自動翻頁聚合，需權限 roleLevel >= 6）。
+ * 回傳 { items, authError }：items 為扁平陣列（與公開 getBookstoreList() 同形狀，方便沿用合併邏輯）；
+ * authError 為 true 時代表權限驗證失敗（401/403），畫面端應退回公開書店清單並修正本地權限快取。
+ * @param pageSize 每頁筆數，預設 100（API 上限）
+ */
+export async function getAllAdminBookstores(
+  pageSize: number = 100
+): Promise<{ items: BookstoreItem[]; authError: boolean }> {
+  const first = await getAdminBookstores(1, pageSize);
+  if (first.authError) {
+    return { items: [], authError: true };
+  }
+
+  const all: BookstoreItem[] = [...first.data];
+  const totalPages = first.pagination?.totalPages ?? 1;
+
+  // 自動翻頁聚合剩餘頁；上限 50 頁作為防呆，避免異常分頁造成無限迴圈
+  const maxPages = Math.min(totalPages, 50);
+  if (totalPages > 50) {
+    console.warn(
+      `[userApiClient] 後台書店分頁數 ${totalPages} 超過上限 50，僅聚合前 ${maxPages} 頁`
+    );
+  }
+  for (let page = 2; page <= maxPages; page++) {
+    const next = await getAdminBookstores(page, pageSize);
+    if (next.authError) break; // 中途權限失效：保留已取得的部分
+    if (!next.data.length) break;
+    all.push(...next.data);
+  }
+
+  console.log("[userApiClient] ✓ 後台書店清單聚合完成，總數量:", all.length);
+  return { items: all, authError: false };
+}
+
 /**
  * 寫入閱讀紀錄 Response
  */
@@ -237,6 +358,7 @@ export interface UserProfile {
   email?: string;
   birthday?: string; // ISO 8601 格式日期字串
   gender?: GenderCode;
+  roleLevel?: number; // 權限級別（1=普通, 5=小編, 9=Admin），詳見 config/roles.ts
   createdAt?: string;
   updatedAt?: string;
   [key: string]: any; // 允許其他欄位
@@ -290,6 +412,48 @@ export async function getUserProfile(): Promise<UserProfile | null> {
   } catch (error) {
     console.error("[userApiClient] 獲取用戶資料時發生錯誤:", error);
     return null;
+  }
+}
+
+/**
+ * 取得目前用戶的有效權限級別（roleLevel）。
+ * 優先讀本地快取，避免每次都打 api/users/me；快取為 null（例如此功能上線前已登入者）時，
+ * 回退查詢一次 api/users/me 並補寫快取。未登入或查詢失敗一律回傳 0。
+ * 角色判斷請搭配 config/roles.ts 的 isAdmin / canViewUnlisted 使用。
+ */
+export async function getEffectiveRoleLevel(): Promise<number> {
+  try {
+    const token = await tokenStorage.getToken();
+    if (!token) return 0;
+
+    let roleLevel = await tokenStorage.getUserRoleLevel();
+    if (roleLevel === null) {
+      const profile = await getUserProfile();
+      roleLevel = Number(profile?.roleLevel) || 0;
+      await tokenStorage.setUserRoleLevel(roleLevel);
+    }
+    return Number(roleLevel) || 0;
+  } catch (error) {
+    console.warn("[userApiClient] 取得有效權限級別失敗，預設為一般用戶(0):", (error as any)?.message);
+    return 0;
+  }
+}
+
+/**
+ * 重新向後端查詢真實 roleLevel 並覆寫本地快取，回傳更新後的級別。
+ * 用於後台 API 回傳 401/403 時修正「本地快取權限高於後端實際」的情況
+ *（token 過期或角色被降級）。查詢失敗時將快取歸零。
+ */
+export async function refreshRoleLevelCache(): Promise<number> {
+  try {
+    const profile = await getUserProfile();
+    const level = Number(profile?.roleLevel) || 0;
+    await tokenStorage.setUserRoleLevel(level);
+    return level;
+  } catch (error) {
+    console.warn("[userApiClient] 重新查詢權限失敗，快取歸零:", (error as any)?.message);
+    await tokenStorage.setUserRoleLevel(0);
+    return 0;
   }
 }
 

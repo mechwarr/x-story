@@ -20,7 +20,7 @@ import apiclient from '../config/apiClient';
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins } from '../config/userApiClient';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
-import { translate, getCurrentStoryLang } from '../i18n/i18n';
+import { translate, matchesCurrentStoryLang } from '../i18n/i18n';
 import colors from '../config/colors';
 import storage from '../storage/storage';
 import { canAccessChapter } from '../services/bookAccessService';
@@ -57,6 +57,12 @@ const ChapterItem = (props) => {
   const isFreeOpen = free_open === '開放';
   const canView = canAccessChapter({ freeOpen: free_open, isBookPurchased });
   const showLock = !canView;
+
+  // 後端「試閱場次範圍(尾)」(read_range_end) 為 0（或非正數）代表沒有設定試閱長度。
+  // 只有「試閱章節且尚未購買」才依賴此範圍，購買後為完整內容、不受限。
+  const trialRangeEnd = Number(read_range_end);
+  const isTrialRangeInvalid =
+    isFreeOpen && !isBookPurchased && Number.isFinite(trialRangeEnd) && trialRangeEnd <= 0;
 
   const navigation = useGuardedNavigate();
   const imageUri = apiclient.currentBaseUrl() + `images/update/${chapter_img}`;
@@ -138,6 +144,11 @@ const ChapterItem = (props) => {
 
   const onPress = () => {
     if (canView) {
+      // 試閱章節但後端未設定試閱範圍（試閱場次範圍尾為 0）：警告且不進入，避免進場後空白／彈回
+      if (isTrialRangeInvalid) {
+        Alert.alert(translate('noticeTitle'), translate('trialRangeNotSet'));
+        return;
+      }
       if (isFreeOpen) {
         Alert.alert(
           window_title,
@@ -160,7 +171,8 @@ const ChapterItem = (props) => {
   };
 
   // 只顯示與 App 啟動語系相符的章節（取代原本寫死的「繁體中文」）
-  if (lang !== getCurrentStoryLang()) return null;
+  // 用正規化比對，避免後端 lang 欄位簡繁字形/文案差異造成比對失敗
+  if (!matchesCurrentStoryLang(lang)) return null;
   return (
     <>
       <Pressable

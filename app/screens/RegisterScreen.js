@@ -48,6 +48,15 @@ export default function RegisterScreen(props) {
   const buttonWidth = Math.min(420, Math.max(260, Math.round(contentWidth * 0.82)));
   const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
+  // 量測「最長按鈕內容」的自然寬度，再用 minWidth 把所有內層容器拉齊到它
+  // → 最長按鈕看起來置中、其餘 icon 對齊它，整塊視覺即置中（不再用比例猜）
+  // 用 minWidth（非 width）：最長按鈕仍以自然寬呈現，量測才量得到真值、可收斂
+  const [innerW, setInnerW] = useState(0);
+  const handleInnerLayout = (w) =>
+    setInnerW((prev) => Math.max(prev, Math.ceil(w)));
+  // 上限不超過按鈕可用內寬（padding 左右各 16）；未量測前為 0（不約束）
+  const resolvedInner = innerW ? Math.min(innerW, buttonWidth - 32) : 0;
+
 
   const handlePress = (handlerName) => {
     if (props[handlerName] && typeof props[handlerName] === "function") {
@@ -103,15 +112,20 @@ export default function RegisterScreen(props) {
               activeOpacity={disabled ? 1 : 0.7}
               disabled={disabled}
             >
-              <View style={styles.iconWrap}>
-                {icon && <Image source={icon} style={styles.icon} />}
+              <View
+                style={[styles.buttonInner, { minWidth: resolvedInner, maxWidth: buttonWidth - 32 }]}
+                onLayout={(e) => handleInnerLayout(e.nativeEvent.layout.width)}
+              >
+                <View style={styles.iconWrap}>
+                  {icon && <Image source={icon} style={styles.icon} />}
+                </View>
+                <Text
+                  style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail" >
+                  {translate(title)}
+                </Text>
               </View>
-              <Text
-                style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
-                numberOfLines={1}
-                ellipsizeMode="tail" >
-                {translate(title)}
-              </Text>
             </TouchableOpacity>
           );
         })}
@@ -136,16 +150,21 @@ export default function RegisterScreen(props) {
               disabled={disabled}
               accessibilityRole="button"
             >
-              <View style={styles.iconWrap}>
-                <AntDesign name="apple1" size={24} color="white" />
-              </View>
-              <Text
-                style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
+              <View
+                style={[styles.buttonInner, { minWidth: resolvedInner, maxWidth: buttonWidth - 32 }]}
+                onLayout={(e) => handleInnerLayout(e.nativeEvent.layout.width)}
               >
-                {translate("signUpWithApple")}
-              </Text>
+                <View style={styles.iconWrap}>
+                  <AntDesign name="apple1" size={24} color="white" />
+                </View>
+                <Text
+                  style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {translate("signUpWithApple")}
+                </Text>
+              </View>
             </TouchableOpacity>
           );
         })()}
@@ -155,7 +174,7 @@ export default function RegisterScreen(props) {
         <TouchableOpacity
           style={[
             styles.agreeContainer,
-            isTablet && { width: buttonWidth, alignSelf: "center", marginHorizontal: 0 },
+            { width: buttonWidth, alignSelf: "center", marginHorizontal: 0 },
           ]}
           onPress={toggleAgree}
           activeOpacity={0.7}
@@ -219,13 +238,18 @@ const styles = StyleSheet.create({
   button: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "center",
     alignSelf: "center",
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginBottom: 15,
     borderRadius: 25,
     borderWidth: 1,
+  },
+  buttonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
   },
   buttonText: {
     fontSize: 16,

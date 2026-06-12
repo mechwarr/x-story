@@ -1,5 +1,5 @@
 import { AntDesign } from "@expo/vector-icons";
-import React from "react";
+import React, { useState } from "react";
 import {
   Image,
   Platform,
@@ -45,6 +45,15 @@ export default function LoginScreen(props) {
   const buttonWidth = Math.min(420, Math.max(260, Math.round(contentWidth * 0.82)));
   const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
+  // 量測「最長按鈕內容」的自然寬度，再用 minWidth 把所有內層容器拉齊到它
+  // → 最長按鈕看起來置中、其餘 icon 對齊它，整塊視覺即置中（不再用比例猜）
+  // 用 minWidth（非 width）：最長按鈕仍以自然寬呈現，量測才量得到真值、可收斂
+  const [innerW, setInnerW] = useState(0);
+  const handleInnerLayout = (w) =>
+    setInnerW((prev) => Math.max(prev, Math.ceil(w)));
+  // 上限不超過按鈕可用內寬（padding 左右各 16）；未量測前為 0（不約束）
+  const resolvedInner = innerW ? Math.min(innerW, buttonWidth - 32) : 0;
+
   const handlePress = (handlerName) => {
     if (props[handlerName] && typeof props[handlerName] === "function") {
       props[handlerName]();
@@ -81,16 +90,21 @@ export default function LoginScreen(props) {
             onPress={() => handlePress(onPressProp)}
             activeOpacity={0.7}
           >
-            <View style={styles.iconWrap}>
-              {icon && <Image source={icon} style={styles.icon} />}
-            </View>
-            <Text
-              style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
+            <View
+              style={[styles.buttonInner, { minWidth: resolvedInner, maxWidth: buttonWidth - 32 }]}
+              onLayout={(e) => handleInnerLayout(e.nativeEvent.layout.width)}
             >
-              {translate(title)}
-            </Text>
+              <View style={styles.iconWrap}>
+                {icon && <Image source={icon} style={styles.icon} />}
+              </View>
+              <Text
+                style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {translate(title)}
+              </Text>
+            </View>
           </TouchableOpacity>
         ))}
 
@@ -101,16 +115,21 @@ export default function LoginScreen(props) {
             activeOpacity={0.7}
             accessibilityRole="button"
           >
-            <View style={styles.iconWrap}>
-              <AntDesign name="apple1" size={24} color="white" />
-            </View>
-            <Text
-              style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
+            <View
+              style={[styles.buttonInner, { minWidth: resolvedInner, maxWidth: buttonWidth - 32 }]}
+              onLayout={(e) => handleInnerLayout(e.nativeEvent.layout.width)}
             >
-              {translate("signInWithApple")}
-            </Text>
+              <View style={styles.iconWrap}>
+                <AntDesign name="apple1" size={24} color="white" />
+              </View>
+              <Text
+                style={[styles.buttonText, { color: "white", flexShrink: 1 }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {translate("signInWithApple")}
+              </Text>
+            </View>
           </TouchableOpacity>
         )}
 
@@ -122,14 +141,19 @@ export default function LoginScreen(props) {
           onPress={handleTestLoginSuccess}
           activeOpacity={0.7}
         >
-          <View style={styles.iconWrap} />
-          <Text
-            style={[styles.buttonText, { color: "#0abab5", flexShrink: 1 }]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
+          <View
+            style={[styles.buttonInner, { minWidth: resolvedInner, maxWidth: buttonWidth - 32 }]}
+            onLayout={(e) => handleInnerLayout(e.nativeEvent.layout.width)}
           >
-            {translate("testLoginSuccess")}
-          </Text>
+            <View style={styles.iconWrap} />
+            <Text
+              style={[styles.buttonText, { color: "#0abab5", flexShrink: 1 }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {translate("testLoginSuccess")}
+            </Text>
+          </View>
         </TouchableOpacity>
 
         {/* 新增底部行 */}
@@ -168,7 +192,7 @@ const styles = StyleSheet.create({
   button: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "center",
     alignSelf: "center",
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -177,6 +201,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#000000",
     borderColor: "#0abab5",
     borderWidth: 1,
+  },
+  buttonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
   },
   buttonText: {
     fontSize: 16,

@@ -16,6 +16,9 @@ import { translate } from "../i18n/i18n";
 import useResponsive from "../hook/useResponsive";
 import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
 
+// Email 格式驗證（與註冊共用同一規則）
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 interface Props {
   onEmailChange: (email: string) => void;
   onCancel: () => void;
@@ -30,20 +33,25 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
   const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
   const sendResetEmail = async () => {
-    if (!email) {
-      Alert.alert(translate("error"), translate("pleaseEnterEmail"));
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      Alert.alert(translate("genericErrorTitle"), translate("emailRequired"));
+      return;
+    }
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      Alert.alert(translate("genericErrorTitle"), translate("invalidEmailMessage"));
       return;
     }
     setIsSending(true);
 
-    const ok = await forgotXStoryPassword({ email });
+    const ok = await forgotXStoryPassword({ email: normalizedEmail });
 
     setIsSending(false);
     setWaitingVerification(false);
 
     if (ok) {
       // 同步回父層（可選）
-      onEmailChange(email);
+      onEmailChange(normalizedEmail);
 
       Alert.alert(
         translate("resetEmailSentTitle"),
@@ -70,7 +78,7 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
-              placeholder={translate("pleaseEnterEmail") || "請輸入您的Email"}
+              placeholder={translate("enterEmail")}
               placeholderTextColor="#7F7F7F"
               selectionColor="#009688"
               value={email}
@@ -81,6 +89,11 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              textContentType="emailAddress"
+              autoComplete="email"
+              returnKeyType="send"
+              maxLength={254}
+              onSubmitEditing={sendResetEmail}
               editable={!isSending}
             />
           </View>
@@ -89,7 +102,7 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
             <ActivityIndicator size="large" color="#0ABAB5" style={{ marginVertical: 20 }} />
           ) : (
             <TouchableOpacity style={styles.sendButton} onPress={sendResetEmail}>
-              <Text style={styles.sendButtonText}>{translate("sendResetEmail") || "發送重設信"}</Text>
+              <Text style={styles.sendButtonText}>{translate("sendResetEmail")}</Text>
             </TouchableOpacity>
           )}
 
@@ -124,6 +137,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "white",
     marginBottom: 40,
+    textAlign: "center",
   },
   inputWrapper: {
     width: "100%",

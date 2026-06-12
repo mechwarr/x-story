@@ -25,7 +25,12 @@ export default function useInitApp(
       setIsLoggedIn(loggedIn);
 
       // ✅ 初始化語言（根據登入與否判斷從 SecureStore or 裝置）
-      await initLanguageByLoginStatus(loggedIn);
+      // 包 try/catch：語系初始化失敗時最差退回英文，絕不可阻擋 App 啟動
+      try {
+        await initLanguageByLoginStatus(loggedIn);
+      } catch (e) {
+        console.error('[useInitApp] 語系初始化失敗，退回預設語言:', e);
+      }
 
       // ✅ 如果已登入，檢查登入是否過期並刷新 token
       if (loggedIn) {

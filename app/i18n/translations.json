@@ -14,6 +14,91 @@
         "zh-CN": "发送验证信",
         "en": "Send Verification Email"
     },
+    "sendResetEmail": {
+        "zh-TW": "發送重設信",
+        "zh-CN": "发送重置信",
+        "en": "Send Reset Email"
+    },
+    "submit": {
+        "zh-TW": "送出",
+        "zh-CN": "送出",
+        "en": "Submit"
+    },
+    "verificationSent": {
+        "zh-TW": "驗證信已寄出，請至信箱收信完成驗證。",
+        "zh-CN": "验证信已寄出，请至信箱收信完成验证。",
+        "en": "A verification email has been sent. Please check your inbox to complete verification."
+    },
+    "invalidEmailMessage": {
+        "zh-TW": "Email 格式不正確，請重新輸入。",
+        "zh-CN": "电子邮件格式不正确，请重新输入。",
+        "en": "Invalid email format. Please try again."
+    },
+    "emailRequired": {
+        "zh-TW": "請輸入 Email",
+        "zh-CN": "请输入 Email",
+        "en": "Please enter your email"
+    },
+    "passwordRequired": {
+        "zh-TW": "請輸入密碼",
+        "zh-CN": "请输入密码",
+        "en": "Please enter your password"
+    },
+    "confirmPasswordRequired": {
+        "zh-TW": "請再次輸入密碼",
+        "zh-CN": "请再次输入密码",
+        "en": "Please confirm your password"
+    },
+    "passwordPolicyMessage": {
+        "zh-TW": "密碼需 8-20 字元，且包含至少一個大寫字母、一個小寫字母及一個數字。",
+        "zh-CN": "密码需 8-20 字符，且包含至少一个大写字母、一个小写字母及一个数字。",
+        "en": "Password must be 8-20 characters and include at least one uppercase letter, one lowercase letter, and one number."
+    },
+    "passwordPolicyHint": {
+        "zh-TW": "密碼須 8-20 字元，且包含至少一個大寫字母、一個小寫字母及一個數字",
+        "zh-CN": "密码须 8-20 字符，且包含至少一个大写字母、一个小写字母及一个数字",
+        "en": "Password must be 8-20 characters and include at least one uppercase letter, one lowercase letter, and one number"
+    },
+    "passwordRuleUpdateHint": {
+        "zh-TW": "須符合密碼規則才能更新",
+        "zh-CN": "须符合密码规则才能更新",
+        "en": "Must meet the password rules to update"
+    },
+    "resendVerification": {
+        "zh-TW": "重發驗證信",
+        "zh-CN": "重发验证信",
+        "en": "Resend Verification Email"
+    },
+    "resendFailed": {
+        "zh-TW": "重發失敗",
+        "zh-CN": "重发失败",
+        "en": "Resend failed"
+    },
+    "registerFailedMessage": {
+        "zh-TW": "註冊失敗，請稍後再試",
+        "zh-CN": "注册失败，请稍后再试",
+        "en": "Registration failed. Please try again later."
+    },
+    "resendMailSuccessMessage": {
+        "zh-TW": "驗證信已重新寄出",
+        "zh-CN": "验证信已重新寄出",
+        "en": "Verification email has been resent."
+    },
+    "resendMailFailedMessage": {
+        "zh-TW": "重發驗證信失敗，請稍後再試",
+        "zh-CN": "重发验证信失败，请稍后再试",
+        "en": "Failed to resend verification email. Please try again later."
+    },
+    "forgotPasswordFailedMessage": {
+        "zh-TW": "重設密碼寄信失敗，請稍後再試",
+        "zh-CN": "重设密码寄信失败，请稍后再试",
+        "en": "Failed to send the reset email. Please try again later."
+    },
+    "resetPasswordFailedMessage": {
+        "zh-TW": "密碼重設失敗，請稍後再試",
+        "zh-CN": "密码重设失败，请稍后再试",
+        "en": "Failed to reset password. Please try again later."
+    },
     "cancel": {
         "zh-TW": "取消",
         "zh-CN": "取消",
@@ -63,6 +148,11 @@
         "zh-TW": "提示",
         "zh-CN": "提示",
         "en": "Notice"
+    },
+    "trialRangeNotSet": {
+        "zh-TW": "尚未設定試閱範圍，試閱長度需大於 0",
+        "zh-CN": "尚未设置试阅范围，试阅长度需大于 0",
+        "en": "Trial preview range is not set; the trial length must be greater than 0"
     },
     "storyIdNotFound": {
         "zh-TW": "找不到故事 ID",
@@ -428,5 +518,15 @@
         "zh-TW": "Alert",
         "zh-CN": "Alert",
         "en": "Alert"
+    },
+    "profileLoadFailedMessage": {
+        "zh-TW": "無法取得個人資料，請稍後再試。",
+        "zh-CN": "无法获取个人资料，请稍后再试。",
+        "en": "Couldn't load your profile. Please try again."
+    },
+    "retry": {
+        "zh-TW": "重試",
+        "zh-CN": "重试",
+        "en": "Retry"
     }
 }

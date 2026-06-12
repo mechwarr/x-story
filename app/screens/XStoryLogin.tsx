@@ -7,12 +7,19 @@ import {
     StyleSheet,
     Image,
     Modal,
+    Alert,
 } from "react-native";
 import { XStoryForgetPassword } from "./XStoryForgetPassword";
 import { translate } from "../i18n/i18n";
 import { loginWithXStory, LoginTokenResult } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
 import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
+
+// Email 格式驗證（與註冊/忘記密碼共用同一規則）
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// 密碼長度需求：8-20 字元（與註冊政策一致）
+const PASSWORD_MIN = 8;
+const PASSWORD_MAX = 20;
 
 interface Props {
     onLoginSuccess: (tokenResult: LoginTokenResult) => void;
@@ -28,7 +35,17 @@ export function XStoryLogin({ onLoginSuccess, onCancel }: Props) {
     const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
     const handleLogin = async () => {
-        const tokenResult = await loginWithXStory({ email, password });
+        // 前端先驗證，通過才送出 request
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!normalizedEmail) { Alert.alert(translate("genericErrorTitle"), translate("emailRequired")); return; }
+        if (!EMAIL_REGEX.test(normalizedEmail)) { Alert.alert(translate("genericErrorTitle"), translate("invalidEmailMessage")); return; }
+        if (!password) { Alert.alert(translate("genericErrorTitle"), translate("passwordRequired")); return; }
+        if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
+            Alert.alert(translate("genericErrorTitle"), translate("passwordPolicyMessage"));
+            return;
+        }
+
+        const tokenResult = await loginWithXStory({ email: normalizedEmail, password });
         if (tokenResult) onLoginSuccess(tokenResult);
     };
 
@@ -123,6 +140,7 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         color: "white",
         marginBottom: 40,
+        textAlign: "center",
     },
     input: {
         width: "100%",
@@ -160,7 +178,7 @@ const styles = StyleSheet.create({
     },
     cancelButtonText: {
         color: "#CCCCCC",
-        fontSize: 16,
+        fontSize: 18,
     },
     linkButton: {
         marginBottom: 30,

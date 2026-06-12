@@ -12,7 +12,7 @@ let currentLang: string = "en";
 export const availableLanguages = ["en", "zh-TW", "zh-CN"];
 
 // 語系正規化
-const normalizeLang = (lang: string): string => {
+export const normalizeLang = (lang: string): string => {
   if (lang.startsWith('zh-Hant') || lang.startsWith('zh-TW')) return 'zh-TW';
   if (lang.startsWith('zh-Hans') || lang.startsWith('zh-CN')) return 'zh-CN';
   if (availableLanguages.includes(lang)) return lang;
@@ -41,6 +41,33 @@ export const storyLangLabelByCode: Record<string, string> = {
 export const getCurrentStoryLang = (lang?: string): string => {
   const langToUse = normalizeLang(lang || currentLang);
   return storyLangLabelByCode[langToUse] ?? storyLangLabelByCode.en;
+};
+
+// 將後端書籍/章節的 lang 欄位正規化成語言碼（en / zh-TW / zh-CN）。
+// 後端各筆資料的 lang 值並不統一：可能是中文文案（簡繁字形都有，例如「簡體中文」或「简体中文」）、
+// 英文描述（Simplified Chinese / English）或語言碼（zh-CN / zh-Hans）。
+// 直接用標籤字串做 === 比對時，只要字形或文案有一點差異就會比對失敗（簡中分類因此整個消失），
+// 故統一收斂成語言碼後再比較。無法判斷時一律退回 'en'。
+export const normalizeStoryLang = (raw?: string | null): string => {
+  if (raw == null) return 'en';
+  const s = String(raw).trim();
+  if (!s) return 'en';
+
+  // 中文文案（同時涵蓋簡體與繁體兩種字形）
+  if (/簡體|简体/.test(s)) return 'zh-CN';
+  if (/繁體|繁体|正體|正体/.test(s)) return 'zh-TW';
+  // 英文描述
+  if (/simplified/i.test(s)) return 'zh-CN';
+  if (/traditional/i.test(s)) return 'zh-TW';
+  if (/english|英文|英語|英语/i.test(s)) return 'en';
+
+  // 其餘交給 normalizeLang 處理語言碼 / BCP-47（zh-TW、zh-Hant、zh-CN、zh-Hans、en…）
+  return normalizeLang(s);
+};
+
+// 判斷某筆書籍/章節資料的 lang 是否與目前 App 語系相符（兩邊都正規化成語言碼後比較）。
+export const matchesCurrentStoryLang = (rawLang?: string | null): boolean => {
+  return normalizeStoryLang(rawLang) === normalizeLang(currentLang);
 };
 
 // 取得翻譯字串

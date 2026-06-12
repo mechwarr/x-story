@@ -34,6 +34,34 @@ import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 
+/**
+ * 容錯解析後端生日字串 → 本地 Date（解析不出來回 null）。
+ * Hermes 的 new Date() 只吃嚴格 ISO，後端若回 "YYYY-MM-DD HH:mm:ss"（空格）、
+ * "YYYY/MM/DD"、非補零等格式會變 Invalid Date，故先抽出日期部分手動建構。
+ * 以本地時間 new Date(y, m-1, d) 建構，避免 UTC 午夜在不同時區造成差一天。
+ */
+function parseBirthdayString(raw?: string | null): Date | null {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  const datePart = s.split(/[T ]/)[0]; // 去掉時間部分（T 或空格分隔）
+  const m = datePart.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (m) {
+    const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (!isNaN(dt.getTime())) return dt;
+  }
+  const fallback = new Date(s); // 退路：完整 ISO 交給原生解析
+  return isNaN(fallback.getTime()) ? null : fallback;
+}
+
+/** Date → "YYYY-MM-DD"（以本地日期欄位輸出，避免 toISOString 的時區位移） */
+function formatDateLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const { coins, refreshCoins } = useCoins();
@@ -49,6 +77,8 @@ export default function ProfileScreen() {
   const [showGenderPicker, setShowGenderPicker] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  /** 後端資料抓取失敗（null 或例外）：不猜按鈕樣式，改顯示載入失敗 + 重試 */
+  const [loadFailed, setLoadFailed] = useState<boolean>(false);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState<string>('');
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
@@ -70,6 +100,7 @@ export default function ProfileScreen() {
   const loadUserProfile = useCallback(async () => {
     try {
       setIsLoading(true);
+      setLoadFailed(false);
       // 先清空顯示，避免在請求完成前短暫顯示上一帳號資料
       setName('');
       setBirthday(null);
@@ -80,8 +111,8 @@ export default function ProfileScreen() {
       if (userData) {
         if (userData.name) setName(userData.name);
         if (userData.birthday) {
-          const birthdayDate = new Date(userData.birthday);
-          if (!isNaN(birthdayDate.getTime())) setBirthday(birthdayDate);
+          const birthdayDate = parseBirthdayString(userData.birthday);
+          if (birthdayDate) setBirthday(birthdayDate);
         }
         if (typeof userData.gender === 'number' && (userData.gender === 1 || userData.gender === 2)) {
           setGender(userData.gender);
@@ -95,11 +126,13 @@ export default function ProfileScreen() {
         setShowCompleteProfileClaimCta(!profileComplete);
         console.log('[ProfileScreen] ✓ 成功載入用戶資料:', userData);
       } else {
-        console.warn('[ProfileScreen] 無法獲取用戶資料，使用預設值');
-        setShowCompleteProfileClaimCta(false);
+        // 抓取失敗（回傳 null）→ 不猜樣式，標記載入失敗以顯示重試
+        console.warn('[ProfileScreen] 無法獲取用戶資料，顯示載入失敗');
+        setLoadFailed(true);
       }
     } catch (error) {
       console.error('[ProfileScreen] 載入用戶資料時發生錯誤:', error);
+      setLoadFailed(true);
     } finally {
       setIsLoading(false);
     }
@@ -131,7 +164,7 @@ export default function ProfileScreen() {
     return '請選擇';
   };
 
-  const buildBirthdayPayload = () => (birthday ? birthday.toISOString().split('T')[0] : undefined);
+  const buildBirthdayPayload = () => (birthday ? formatDateLocal(birthday) : undefined);
 
   /** 僅更新個人資料（一般模式按鈕） */
   const handleUpdateProfileOnly = async () => {
@@ -266,6 +299,27 @@ export default function ProfileScreen() {
         <View style={[styles.container, styles.loadingContainer, { paddingHorizontal: horizontalPadding }]}>
           <ActivityIndicator size="large" color="#00a99d" />
           <Text style={[styles.loadingText, { fontSize: bodyFontSize }]}>載入中...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // 抓取失敗：不猜按鈕樣式，顯示錯誤訊息與重試
+  if (loadFailed) {
+    return (
+      <View style={styles.safe}>
+        <View style={[styles.topBar, { paddingTop: 8, paddingHorizontal: horizontalPadding }]}>
+          <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
+            <Image style={[styles.profileIconTop, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]} source={require('../../assets/blueeye.png')} />
+          </Pressable>
+        </View>
+        <View style={[styles.container, styles.loadingContainer, { paddingHorizontal: horizontalPadding }]}>
+          <Text style={[styles.loadingText, { fontSize: bodyFontSize, textAlign: 'center', marginTop: 0 }]}>
+            {translate('profileLoadFailedMessage')}
+          </Text>
+          <Pressable style={styles.retryBtn} onPress={loadUserProfile}>
+            <Text style={[styles.retryBtnText, { fontSize: submitFontSize }]}>{translate('retry')}</Text>
+          </Pressable>
         </View>
       </View>
     );
@@ -747,6 +801,20 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#e7eef6',
     marginTop: 12,
+  },
+  // ---- 載入失敗：重試按鈕 ----
+  retryBtn: {
+    marginTop: 16,
+    backgroundColor: '#00a99d',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+  },
+  retryBtnText: {
+    color: '#eafff9',
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
 
   // ---- 底部對齊容器（更新鈕 + 刪除帳號）----

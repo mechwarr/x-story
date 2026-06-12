@@ -8,11 +8,17 @@ import {
     ActivityIndicator,
     StyleSheet,
     Image,
+    KeyboardAvoidingView,
+    ScrollView,
+    Platform,
 } from "react-native";
 import { translate } from "../i18n/i18n";
 import { resetXStoryPassword } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
 import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
+
+// 密碼政策：與註冊一致 — 8-20 字、至少一個大寫、一個小寫、一個數字
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,20}$/;
 
 interface Props {
     token: string;               // 由 deep link 解析得到
@@ -28,11 +34,9 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
     const [showPwd2, setShowPwd2] = useState(false);
     const [isSending, setIsSending] = useState(false);
 
-    // ---- 基本驗證 ----
-    const MIN_LEN = 8;
+    // ---- 基本驗證（密碼政策與註冊一致）----
     const isValid =
-        pwd.length >= MIN_LEN &&
-        pwd2.length >= MIN_LEN &&
+        PASSWORD_REGEX.test(pwd) &&
         pwd === pwd2 &&
         !!token;
 
@@ -63,9 +67,9 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
                 showAlert("passwordMismatchTitle", "passwordMismatchMessage");
                 return;
             }
-            if (pwd.length < MIN_LEN) {
-                // 密碼過短（MIN_LEN 的數字請在 i18n 文字內處理）
-                showAlert("passwordTooShortTitle", "passwordTooShortMessage");
+            if (!PASSWORD_REGEX.test(pwd)) {
+                // 不符合密碼政策（與註冊一致：8-20 字、含大小寫與數字）
+                showAlert("genericErrorTitle", "passwordPolicyMessage");
                 return;
             }
         }
@@ -95,15 +99,26 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
     const headerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
     return (
-        <View style={[styles.container, isTablet && { paddingHorizontal: 24 }]}>
+        <KeyboardAvoidingView
+            style={styles.flex}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
             <View style={styles.logoContainer}>
                 <Image style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]} source={require("../../assets/blueeye.png")} />
             </View>
 
+            <ScrollView
+                contentContainerStyle={[styles.scrollContent, isTablet && { paddingHorizontal: 24 }]}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+            >
             <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
-            <View style={{ alignItems: "center", marginBottom: 30 }}>
+            <View style={{ alignItems: "center", marginBottom: 16 }}>
                 <Text style={styles.title}>{translate("resetPassword")}</Text>
             </View>
+
+            {/* 密碼規則說明 */}
+            <Text style={styles.policyHint}>{translate("passwordPolicyHint")}</Text>
 
             {/* 新密碼 */}
             <View style={styles.inputRow}>
@@ -116,6 +131,12 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
                     value={pwd}
                     onChangeText={setPwd}
                     autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="newPassword"
+                    autoComplete="password-new"
+                    returnKeyType="next"
+                    maxLength={20}
+                    editable={!isSending}
                 />
                 <TouchableOpacity
                     style={styles.eyeButton}
@@ -146,6 +167,13 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
                     value={pwd2}
                     onChangeText={setPwd2}
                     autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="newPassword"
+                    autoComplete="password-new"
+                    returnKeyType="done"
+                    maxLength={20}
+                    onSubmitEditing={submit}
+                    editable={!isSending}
                 />
                 <TouchableOpacity
                     style={styles.eyeButton}
@@ -165,6 +193,9 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
                 </TouchableOpacity>
             </View>
 
+            {/* 須符合密碼規則才能更新 */}
+            <Text style={styles.ruleUpdateHint}>{translate("passwordRuleUpdateHint")}</Text>
+
             {/* 提交按鈕 / Loading */}
             {isSending ? (
                 <ActivityIndicator size="large" color="#0ABAB5" style={{ marginTop: 24 }} />
@@ -183,12 +214,24 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
                 <Text style={styles.cancelButtonText}>{translate("cancel")}</Text>
             </TouchableOpacity>
             </View>
-        </View>
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 }
 
 // ---- 樣式（深色主題 + 圓角 + 置中）----
 const styles = StyleSheet.create({
+    flex: {
+        flex: 1,
+        backgroundColor: "#39393B",
+    },
+    scrollContent: {
+        flexGrow: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        paddingHorizontal: 28,
+        paddingVertical: 40,
+    },
     container: {
         flex: 1,
         backgroundColor: "#39393B",
@@ -213,6 +256,19 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         color: "white",
         letterSpacing: 1,
+    },
+    policyHint: {
+        color: "#CCCCCC",
+        fontSize: 13,
+        lineHeight: 18,
+        textAlign: "center",
+        marginBottom: 24,
+    },
+    ruleUpdateHint: {
+        color: "#AAAAAA",
+        fontSize: 13,
+        textAlign: "center",
+        marginTop: 12,
     },
     inputRow: {
         width: "100%",
