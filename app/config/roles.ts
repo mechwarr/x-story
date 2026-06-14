@@ -16,10 +16,11 @@ export const ROLE = {
 
 /**
  * 可檢視「未上架書籍」並改打後台書店清單 API（GET api/admin/bookstores）的最低權限級別。
- * 需求：role > 5（即 >= 6）才滿足。
- * 注意：後端 api/admin/bookstores 必須同步放寬至此門檻（>= 6），否則低於 9 的角色會收到 403。
+ * 需求：role >= 9（僅 Admin）。GET api/admin/bookstores 為管理員專用 API，
+ * 故只有 Admin 才改打後台清單；role 6（含其他 < 9 角色）一律視為一般用戶、
+ * 走公開的 GET api/bookstorelist，避免對後台端點發出會被 401/403 拒絕的請求。
  */
-export const UNLISTED_VISIBILITY_MIN_LEVEL = 6;
+export const UNLISTED_VISIBILITY_MIN_LEVEL = 9;
 
 /**
  * 可使用「場次快速切換器」（播放頭部下拉切換場次）的最低權限級別。

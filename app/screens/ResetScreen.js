@@ -10,8 +10,8 @@ export function ResetScreen({ navigation }) {
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
       showAlert(
-        "確認重置",
-        "確定要重置所有登入資料嗎？",
+        translate('resetConfirmTitle'),
+        translate('resetConfirmMessage'),
         [
           {
             text: translate('cancel'),
@@ -23,7 +23,7 @@ export function ResetScreen({ navigation }) {
             style: "destructive",
             onPress: async () => {
               await logout();
-              showAlert("已重置", "資料已清除");
+              showAlert(translate('resetDoneTitle'), translate('resetDoneMessage'));
             },
           },
         ],

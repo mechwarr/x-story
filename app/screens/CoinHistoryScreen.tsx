@@ -17,17 +17,18 @@ import { getCoinLedger, getEntitlements, CoinLedgerItem, BookEntitlementItem } f
 import { useCoins } from '../store/coinContext';
 import { PRODUCT_NAMES } from '../services/iapService';
 import useResponsive from '../hook/useResponsive';
+import { translate } from '../i18n/i18n';
 
-/** 後端 type 對應顯示文字（api/me/coins/ledger 的 type 欄位） */
-const TYPE_LABELS: Record<string, string> = {
-  IAP: '購買獲得',
-  IAP_BONUS: '獎勵獲得',
-  purchase: '購買獲得',
-  bonus: '獎勵獲得',
-  spent: '消費',
-  refund: '退款',
-  expired: '過期',
-  BOOK_PURCHASE: '書籍購買',
+/** 後端 type 對應翻譯 key（api/me/coins/ledger 的 type 欄位） */
+const TYPE_LABEL_KEYS: Record<string, string> = {
+  IAP: 'coinTypePurchase',
+  IAP_BONUS: 'coinTypeBonus',
+  purchase: 'coinTypePurchase',
+  bonus: 'coinTypeBonus',
+  spent: 'coinTypeSpent',
+  refund: 'coinTypeRefund',
+  expired: 'coinTypeExpired',
+  BOOK_PURCHASE: 'coinTypeBookPurchase',
 };
 
 /** 以購買時間比對 ledger 與 entitlement（允許誤差 2 秒內視為同一筆） */
@@ -107,7 +108,7 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
       setLogs(logsRes);
       setEntitlements(entitlementsRes.items ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '載入失敗');
+      setError(e instanceof Error ? e.message : translate('loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -127,7 +128,7 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
   return (
     <Wrapper style={styles.safe}>
       <View style={[styles.header, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
-        <Text style={[styles.title, { fontSize: ms(18) }]}>金幣紀錄</Text>
+        <Text style={[styles.title, { fontSize: ms(18) }]}>{translate('coinHistory')}</Text>
         <View style={styles.balanceChargeRow}>
           <View style={styles.balanceRowSpacer} />
           {loading && !logs.length ? (
@@ -145,7 +146,7 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
               style={styles.chargeBtn}
               onPress={() => navigation.navigate(routes.PURCHASE as never)}
             >
-              <Text style={styles.chargeText}>加值</Text>
+              <Text style={styles.chargeText}>{translate('profileTopUp')}</Text>
             </Pressable>
           </View>
         </View>
@@ -164,14 +165,15 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
       ) : (
         <ScrollView contentContainerStyle={[styles.list, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
           {logs.length === 0 ? (
-            <Text style={styles.emptyText}>尚無金幣紀錄</Text>
+            <Text style={styles.emptyText}>{translate('coinHistoryEmpty')}</Text>
           ) : (
             logs.map((log) => {
               const { line1, line2 } = log.source ? parseSourceDisplay(log.source) : { line1: '', line2: '' };
               const bookName =
                 log.type === 'BOOK_PURCHASE' ? findBookNameByCreatedAt(log.createdAt, entitlements) : null;
+              const typeKey = TYPE_LABEL_KEYS[log.type];
               const rowTitle =
-                line1 || bookName || (TYPE_LABELS[log.type] ?? log.type);
+                line1 || bookName || (typeKey ? translate(typeKey) : log.type);
               const rowNote = line2 || log.source;
               return (
               <View key={log.id} style={styles.row}>

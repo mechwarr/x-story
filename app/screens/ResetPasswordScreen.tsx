@@ -142,7 +142,7 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
                     style={styles.eyeButton}
                     onPress={() => setShowPwd(prev => !prev)}
                     accessibilityRole="button"
-                    accessibilityLabel={showPwd ? "隱藏密碼" : "顯示密碼"}
+                    accessibilityLabel={showPwd ? translate("hidePassword") : translate("showPassword")}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                     <Image
@@ -179,7 +179,7 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
                     style={styles.eyeButton}
                     onPress={() => setShowPwd2(prev => !prev)}
                     accessibilityRole="button"
-                    accessibilityLabel={showPwd2 ? "隱藏密碼" : "顯示密碼"}
+                    accessibilityLabel={showPwd2 ? translate("hidePassword") : translate("showPassword")}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                     <Image

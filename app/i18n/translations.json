@@ -9,6 +9,31 @@
         "zh-CN": "选择语言",
         "en": "Select Language"
     },
+    "menuContinueWatching": {
+        "zh-TW": "繼續觀看",
+        "zh-CN": "继续观看",
+        "en": "Continue Watching"
+    },
+    "menuReviewAgain": {
+        "zh-TW": "再次回味",
+        "zh-CN": "再次回味",
+        "en": "Watch Again"
+    },
+    "menuVersionInfo": {
+        "zh-TW": "版本資訊",
+        "zh-CN": "版本信息",
+        "en": "Version Info"
+    },
+    "menuTokenShop": {
+        "zh-TW": "代幣商城",
+        "zh-CN": "代币商城",
+        "en": "Token Shop"
+    },
+    "menuResetApp": {
+        "zh-TW": "重設應用程序",
+        "zh-CN": "重置应用程序",
+        "en": "Reset App"
+    },
     "forgotPassword": {
         "zh-TW": "忘記密碼",
         "zh-CN": "忘记密码",
@@ -593,5 +618,270 @@
         "zh-TW": "重試",
         "zh-CN": "重试",
         "en": "Retry"
+    },
+    "profileLoading": {
+        "zh-TW": "載入中...",
+        "zh-CN": "加载中...",
+        "en": "Loading..."
+    },
+    "profileMyInfoTitle": {
+        "zh-TW": "我的資料",
+        "zh-CN": "我的资料",
+        "en": "My Profile"
+    },
+    "profileTopUp": {
+        "zh-TW": "加值",
+        "zh-CN": "充值",
+        "en": "Top Up"
+    },
+    "profileViewRecords": {
+        "zh-TW": "查看紀錄",
+        "zh-CN": "查看记录",
+        "en": "View History"
+    },
+    "profileNicknameLabel": {
+        "zh-TW": "暱稱",
+        "zh-CN": "昵称",
+        "en": "Nickname"
+    },
+    "profileNicknamePlaceholder": {
+        "zh-TW": "請輸入暱稱",
+        "zh-CN": "请输入昵称",
+        "en": "Enter nickname"
+    },
+    "profileBirthdayLabel": {
+        "zh-TW": "生日",
+        "zh-CN": "生日",
+        "en": "Birthday"
+    },
+    "profileGenderLabel": {
+        "zh-TW": "性別",
+        "zh-CN": "性别",
+        "en": "Gender"
+    },
+    "genderPleaseSelect": {
+        "zh-TW": "請選擇",
+        "zh-CN": "请选择",
+        "en": "Please select"
+    },
+    "genderMale": {
+        "zh-TW": "男性",
+        "zh-CN": "男性",
+        "en": "Male"
+    },
+    "genderFemale": {
+        "zh-TW": "女性",
+        "zh-CN": "女性",
+        "en": "Female"
+    },
+    "deleteAccountLink": {
+        "zh-TW": "刪除帳號",
+        "zh-CN": "删除账号",
+        "en": "Delete Account"
+    },
+    "loadFailed": {
+        "zh-TW": "載入失敗",
+        "zh-CN": "加载失败",
+        "en": "Failed to load"
+    },
+    "close": {
+        "zh-TW": "關閉",
+        "zh-CN": "关闭",
+        "en": "Close"
+    },
+    "coinTypePurchase": {
+        "zh-TW": "購買獲得",
+        "zh-CN": "购买获得",
+        "en": "Purchased"
+    },
+    "coinTypeBonus": {
+        "zh-TW": "獎勵獲得",
+        "zh-CN": "奖励获得",
+        "en": "Bonus"
+    },
+    "coinTypeSpent": {
+        "zh-TW": "消費",
+        "zh-CN": "消费",
+        "en": "Spent"
+    },
+    "coinTypeRefund": {
+        "zh-TW": "退款",
+        "zh-CN": "退款",
+        "en": "Refund"
+    },
+    "coinTypeExpired": {
+        "zh-TW": "過期",
+        "zh-CN": "过期",
+        "en": "Expired"
+    },
+    "coinTypeBookPurchase": {
+        "zh-TW": "書籍購買",
+        "zh-CN": "书籍购买",
+        "en": "Book Purchase"
+    },
+    "coinHistoryEmpty": {
+        "zh-TW": "尚無金幣紀錄",
+        "zh-CN": "暂无金币记录",
+        "en": "No coin records yet"
+    },
+    "purchaseHistoryTitle": {
+        "zh-TW": "購買記錄",
+        "zh-CN": "购买记录",
+        "en": "Purchase History"
+    },
+    "purchaseHistoryEmpty": {
+        "zh-TW": "暫無購買記錄",
+        "zh-CN": "暂无购买记录",
+        "en": "No purchase records yet"
+    },
+    "loadPurchaseHistoryFailed": {
+        "zh-TW": "載入購買記錄失敗",
+        "zh-CN": "加载购买记录失败",
+        "en": "Failed to load purchase records"
+    },
+    "orderId": {
+        "zh-TW": "訂單編號",
+        "zh-CN": "订单编号",
+        "en": "Order ID"
+    },
+    "amountNTD": {
+        "zh-TW": "交易額度 (NTD)",
+        "zh-CN": "交易额度 (NTD)",
+        "en": "Amount (NTD)"
+    },
+    "transactionProductName": {
+        "zh-TW": "交易商品名稱",
+        "zh-CN": "交易商品名称",
+        "en": "Product"
+    },
+    "transactionTime": {
+        "zh-TW": "交易時間",
+        "zh-CN": "交易时间",
+        "en": "Time"
+    },
+    "shopTitle": {
+        "zh-TW": "商城",
+        "zh-CN": "商城",
+        "en": "Store"
+    },
+    "loadingProducts": {
+        "zh-TW": "載入商品中...",
+        "zh-CN": "加载商品中...",
+        "en": "Loading products..."
+    },
+    "loadProductsFailed": {
+        "zh-TW": "載入商品失敗",
+        "zh-CN": "加载商品失败",
+        "en": "Failed to load products"
+    },
+    "reload": {
+        "zh-TW": "重新載入",
+        "zh-CN": "重新加载",
+        "en": "Reload"
+    },
+    "noProductsAvailable": {
+        "zh-TW": "暫無可用商品",
+        "zh-CN": "暂无可用商品",
+        "en": "No products available"
+    },
+    "loadingStorePrices": {
+        "zh-TW": "正在載入商店價格資訊...",
+        "zh-CN": "正在加载商店价格信息...",
+        "en": "Loading store prices..."
+    },
+    "operationFailedTitle": {
+        "zh-TW": "操作失敗",
+        "zh-CN": "操作失败",
+        "en": "Operation Failed"
+    },
+    "productIdNotFoundMessage": {
+        "zh-TW": "找不到對應的商品 ID",
+        "zh-CN": "找不到对应的商品 ID",
+        "en": "Could not find the matching product ID"
+    },
+    "cannotPurchaseTitle": {
+        "zh-TW": "無法購買",
+        "zh-CN": "无法购买",
+        "en": "Cannot Purchase"
+    },
+    "productNotLoadedMessage": {
+        "zh-TW": "商品尚未載入或不可用",
+        "zh-CN": "商品尚未加载或不可用",
+        "en": "The product is not loaded or unavailable"
+    },
+    "iapHintSimulatorIOS": {
+        "zh-TW": "請在真實設備上測試 App Store 內購功能",
+        "zh-CN": "请在真实设备上测试 App Store 内购功能",
+        "en": "Please test App Store in-app purchases on a real device"
+    },
+    "iapHintSimulatorAndroid": {
+        "zh-TW": "請在真實設備上測試 Google Play 內購功能",
+        "zh-CN": "请在真实设备上测试 Google Play 内购功能",
+        "en": "Please test Google Play in-app purchases on a real device"
+    },
+    "iapHintGooglePlayService": {
+        "zh-TW": "請確保設備已安裝並更新 Google Play 服務",
+        "zh-CN": "请确保设备已安装并更新 Google Play 服务",
+        "en": "Please make sure Google Play services is installed and up to date"
+    },
+    "iapHintAppStore": {
+        "zh-TW": "請確保已登入 App Store 帳號並檢查 App Store Connect 配置",
+        "zh-CN": "请确保已登录 App Store 账号并检查 App Store Connect 配置",
+        "en": "Please make sure you're signed in to App Store and check the App Store Connect configuration"
+    },
+    "iapHintNetwork": {
+        "zh-TW": "請檢查網絡連接和 API 服務器狀態",
+        "zh-CN": "请检查网络连接和 API 服务器状态",
+        "en": "Please check your network connection and API server status"
+    },
+    "iapHintGeneric": {
+        "zh-TW": "請查看控制台日誌獲取詳細錯誤資訊",
+        "zh-CN": "请查看控制台日志获取详细错误信息",
+        "en": "Please check the console logs for detailed error info"
+    },
+    "noBooksViewed": {
+        "zh-TW": "尚未閱覽任何書籍",
+        "zh-CN": "尚未阅览任何书籍",
+        "en": "No books read yet"
+    },
+    "noBooksFinished": {
+        "zh-TW": "尚未看完任何書籍",
+        "zh-CN": "尚未看完任何书籍",
+        "en": "No finished books yet"
+    },
+    "screening": {
+        "zh-TW": "場次",
+        "zh-CN": "场次",
+        "en": "Session"
+    },
+    "hidePassword": {
+        "zh-TW": "隱藏密碼",
+        "zh-CN": "隐藏密码",
+        "en": "Hide password"
+    },
+    "showPassword": {
+        "zh-TW": "顯示密碼",
+        "zh-CN": "显示密码",
+        "en": "Show password"
+    },
+    "resetConfirmTitle": {
+        "zh-TW": "確認重置",
+        "zh-CN": "确认重置",
+        "en": "Confirm Reset"
+    },
+    "resetConfirmMessage": {
+        "zh-TW": "確定要重置所有登入資料嗎？",
+        "zh-CN": "确定要重置所有登录资料吗？",
+        "en": "Are you sure you want to reset all login data?"
+    },
+    "resetDoneTitle": {
+        "zh-TW": "已重置",
+        "zh-CN": "已重置",
+        "en": "Reset Complete"
+    },
+    "resetDoneMessage": {
+        "zh-TW": "資料已清除",
+        "zh-CN": "资料已清除",
+        "en": "Data cleared"
     }
 }

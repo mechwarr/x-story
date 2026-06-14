@@ -159,9 +159,9 @@ export default function ProfileScreen() {
     : 'yyyy/mm/dd';
 
   const genderDisplayLabel = (g: GenderCode) => {
-    if (g === 1) return '男性';
-    if (g === 2) return '女性';
-    return '請選擇';
+    if (g === 1) return translate('genderMale');
+    if (g === 2) return translate('genderFemale');
+    return translate('genderPleaseSelect');
   };
 
   const buildBirthdayPayload = () => (birthday ? formatDateLocal(birthday) : undefined);
@@ -298,7 +298,7 @@ export default function ProfileScreen() {
         </View>
         <View style={[styles.container, styles.loadingContainer, { paddingHorizontal: horizontalPadding }]}>
           <ActivityIndicator size="large" color="#00a99d" />
-          <Text style={[styles.loadingText, { fontSize: bodyFontSize }]}>載入中...</Text>
+          <Text style={[styles.loadingText, { fontSize: bodyFontSize }]}>{translate('profileLoading')}</Text>
         </View>
       </View>
     );
@@ -368,7 +368,7 @@ export default function ProfileScreen() {
                 source={require('../../assets/profile2.png')}
               />
 
-              <Text style={[styles.title, { fontSize: titleFontSize }]}>我的資料</Text>
+              <Text style={[styles.title, { fontSize: titleFontSize }]}>{translate('profileMyInfoTitle')}</Text>
 
               {/* 餘額 + 操作列：iOS / Android 一致，皆為單行 —— 金幣 icon + 金額 後方
                   平行排列「加值」「查看紀錄」，不換行、不堆疊到下方 */}
@@ -380,21 +380,21 @@ export default function ProfileScreen() {
                 </View>
                 <View style={[styles.walletRow, styles.walletRowRight]}>
                   <Pressable style={styles.chargeBtn} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
-                    <Text style={[styles.chargeText, { fontSize: bodyFontSize }]} numberOfLines={1}>加值</Text>
+                    <Text style={[styles.chargeText, { fontSize: bodyFontSize }]} numberOfLines={1}>{translate('profileTopUp')}</Text>
                   </Pressable>
                   <Pressable onPress={() => navigation.navigate(routes.HISTORY as never)}>
-                    <Text style={[styles.linkText, { fontSize: bodyFontSize }]} numberOfLines={1}>查看紀錄</Text>
+                    <Text style={[styles.linkText, { fontSize: bodyFontSize }]} numberOfLines={1}>{translate('profileViewRecords')}</Text>
                   </Pressable>
                 </View>
               </View>
 
               {/* 暱稱 */}
               <View style={styles.inputRow}>
-                <Text style={[styles.label, { fontSize: labelFontSize }]}>暱稱</Text>
+                <Text style={[styles.label, { fontSize: labelFontSize }]}>{translate('profileNicknameLabel')}</Text>
                 <TextInput
                   value={name}
                   onChangeText={setName}
-                  placeholder="請輸入暱稱"
+                  placeholder={translate('profileNicknamePlaceholder')}
                   placeholderTextColor="#9aa3ad"
                   selectionColor="#009688"
                   style={[styles.input, { fontSize: bodyFontSize }]}
@@ -403,7 +403,7 @@ export default function ProfileScreen() {
 
               {/* 生日 */}
               <Pressable style={styles.inputRow} onPress={() => setShowDatePicker(true)}>
-                <Text style={[styles.label, { fontSize: labelFontSize }]}>生日</Text>
+                <Text style={[styles.label, { fontSize: labelFontSize }]}>{translate('profileBirthdayLabel')}</Text>
                 <View style={styles.valueBox}>
                   <Text
                     style={[
@@ -422,7 +422,7 @@ export default function ProfileScreen() {
               {/* 性別（0=未選，1=男，2=女）：iOS 固定列 + 底部選單；Android 維持內嵌 Picker */}
               {Platform.OS === 'ios' ? (
                 <Pressable style={styles.inputRow} onPress={() => setShowGenderPicker(true)}>
-                  <Text style={[styles.label, { fontSize: labelFontSize }]}>性別</Text>
+                  <Text style={[styles.label, { fontSize: labelFontSize }]}>{translate('profileGenderLabel')}</Text>
                   <View style={styles.valueBox}>
                     <Text
                       style={[
@@ -439,7 +439,7 @@ export default function ProfileScreen() {
                 </Pressable>
               ) : (
                 <View style={styles.inputRow}>
-                  <Text style={[styles.label, { fontSize: labelFontSize }]}>性別</Text>
+                  <Text style={[styles.label, { fontSize: labelFontSize }]}>{translate('profileGenderLabel')}</Text>
                   <View style={styles.pickerBox}>
                     <Picker
                       selectedValue={gender}
@@ -448,9 +448,9 @@ export default function ProfileScreen() {
                       style={styles.picker}
                       itemStyle={{ color: '#e7eef6', fontSize: bodyFontSize }}
                     >
-                      <Picker.Item label="請選擇" value={0} />
-                      <Picker.Item label="男性" value={1} />
-                      <Picker.Item label="女性" value={2} />
+                      <Picker.Item label={translate('genderPleaseSelect')} value={0} />
+                      <Picker.Item label={translate('genderMale')} value={1} />
+                      <Picker.Item label={translate('genderFemale')} value={2} />
                     </Picker>
                   </View>
                 </View>
@@ -502,7 +502,7 @@ export default function ProfileScreen() {
 
                 {/* 刪除帳號（防誤觸：需輸入 DELETE 確認） */}
                 <Pressable style={styles.deleteAccountRow} onPress={openDeleteModal} disabled={isDeleting}>
-                  <Text style={[styles.deleteAccountText, { fontSize: labelFontSize }]}>{routes.REMOVE}</Text>
+                  <Text style={[styles.deleteAccountText, { fontSize: labelFontSize }]}>{translate('deleteAccountLink')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -625,9 +625,9 @@ export default function ProfileScreen() {
                   itemStyle={{ color: '#e7eef6', fontSize: bodyFontSize }}
                   style={styles.genderPickerIOS}
                 >
-                  <Picker.Item label="請選擇" value={0} />
-                  <Picker.Item label="男性" value={1} />
-                  <Picker.Item label="女性" value={2} />
+                  <Picker.Item label={translate('genderPleaseSelect')} value={0} />
+                  <Picker.Item label={translate('genderMale')} value={1} />
+                  <Picker.Item label={translate('genderFemale')} value={2} />
                 </Picker>
               </View>
             </Pressable>

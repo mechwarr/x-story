@@ -9,6 +9,7 @@ import routes from '../navigations/routes';
 import { iapService, PRODUCT_IDS } from '../services/iapService';
 import type { IapReceipt } from '../config/shopApiClient';
 import useResponsive from '../hook/useResponsive';
+import { translate } from '../i18n/i18n';
 
 type Purchase = {
   id: string;          // 收據編號
@@ -86,7 +87,7 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
       const convertedPurchases = receipts.map(convertReceiptToPurchase);
       setPurchases(convertedPurchases);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '載入購買記錄失敗';
+      const errorMessage = err instanceof Error ? err.message : translate('loadPurchaseHistoryFailed');
       console.error('[PurchaseHistoryScreen] 載入收據失敗:', err);
       setError(errorMessage);
       setPurchases([]);
@@ -114,36 +115,36 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
       )}
 
       <View style={styles.header}>
-        <Text style={[styles.title, { fontSize: ms(18) }]}>購買記錄</Text>
+        <Text style={[styles.title, { fontSize: ms(18) }]}>{translate('purchaseHistoryTitle')}</Text>
       </View>
 
       {isLoading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#F7BA7E" />
-          <Text style={styles.loadingText}>載入中...</Text>
+          <Text style={styles.loadingText}>{translate('profileLoading')}</Text>
         </View>
       ) : error ? (
         <View style={styles.centerContainer}>
-          <Text style={styles.errorText}>載入失敗</Text>
+          <Text style={styles.errorText}>{translate('loadFailed')}</Text>
           <Text style={styles.errorDetail}>{error}</Text>
           <Pressable onPress={loadReceipts} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>重試</Text>
+            <Text style={styles.retryButtonText}>{translate('retry')}</Text>
           </Pressable>
         </View>
       ) : purchases.length === 0 ? (
         <View style={styles.centerContainer}>
-          <Text style={styles.emptyText}>暫無購買記錄</Text>
+          <Text style={styles.emptyText}>{translate('purchaseHistoryEmpty')}</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={[styles.list, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
           {purchases.map((p) => (
             <View key={p.id} style={styles.card}>
-              <Row label="訂單編號" value={p.id} mono />
+              <Row label={translate('orderId')} value={p.id} mono />
               {p.amountNTD > 0 && (
-                <Row label="交易額度 (NTD)" value={`$${p.amountNTD}`} strong />
+                <Row label={translate('amountNTD')} value={`$${p.amountNTD}`} strong />
               )}
-              <Row label="交易商品名稱" value={p.productName} />
-              <Row label="交易時間" value={p.purchasedAt} />
+              <Row label={translate('transactionProductName')} value={p.productName} />
+              <Row label={translate('transactionTime')} value={p.purchasedAt} />
             </View>
           ))}
         </ScrollView>

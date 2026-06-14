@@ -11,6 +11,7 @@ import storage from '../storage/storage';
 import Book from '../components/Book/Book';
 import colors from '../config/colors';
 import { isEmpty } from 'lodash';
+import { translate } from '../i18n/i18n';
 
 function ContinueScreen() {
   const [storyCache, setStoryCache] = useState(null);
@@ -29,7 +30,7 @@ function ContinueScreen() {
       <Content>
         <View style={styles.books}>
           {!storyCache?.continueStory || isEmpty(storyCache?.continueStory) ? (
-            <AppText style={styles.noBooks}>尚未閱覽任何書籍</AppText>
+            <AppText style={styles.noBooks}>{translate('noBooksViewed')}</AppText>
           ) : (
             <FlatList
               data={storyCache?.continueStory ?? []}

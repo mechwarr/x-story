@@ -69,7 +69,7 @@ function HomeScreen() {
           url + `api/v1/admin/nochapter`
         );
 
-        // 判斷可見性權限：roleLevel >= 6 可檢視未上架書籍（門檻定義於 config/roles.ts）。
+        // 判斷可見性權限：roleLevel >= 9（Admin）可檢視未上架書籍並改打後台 API（門檻定義於 config/roles.ts）。
         // getEffectiveRoleLevel 會優先讀本地快取，避免每次聚焦都打 api/users/me。
         // 需在抓書店清單前確定身分，才能決定要打哪一支 API。
         const roleLevel = await getEffectiveRoleLevel();
@@ -81,8 +81,8 @@ function HomeScreen() {
           .catch(() => ({ data: [] }));
 
         // 取得書店清單：
-        // - 可見未上架（role >= 6）：打 GET api/admin/bookstores（含所有狀態，需 Bearer token）
-        // - 一般用戶：維持公開的 GET api/bookstorelist（僅上架書籍）
+        // - Admin（role >= 9）：打 GET api/admin/bookstores（含所有狀態，需 Bearer token）
+        // - 其餘角色（含 role 6）：一般用戶，走公開的 GET api/bookstorelist（僅上架書籍）
         let bookstoreList = [];
         if (canSeeUnlisted) {
           const adminResult = await getAllAdminBookstores();
@@ -163,7 +163,7 @@ function HomeScreen() {
           : fullStoryList.filter((item) => item.inBookstore);
 
         console.log(
-          `[HomeScreen] 書籍數量 — 完整: ${fullStoryList.length}, 顯示: ${displayStoryList.length}, 可見未上架: ${canSeeUnlisted}`
+          `[HomeScreen] roleLevel: ${roleLevel}, 可見未上架(canSeeUnlisted): ${canSeeUnlisted}, 書店清單筆數: ${bookstoreList.length}, 書籍數量 — 完整: ${fullStoryList.length}, 顯示: ${displayStoryList.length}`
         );
 
         // 驗證用：印出後端 lang 欄位實際出現的所有原始值，方便確認正規化是否涵蓋到位（可在問題確認後移除）

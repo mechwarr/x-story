@@ -12,6 +12,7 @@ import colors from '../config/colors';
 import storage from '../storage/storage';
 import Book from '../components/Book/Book';
 import { isEmpty } from 'lodash';
+import { translate } from '../i18n/i18n';
 
 function ReviewScreen() {
   const [storyCache, setStoryCache] = useState(null);
@@ -31,7 +32,7 @@ function ReviewScreen() {
       <Content>
         <View style={styles.books}>
           {!storyCache || isEmpty(storyCache) ? (
-            <AppText style={styles.noBooks}>尚未看完任何書籍</AppText>
+            <AppText style={styles.noBooks}>{translate('noBooksFinished')}</AppText>
           ) : (
             <FlatList
               data={storyCache ?? []}

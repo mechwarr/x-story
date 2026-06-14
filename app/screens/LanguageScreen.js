@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 
 import AppHeader from "../components/AppHeader";
 import Screen from "./Screen";
 import Content from "./Content";
 import colors from "../config/colors";
 import useResponsive from "../hook/useResponsive";
+import routes from "../navigations/routes";
 import { translate } from "../i18n/i18n";
 import { useLanguage, LANGUAGE_OPTIONS } from "../i18n/LanguageContext";
 
@@ -14,6 +16,7 @@ import { useLanguage, LANGUAGE_OPTIONS } from "../i18n/LanguageContext";
 function LanguageScreen() {
   const { scale } = useResponsive();
   const { lang, changeLanguage } = useLanguage();
+  const navigation = useNavigation();
   const [open, setOpen] = useState(false);
 
   const current =
@@ -23,10 +26,13 @@ function LanguageScreen() {
 
   const handleSelect = (code) => {
     setOpen(false);
-    if (code !== lang) {
-      // 切換後 LanguageGate 會以新語系 key 重新掛載整個畫面
-      changeLanguage(code);
-    }
+    if (code === lang) return;
+
+    // 先把抽屜目前路由切回首頁，再切換語系。
+    // 切換語系會透過 LanguageGate 以新語系 key 重新掛載整個畫面；
+    // 此時 React Navigation 會還原抽屜路由，先導回 HOME 可確保重繪後停在首頁而非語系設定頁。
+    navigation.navigate(routes.HOME);
+    changeLanguage(code);
   };
 
   return (

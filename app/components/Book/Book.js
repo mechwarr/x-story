@@ -79,6 +79,9 @@ function Book(props) {
     storyData,
     nochapter,
     read_range_end: read_range_end ?? chapter?.read_range_end,
+    // 無章節書籍的試閱旗標：與 read_range_end 同源（無章節對應的 chapter 記錄）。
+    // 少了它，StoryScreen 讀完試閱時 free_open !== '開放' → 不會跳購買視窗、直接彈回首頁。
+    free_open: chapter?.free_open,
   };
 
   // 從頭開始：有章節進章節列表，否則進故事頁

@@ -242,7 +242,7 @@ const ChapterItem = (props) => {
               style={styles.closeOverlayButton}
               onPress={() => setShowPurchaseModal(false)}
             >
-              <Text style={styles.closeOverlayButtonText}>關閉</Text>
+              <Text style={styles.closeOverlayButtonText}>{translate('close')}</Text>
             </Pressable>
           </Pressable>
         </Pressable>

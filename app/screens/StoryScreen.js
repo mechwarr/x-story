@@ -365,6 +365,10 @@ function StoryScreen({ route }) {
   }, [story, shouldScrollInit]);
 
   useEffect(() => {
+    // 等購買狀態確認(purchaseChecked)後再抓場次：否則會先以「未購買」截斷試閱長度，
+    // 待購買狀態回來再重抓並重設索引，造成已購買者畫面閃動／被截斷。
+    if (!purchaseChecked) return;
+
     const fetchData = async () => {
       try {
         const URL = apiclient.currentBaseUrl();
@@ -374,8 +378,12 @@ function StoryScreen({ route }) {
         const roleConf = await axios.get(URL + `api/v1/admin/setup-story-role`);
 
         const rawScreenings = Array.isArray(screenings?.data) ? screenings.data : [];
-        // read_range_end（試閱場次範圍尾）截斷試閱長度；先確保是陣列再 slice，避免 undefined.slice() 例外
-        const screeningsList = read_range_end
+        // 僅「試閱中且未購買」才依 read_range_end（試閱場次範圍尾）截斷；
+        // 已購買或非試閱書應看到完整場次。先確保是陣列再 slice，避免 undefined.slice() 例外。
+        // 註：isBookPurchased/free_open 刻意改由 closure 讀取、不列入 deps，避免使用者於覆蓋層
+        //     購買後 isBookPurchased 變動觸發本 effect 重抓、把閱讀索引重設回開頭。
+        const shouldTrim = read_range_end && free_open === '開放' && !isBookPurchased;
+        const screeningsList = shouldTrim
           ? rawScreenings.slice(0, +read_range_end)
           : rawScreenings;
         // 夾住還原的場次索引，避免快取 screen 超過（伺服器更新或試閱截斷後）現有場次數而立即彈回
@@ -403,7 +411,7 @@ function StoryScreen({ route }) {
 
     if (cachedIndex) setShouldScrollInit(true);
     fetchData();
-  }, [read_range_end]);
+  }, [read_range_end, purchaseChecked]);
 
   return (
     <ImageBackground
@@ -508,7 +516,7 @@ function StoryScreen({ route }) {
                 style={styles.closeOverlayButton}
                 onPress={() => setShowPurchaseOverlay(false)}
               >
-                <Text style={[styles.closeOverlayButtonText, { fontSize: ms(16) }]}>關閉</Text>
+                <Text style={[styles.closeOverlayButtonText, { fontSize: ms(16) }]}>{translate('close')}</Text>
               </Pressable>
             </Pressable>
           </Pressable>

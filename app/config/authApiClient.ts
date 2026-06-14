@@ -287,18 +287,23 @@ export async function logoutWithXStory(): Promise<boolean> {
       accessToken: accessToken ?? "",
     };
 
-    const res = await authApi.post<XStoryAuthResponse>("api/auth/logout", payload);
+    const headers: Record<string, string> = {};
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
+    const res = await authApi.post<XStoryAuthResponse>("api/auth/logout", payload, headers);
 
     if (res && res.message === '登出成功') {
       return true;
     } else {
+      // 登出以清除本地資料為主，後端失敗時不阻擋使用者，僅記錄 log
       console.warn("登出失敗:", res?.message);
-      alert(res?.message || "登出失敗，請稍後再試");
       return false;
     }
   } catch (error) {
-    alert(extractErrorMessage(error));
-    console.error("登出時發生錯誤:", error);
+    // 後端登出失敗（例如 token 已過期）不應跳 alert 擋住登出流程，僅記錄 log
+    console.warn("登出時發生錯誤:", extractErrorMessage(error));
     return false;
   }
 }

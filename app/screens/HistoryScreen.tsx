@@ -58,7 +58,7 @@ export default function HistoryScreen() {
             style={styles.chargeBtn}
             onPress={() => navigation.navigate(routes.PURCHASE as never)}
           >
-            <Text style={styles.chargeText}>加值</Text>
+            <Text style={styles.chargeText}>{translate('profileTopUp')}</Text>
           </Pressable>
         </View>
       )}

@@ -16,6 +16,7 @@ import StoryContext from "../components/story/context";
 
 import routes from "./routes";
 import colors from "../config/colors";
+import { translate } from "../i18n/i18n";
 import VersionScreen from "../screens/VersionScreen";
 import LanguageScreen from "../screens/LanguageScreen";
 import {ResetScreen} from "../screens/ResetScreen";
@@ -93,12 +94,46 @@ export default function AppNavigator() {
           name={routes.HOME}
           component={StoryNavigator}
         />
-        <Drawer.Screen name={routes.CONTINUE} component={ContinueScreen} />
-        <Drawer.Screen name={routes.REVIEW} component={ReviewScreen} />
-        <Drawer.Screen name={routes.VERSION} component={VersionScreen} />
-        <Drawer.Screen name={routes.LANGUAGE} component={LanguageScreen} />
-        <Drawer.Screen name={routes.PURCHASE} component={ShopScreen} />
-        <Drawer.Screen name={routes.RESET} component={ResetScreen} />
+        <Drawer.Screen
+          name={routes.CONTINUE}
+          component={ContinueScreen}
+          options={{ drawerLabel: translate("menuContinueWatching") }}
+        />
+        <Drawer.Screen
+          name={routes.REVIEW}
+          component={ReviewScreen}
+          options={{ drawerLabel: translate("menuReviewAgain") }}
+        />
+        <Drawer.Screen
+          name={routes.VERSION}
+          component={VersionScreen}
+          options={{ drawerLabel: translate("menuVersionInfo") }}
+        />
+        <Drawer.Screen
+          name={routes.LANGUAGE}
+          component={LanguageScreen}
+          options={{ drawerLabel: translate("languageSettings") }}
+        />
+        {/* 代幣商城：保留此 Drawer.Screen 僅作為左側選單項目的載體（DrawerItemList
+            會自動列出已註冊的 screen）。實際點擊時攔截 drawerItemPress，改 navigate
+            進 Home 內層 Stack 的 PURCHASE，與 ProfileScreen「加值」走同一個 stack 實例，
+            行為（進場動畫、返回）一致；drawer 層的 ShopScreen 實例不會被顯示。 */}
+        <Drawer.Screen
+          name={routes.PURCHASE}
+          component={ShopScreen}
+          options={{ drawerLabel: translate("menuTokenShop") }}
+          listeners={({ navigation }) => ({
+            drawerItemPress: (e) => {
+              e.preventDefault();
+              navigation.navigate(routes.HOME, { screen: routes.PURCHASE });
+            },
+          })}
+        />
+        <Drawer.Screen
+          name={routes.RESET}
+          component={ResetScreen}
+          options={{ drawerLabel: translate("menuResetApp") }}
+        />
       </Drawer.Navigator>
     </StoryContext.Provider>
   );

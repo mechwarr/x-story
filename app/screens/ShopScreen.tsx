@@ -14,6 +14,7 @@ import { type ProductId } from '../services/iapService';
 import { useCoins } from '../store/coinContext';
 import { getCoinPacks, type CoinPack } from '../config/shopApiClient';
 import { appStoreSkuMatchesBackendProductId } from '../utils/iosIapSkuMapping';
+import { translate } from '../i18n/i18n';
 
 const RIGHT_COLORS = ['#F2D4AE', '#F4B86F', '#F3A55D', '#F18F52', '#EF7D47', '#EA6A3E'];
 
@@ -151,7 +152,7 @@ export default function ShopScreen() {
       console.error('[ShopScreen] 階段 2（平台）錯誤:', error.message);
       if (!hasAlertedIAPError.current) {
         hasAlertedIAPError.current = true;
-        showAlert('載入商品失敗', error.message);
+        showAlert(translate('loadProductsFailed'), error.message);
       }
     } else {
       hasAlertedIAPError.current = false;
@@ -240,13 +241,13 @@ export default function ShopScreen() {
   const handlePressPack = async (p: PackItem & { productId?: ProductId; isAvailable?: boolean }) => {
     if (!p.productId) {
       console.warn('[ShopScreen] 找不到對應的商品 ID:', p.id);
-      showAlert('操作失敗', '找不到對應的商品 ID');
+      showAlert(translate('operationFailedTitle'), translate('productIdNotFoundMessage'));
       return;
     }
 
     if (!p.isAvailable) {
       console.warn('[ShopScreen] 商品尚未載入或不可用:', p.productId);
-      showAlert('無法購買', '商品尚未載入或不可用');
+      showAlert(translate('cannotPurchaseTitle'), translate('productNotLoadedMessage'));
       return;
     }
 
@@ -256,7 +257,7 @@ export default function ShopScreen() {
       const msg = err instanceof Error ? err.message : String(err);
 
       console.error('[ShopScreen] 購買失敗:', msg);
-      showAlert('購買失敗', msg);
+      showAlert(translate('purchaseFailedTitle'), msg);
     }
   };
 
@@ -292,7 +293,7 @@ export default function ShopScreen() {
 
       <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%', paddingHorizontal: horizontalPadding }]}>
       <View style={[styles.headerRow, { paddingTop: TITLE_TOP_PADDING, paddingBottom: 18 }]}>
-        <Text style={styles.title}>商城</Text>
+        <Text style={styles.title}>{translate('shopTitle')}</Text>
         <View style={styles.balanceBox}>
           <Image style={styles.coin} source={require('../../assets/coin.png')} />
           <Text style={styles.balanceText}>{coins}</Text>
@@ -302,32 +303,32 @@ export default function ShopScreen() {
       {isShopLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#f0ad57" />
-          <Text style={styles.loadingText}>載入商品中...</Text>
+          <Text style={styles.loadingText}>{translate('loadingProducts')}</Text>
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>載入商品失敗</Text>
+          <Text style={styles.errorTitle}>{translate('loadProductsFailed')}</Text>
           <Text style={styles.errorMessage}>{error.message}</Text>
           <Text style={styles.errorHint}>
-            {error.message.includes('模擬器') 
-              ? Platform.OS === 'ios' 
-                ? '請在真實設備上測試 App Store 內購功能'
-                : '請在真實設備上測試 Google Play 內購功能'
+            {error.message.includes('模擬器')
+              ? Platform.OS === 'ios'
+                ? translate('iapHintSimulatorIOS')
+                : translate('iapHintSimulatorAndroid')
               : error.message.includes('Google Play 服務')
-              ? '請確保設備已安裝並更新 Google Play 服務'
+              ? translate('iapHintGooglePlayService')
               : error.message.includes('App Store') || error.message.includes('App Store Connect')
               ? Platform.OS === 'ios'
-                ? '請確保已登入 App Store 帳號並檢查 App Store Connect 配置'
-                : '請檢查網絡連接和 API 服務器狀態'
+                ? translate('iapHintAppStore')
+                : translate('iapHintNetwork')
               : error.message.includes('無法從伺服器獲取')
-              ? '請檢查網絡連接和 API 服務器狀態'
-              : '請查看控制台日誌獲取詳細錯誤資訊'}
+              ? translate('iapHintNetwork')
+              : translate('iapHintGeneric')}
           </Text>
           <Pressable
             onPress={refreshProducts}
             style={styles.retryButton}
           >
-            <Text style={styles.retryButtonText}>重新載入</Text>
+            <Text style={styles.retryButtonText}>{translate('reload')}</Text>
           </Pressable>
           <Text style={styles.errorDebug}>
             詳細錯誤請查看控制台日誌（搜尋 [useIAP] 或 [iapService]）
@@ -335,7 +336,7 @@ export default function ShopScreen() {
         </View>
       ) : packsWithPrice.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>暫無可用商品</Text>
+          <Text style={styles.loadingText}>{translate('noProductsAvailable')}</Text>
           <Text style={styles.emptyReasonTitle}>目前沒有資料的階段：</Text>
           <Text style={styles.emptyReasonText}>{emptyReason ?? '—'}</Text>
           <Pressable
@@ -345,7 +346,7 @@ export default function ShopScreen() {
             }}
             style={styles.retryButton}
           >
-            <Text style={styles.retryButtonText}>重新載入</Text>
+            <Text style={styles.retryButtonText}>{translate('reload')}</Text>
           </Pressable>
           <Text style={styles.errorDebug}>
             控制台關鍵字：[ShopScreen]、[useIAP]、[iapService]
@@ -355,7 +356,7 @@ export default function ShopScreen() {
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
           {isIAPLoading && (
             <View style={styles.iapLoadingHint}>
-              <Text style={styles.iapLoadingText}>正在載入商店價格資訊...</Text>
+              <Text style={styles.iapLoadingText}>{translate('loadingStorePrices')}</Text>
             </View>
           )}
           {packsWithPrice.map((p, i) => (

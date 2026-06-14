@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Pressable, Text, ScrollView, StyleSheet } from 'react-native';
+import { translate } from '../i18n/i18n';
 
 /**
  * 場次快速切換器（僅 role >= 6 由父層決定是否掛載）。
@@ -58,7 +59,7 @@ export default function ScreeningSwitcher({ sessions = [], currentIndex, onSelec
             </Pressable>
 
             <Pressable style={styles.center} onPress={() => setExpanded(false)}>
-              <Text style={styles.label}>場次</Text>
+              <Text style={styles.label}>{translate('screening')}</Text>
               <Text style={styles.session}>{currentSessionId ?? '-'}</Text>
               <Text style={styles.sub}>{total ? currentIndex + 1 : 0} / {total}</Text>
             </Pressable>
@@ -92,7 +93,7 @@ export default function ScreeningSwitcher({ sessions = [], currentIndex, onSelec
                   onPress={() => jumpTo(i)}
                 >
                   <Text style={[styles.itemText, active && styles.itemTextActive]}>
-                    {i + 1}. 場次 {s?.id ?? '-'}
+                    {i + 1}. {translate('screening')} {s?.id ?? '-'}
                   </Text>
                 </Pressable>
               );
