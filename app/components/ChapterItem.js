@@ -24,6 +24,7 @@ import { translate, matchesCurrentStoryLang } from '../i18n/i18n';
 import colors from '../config/colors';
 import storage from '../storage/storage';
 import { canAccessChapter } from '../services/bookAccessService';
+import useResponsive from '../hook/useResponsive';
 
 const ChapterItem = (props) => {
   const {
@@ -53,6 +54,13 @@ const ChapterItem = (props) => {
     isBookPurchased = false,
     onPurchaseSuccess,
   } = props ?? {};
+
+  const { isTablet } = useResponsive();
+  // 解鎖鎖頭 icon：平板 RWD 放大 1/3，手機維持原尺寸
+  const LOCK_ICON_BASE_SIZE = 40;
+  const lockIconSize = isTablet
+    ? Math.round(LOCK_ICON_BASE_SIZE * (4 / 3))
+    : LOCK_ICON_BASE_SIZE;
 
   const isFreeOpen = free_open === '開放';
   const canView = canAccessChapter({ freeOpen: free_open, isBookPurchased });
@@ -189,7 +197,7 @@ const ChapterItem = (props) => {
           {showLock ? (
             <View style={styles.lock}>
               <Image
-                style={styles.lockIcon}
+                style={[styles.lockIcon, { width: lockIconSize, height: lockIconSize }]}
                 source={require('../../assets/lock.png')}
               />
             </View>
@@ -263,12 +271,15 @@ const styles = StyleSheet.create({
   lockIcon: {
     width: 40,
     height: 40,
+    resizeMode: 'contain',
   },
   lock: {
     position: 'absolute',
     zIndex: 1,
-    width: '100%',
-    height: '100%',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -20,7 +20,7 @@ import StoryHeader from '../components/StoryHeader';
 import ScreeningSwitcher from '../components/ScreeningSwitcher';
 import Chat from '../components/chat/Chat';
 import storage from '../storage/storage';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import _ from 'lodash';
 import apiclient from '../config/apiClient';
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate';
@@ -28,8 +28,8 @@ import { purchaseStoryWithCoins, recordBookRead, getEffectiveRoleLevel } from '.
 import { canSwitchScreening } from '../config/roles';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
 import { useCoins } from '../store/coinContext';
-import { translate } from '../i18n/i18n';
-import { syncPurchasedStoryIds } from '../services/bookAccessService';
+import { translate, matchesCurrentStoryLang } from '../i18n/i18n';
+import { syncPurchasedStoryIds, canAccessChapter } from '../services/bookAccessService';
 import useResponsive from '../hook/useResponsive';
 
 const domain = apiclient.currentBaseUrl() + 'images/update/';
@@ -37,6 +37,9 @@ const initStoryIdx = null;
 
 function StoryScreen({ route }) {
   const navigation = useGuardedNavigate();
+  // 自動續章用：useGuardedNavigate 只提供 navigate，章節接續需要 replace（原地重掛
+  // StoryScreen、不堆疊返回鍵），因此另取原生 navigation 物件。
+  const rawNavigation = useNavigation();
   const router = useRoute();
   const { ms } = useResponsive();
   const {
@@ -88,6 +91,38 @@ function StoryScreen({ route }) {
   }, []);
 
   const screeningList = Array.isArray(queryInfo.screenings) ? queryInfo.screenings : [];
+
+  // 章節清單（與章節選單同一來源、同樣以目前語系過濾並維持相同排序），
+  // 供「本章播畢自動接續下一章」判斷下一章 id 與其試閱設定使用。
+  // 用 ref 保存最新清單：避免把它列入「播畢判斷 effect」的依賴，否則清單於閱讀途中
+  // 載入完成會觸發 effect 重跑、重抓當前場次並清空畫面（setStory([])）造成閃動。
+  const chapterListRef = useRef([]);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await axios.get(
+          apiclient.currentBaseUrl() + `api/v1/admin/chapter/${storyId}`
+        );
+        const list = (Array.isArray(res?.data) ? res.data : []).filter((c) =>
+          matchesCurrentStoryLang(c?.lang)
+        );
+        if (mounted) chapterListRef.current = list;
+      } catch (error) {
+        console.error('章節清單載入失敗：', error);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [storyId]);
+
+  // 依目前 chapterId 在（語系過濾後的）章節清單中找出下一章；沒有則回傳 null（代表整本已讀完）。
+  const getNextChapter = useCallback(() => {
+    const list = chapterListRef.current;
+    if (!list.length) return null;
+    const idx = list.findIndex((c) => String(c?.id) === String(chapterId));
+    if (idx < 0 || idx + 1 >= list.length) return null;
+    return list[idx + 1];
+  }, [chapterId]);
 
   // 跳到指定場次（複用既有「story:null → 重抓內容」機制）
   const goToScreening = useCallback(
@@ -159,18 +194,46 @@ function StoryScreen({ route }) {
         } else if (screenings.length > 0 && index.screen >= screenings.length) {
           // 場次清單已載入且確實播完（screen 超過尾端）才返回；
           // 空清單（length === 0，可能是設定問題）不在此彈回，避免一進章節就被踢出
-          // 免費章節滑到底：若未持有本書則顯示購買按鈕
+
+          // 1) 試閱播畢：未持有本書且為試閱（開放）章節 → 此處場次已被 read_range_end 截斷，
+          //    代表已到「試閱的最後內容」，跳出購買提示（優先於自動續章）。
           if (free_open === '開放' && !isBookPurchased) {
             setShowPurchaseOverlay(true);
             return;
           }
+
+          // 2) 章節型書籍：本章播畢後若仍有「可閱讀」的下一章，原地接續到下一章第一場次。
           if (storyData?.chapter_type === '章節') {
-            navigation.navigate(routes.CHAPTER, { name, author, storyId, storyData });
-          } else {
-            storage.deleteStory({ storyId }, 'continueStory');
-            storage.storeStory({ storyId, storyData, nochapter }, 'finishStory');
-            navigation.navigate(routes.MAIN);
+            const nextChapter = getNextChapter();
+            const nextAccessible =
+              nextChapter &&
+              canAccessChapter({
+                freeOpen: nextChapter.free_open,
+                isBookPurchased,
+              });
+            if (nextAccessible) {
+              // 換章前清掉本章的「繼續觀看」快取，避免下次回來停在舊章節尾端。
+              storage.deleteStory({ storyId }, 'continueStory');
+              // replace：原地重掛 StoryScreen（不帶 cachedIndex → 從新章第一場次開始），
+              // 並帶入下一章自己的試閱設定（free_open / read_range_end）。
+              rawNavigation.replace(routes.STORY, {
+                storyId,
+                chapterId: nextChapter.id,
+                name,
+                author,
+                storyData,
+                nochapter,
+                read_range_end: nextChapter.read_range_end,
+                free_open: nextChapter.free_open,
+              });
+              return;
+            }
           }
+
+          // 3) 整本書已讀完（非章節型書籍，或章節型已無下一章）→ 標記完成並回首頁（HomeScreen）。
+          storage.deleteStory({ storyId }, 'continueStory');
+          storage.storeStory({ storyId, storyData, nochapter }, 'finishStory');
+          navigation.navigate(routes.MAIN);
         }
       } catch (error) {
         console.error('API 請求失敗：', error);
@@ -502,7 +565,7 @@ function StoryScreen({ route }) {
                 <Pressable style={styles.purchaseButton} onPress={handlePurchaseStory}>
                   <View style={styles.purchaseButtonRow}>
                     <Text style={[styles.purchaseButtonText, { fontSize: ms(24) }]}>
-                      {translate('purchase')}
+                      {translate('unlock')}
                     </Text>
                     <Image
                       style={[styles.purchaseButtonCoin, { width: ms(27), height: ms(27) }]}

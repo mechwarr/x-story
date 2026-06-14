@@ -23,6 +23,12 @@ import storage from '../../storage/storage';
 const screenWidth = Dimensions.get('window').width;
 const isTablet = isTabletWidth(screenWidth);
 
+// 解鎖鎖頭 icon：平板 RWD 放大 1/3，手機維持原尺寸
+const LOCK_ICON_BASE_SIZE = 40;
+const LOCK_ICON_SIZE = isTablet
+  ? Math.round(LOCK_ICON_BASE_SIZE * (4 / 3))
+  : LOCK_ICON_BASE_SIZE;
+
 function Book(props) {
   const {
     storyData = {},
@@ -318,7 +324,7 @@ function Book(props) {
             {!isOpen ? (
               <View style={styles.lock}>
                 <Image
-                  style={styles.lockIcon}
+                  style={[styles.lockIcon, { width: LOCK_ICON_SIZE, height: LOCK_ICON_SIZE }]}
                   source={require('../../../assets/lock.png')}
                 />
               </View>
@@ -392,6 +398,7 @@ const styles = StyleSheet.create({
   lockIcon: {
     width: 40,
     height: 40,
+    resizeMode: 'contain',
   },
   newIcon: {
     width: 30,

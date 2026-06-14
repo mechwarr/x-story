@@ -56,9 +56,12 @@ function AppHeader({ news, config, onNewsPress }) {
       ) : null}
 
       {/* 右邊 Profile + Coin */}
+      {/* PROFILE 只註冊在 HOME 內層的 StoryNavigator；AppHeader 也會被掛在 drawer 層
+          的畫面（如語系設定頁）使用，若直接 navigate(PROFILE) 會因不在同一導覽樹而失效。
+          統一改用巢狀目標導向 HOME 內的 PROFILE，確保各頁右上角 Profile 行為與首頁一致。 */}
       <Pressable
         style={styles.rightContainer}
-        onPress={() => navigation.navigate(routes.PROFILE)}
+        onPress={() => navigation.navigate(routes.HOME, { screen: routes.PROFILE })}
         hitSlop={8}
       >
         <Image style={[styles.profileIcon, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]} source={require('../../assets/profile.png')} />

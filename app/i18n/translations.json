@@ -725,9 +725,9 @@
         "en": "No coin records yet"
     },
     "purchaseHistoryTitle": {
-        "zh-TW": "購買記錄",
-        "zh-CN": "购买记录",
-        "en": "Purchase History"
+        "zh-TW": "交易紀錄",
+        "zh-CN": "交易记录",
+        "en": "Transaction History"
     },
     "purchaseHistoryEmpty": {
         "zh-TW": "暫無購買記錄",
@@ -749,9 +749,14 @@
         "zh-CN": "交易额度 (NTD)",
         "en": "Amount (NTD)"
     },
+    "transactionAmount": {
+        "zh-TW": "交易金額",
+        "zh-CN": "交易金额",
+        "en": "Amount"
+    },
     "transactionProductName": {
-        "zh-TW": "交易商品名稱",
-        "zh-CN": "交易商品名称",
+        "zh-TW": "商品名稱",
+        "zh-CN": "商品名称",
         "en": "Product"
     },
     "transactionTime": {

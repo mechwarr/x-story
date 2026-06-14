@@ -111,19 +111,13 @@ export function CustomAlertHost(): React.ReactElement | null {
   const stacked = buttons.length > 2;
 
   const renderButton = (btn: AlertButton, index: number) => {
-    const isCancel = btn.style === 'cancel';
     const isDestructive = btn.style === 'destructive';
     return (
       <Pressable
         key={index}
         style={({ pressed }) => [
           styles.button,
-          stacked ? styles.buttonStacked : styles.buttonInline,
-          isCancel
-            ? styles.buttonCancel
-            : isDestructive
-            ? styles.buttonDestructive
-            : styles.buttonPrimary,
+          stacked && styles.buttonStacked,
           pressed && styles.buttonPressed,
         ]}
         onPress={() => handleButton(btn)}
@@ -133,11 +127,7 @@ export function CustomAlertHost(): React.ReactElement | null {
           style={[
             styles.buttonText,
             { fontSize: ms(16) },
-            isCancel
-              ? styles.buttonCancelText
-              : isDestructive
-              ? styles.buttonDestructiveText
-              : styles.buttonPrimaryText,
+            isDestructive ? styles.buttonDestructiveText : styles.buttonPrimaryText,
           ]}
         >
           {btn.text ?? 'OK'}
@@ -200,55 +190,41 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
   },
+  // 純文字按鈕靠右橫排（Android Material AlertDialog 慣例）；3 顆以上改直排並靠右。
   buttonRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8,
   },
   buttonColumn: {
     flexDirection: 'column',
+    alignItems: 'flex-end',
   },
   button: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonInline: {
-    flex: 1,
-  },
   buttonStacked: {
-    width: '100%',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   buttonPressed: {
-    opacity: 0.7,
-  },
-  buttonPrimary: {
-    backgroundColor: colors.primary,
-  },
-  buttonCancel: {
-    backgroundColor: '#f0f0f0',
-    borderWidth: 1,
-    borderColor: '#d9d9d9',
-  },
-  buttonDestructive: {
-    backgroundColor: colors.danger,
+    opacity: 0.6,
   },
   buttonText: {
     fontSize: 16,
+    fontWeight: '600',
   },
+  // 主要動作：原生 Android colorAccent 綠色純文字
   buttonPrimaryText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: '#009688',
   },
-  buttonCancelText: {
-    color: '#333',
-  },
+  // 刪除類動作維持紅色警示語意
   buttonDestructiveText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: colors.danger,
   },
 });
 

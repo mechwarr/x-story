@@ -6,14 +6,14 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import routes from '../navigations/routes';
-import { iapService, PRODUCT_IDS } from '../services/iapService';
+import { iapService, PRODUCT_IDS, PRODUCT_NAMES } from '../services/iapService';
 import type { IapReceipt } from '../config/shopApiClient';
 import useResponsive from '../hook/useResponsive';
 import { translate } from '../i18n/i18n';
 
 type Purchase = {
   id: string;          // 收據編號
-  amountNTD: number;   // 交易額度（NTD）- 暫時顯示為 0，需要從後端獲取價格
+  priceText: string;   // 交易金額（平台顯示價格，含幣別符號，例如 "NT$170"）
   productName: string; // 交易商品名稱
   purchasedAt: string; // 交易時間（yyyy.MM.dd HH:mm）
   totalCoins: number;  // 總金幣數
@@ -37,13 +37,27 @@ function formatDateTime(isoString: string): string {
   }
 }
 
-// 將 IAP 收據轉換為 UI 顯示格式（僅用平台顯示名稱）
+/**
+ * 依 productId 取得顯示名稱：優先用雙平台（App Store / Google Play）回傳的當地語系 title，
+ * 平台尚未載入時退回本地硬編碼名稱，最後才退回 productId。
+ */
+function resolveProductName(productId: string): string {
+  const platformName = iapService.getProductName(productId);
+  if (platformName && platformName !== productId) {
+    return platformName;
+  }
+  return PRODUCT_NAMES[productId] ?? productId;
+}
+
+// 將 IAP 收據轉換為 UI 顯示格式（優先平台當地語系名稱，退回本地名稱）
 function convertReceiptToPurchase(receipt: IapReceipt): Purchase {
-  const productName = iapService.getProductName(receipt.productId);
+  const productName = resolveProductName(receipt.productId);
+  // 交易金額：依 productId 從雙平台取得真實貨幣價格（含幣別符號）
+  const priceText = iapService.getProductDisplayPrice(receipt.productId);
 
   return {
     id: receipt.receiptId,
-    amountNTD: 0, // TODO: 需要從後端獲取實際價格，或根據 productId 查詢
+    priceText,
     productName,
     purchasedAt: formatDateTime(receipt.createdAt),
     totalCoins: receipt.totalCoins,
@@ -139,10 +153,10 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
         <ScrollView contentContainerStyle={[styles.list, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
           {purchases.map((p) => (
             <View key={p.id} style={styles.card}>
-              <Row label={translate('orderId')} value={p.id} mono />
-              {p.amountNTD > 0 && (
-                <Row label={translate('amountNTD')} value={`$${p.amountNTD}`} strong />
-              )}
+              <Row label={translate('orderId')} value={p.id} mono fit />
+              {p.priceText ? (
+                <Row label={translate('transactionAmount')} value={p.priceText} strong />
+              ) : null}
               <Row label={translate('transactionProductName')} value={p.productName} />
               <Row label={translate('transactionTime')} value={p.purchasedAt} />
             </View>
@@ -153,13 +167,17 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
   );
 }
 
-function Row({ label, value, strong, mono }: { label: string; value: string; strong?: boolean; mono?: boolean }) {
+function Row({ label, value, strong, mono, fit }: { label: string; value: string; strong?: boolean; mono?: boolean; fit?: boolean }) {
   return (
     <View style={rowStyles.row}>
       <Text style={rowStyles.label}>{label}</Text>
       <Text
         style={[rowStyles.value, strong && rowStyles.strong, mono && rowStyles.mono]}
-        numberOfLines={2}
+        // fit：單行不換行，過長時自動縮小字體以完整顯示（不使用省略號截斷）
+        numberOfLines={fit ? 1 : 2}
+        adjustsFontSizeToFit={fit}
+        minimumFontScale={fit ? 0.3 : undefined}
+        ellipsizeMode={fit ? 'clip' : undefined}
       >
         {value}
       </Text>

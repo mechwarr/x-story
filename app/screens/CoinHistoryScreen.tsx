@@ -7,15 +7,12 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
-  Pressable,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-
-import routes from '../navigations/routes';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { getCoinLedger, getEntitlements, CoinLedgerItem, BookEntitlementItem } from '../config/userApiClient';
 import { useCoins } from '../store/coinContext';
-import { PRODUCT_NAMES } from '../services/iapService';
+import { PRODUCT_NAMES, PRODUCT_IDS, iapService } from '../services/iapService';
 import useResponsive from '../hook/useResponsive';
 import { translate } from '../i18n/i18n';
 
@@ -47,6 +44,18 @@ function findBookNameByCreatedAt(
 }
 
 /**
+ * 依 productId 取得顯示名稱：優先用雙平台（App Store / Google Play）回傳的當地語系 title，
+ * 平台尚未載入時退回本地硬編碼名稱，最後才退回 productId。
+ */
+function resolveProductName(productId: string): string {
+  const platformName = iapService.getProductName(productId);
+  if (platformName && platformName !== productId) {
+    return platformName;
+  }
+  return PRODUCT_NAMES[productId] ?? productId;
+}
+
+/**
  * 從 source 字串解析出第一行（產品名稱／BONUS）與第二行（ORDER 字串）。
  * source 格式範例: "ORDER:xxx|PROD:item_003" 或 "ORDER:xxx|PROD:BONUS" 或 "ORDER:xxx|PROD:item_003_BONUS"
  * 若 PROD 值含 '_BONUS'，則取對應的 item_xxx 平台名稱，第一行顯示為「平台名稱 BONUS」。
@@ -62,25 +71,27 @@ function parseSourceDisplay(source: string): { line1: string; line2: string } {
       const prodValue = p.slice(5).trim(); // 'PROD:' 後面
       if (prodValue.toUpperCase().includes('_BONUS')) {
         const baseId = prodValue.replace(/_BONUS$/i, '');
-        const platformName = PRODUCT_NAMES[baseId] ?? baseId;
-        line1 = `${platformName} BONUS`;
+        line1 = `${resolveProductName(baseId)} BONUS`;
       } else if (prodValue.toUpperCase() === 'BONUS') {
         line1 = 'BONUS';
       } else {
-        line1 = PRODUCT_NAMES[prodValue] ?? prodValue;
+        line1 = resolveProductName(prodValue);
       }
     }
   }
   return { line1, line2 };
 }
 
-function formatDate(iso: string): string {
+// 格式化交易時間：從 ISO 8601 轉換為人類可讀的 yyyy.MM.dd HH:mm
+function formatDateTime(iso: string): string {
   try {
     const d = new Date(iso);
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    return `${y}.${m}.${day}`;
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${y}.${m}.${day} ${hh}:${mm}`;
   } catch {
     return iso;
   }
@@ -88,8 +99,7 @@ function formatDate(iso: string): string {
 
 export default function CoinHistoryScreen({ embedded = false }: { embedded?: boolean }) {
   const Wrapper: any = embedded ? View : SafeAreaView;
-  const navigation = useNavigation();
-  const { coins: balance, refreshCoins } = useCoins();
+  const { refreshCoins } = useCoins();
   const { isTablet, maxContentWidth, ms } = useResponsive();
 
   const [logs, setLogs] = useState<CoinLedgerItem[]>([]);
@@ -101,6 +111,14 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
     setLoading(true);
     setError(null);
     try {
+      // 先載入平台商品列表，讓 resolveProductName 能取得當地語系顯示名稱
+      try {
+        await iapService.initialize();
+        await iapService.getProductList(Object.values(PRODUCT_IDS));
+      } catch {
+        // 平台未就緒時仍可顯示紀錄，名稱退回本地名稱／productId
+      }
+
       const [logsRes, entitlementsRes] = await Promise.all([
         getCoinLedger(),
         getEntitlements(1, 100),
@@ -129,27 +147,6 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
     <Wrapper style={styles.safe}>
       <View style={[styles.header, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
         <Text style={[styles.title, { fontSize: ms(18) }]}>{translate('coinHistory')}</Text>
-        <View style={styles.balanceChargeRow}>
-          <View style={styles.balanceRowSpacer} />
-          {loading && !logs.length ? (
-            <View style={styles.balanceRow}>
-              <ActivityIndicator size="small" color="#f0ad57" />
-            </View>
-          ) : (
-            <View style={styles.balanceRow}>
-              <Image style={[styles.coin, { width: ms(20), height: ms(20) }]} source={require('../../assets/coin.png')} />
-              <Text style={[styles.balanceText, { fontSize: ms(16) }]}>{balance}</Text>
-            </View>
-          )}
-          <View style={styles.chargeBtnWrap}>
-            <Pressable
-              style={styles.chargeBtn}
-              onPress={() => navigation.navigate(routes.PURCHASE as never)}
-            >
-              <Text style={styles.chargeText}>{translate('profileTopUp')}</Text>
-            </Pressable>
-          </View>
-        </View>
       </View>
 
       {error ? (
@@ -158,7 +155,7 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
         </View>
       ) : null}
 
-      {loading && (balance > 0 || logs.length > 0) ? (
+      {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="small" color="#f0ad57" />
         </View>
@@ -171,9 +168,10 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
               const { line1, line2 } = log.source ? parseSourceDisplay(log.source) : { line1: '', line2: '' };
               const bookName =
                 log.type === 'BOOK_PURCHASE' ? findBookNameByCreatedAt(log.createdAt, entitlements) : null;
+              const bookTitle = bookName ? `${bookName} - ${translate('unlock')}` : null;
               const typeKey = TYPE_LABEL_KEYS[log.type];
               const rowTitle =
-                line1 || bookName || (typeKey ? translate(typeKey) : log.type);
+                bookTitle || line1 || (typeKey ? translate(typeKey) : log.type);
               const rowNote = line2 || log.source;
               return (
               <View key={log.id} style={styles.row}>
@@ -186,7 +184,7 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
                       {rowNote}
                     </Text>
                   ) : null}
-                  <Text style={[styles.date, { fontSize: ms(12) }]}>{formatDate(log.createdAt)}</Text>
+                  <Text style={[styles.date, { fontSize: ms(12) }]}>{formatDateTime(log.createdAt)}</Text>
                 </View>
 
                 <View style={styles.right}>
@@ -226,24 +224,6 @@ const styles = StyleSheet.create({
 
   header: { alignItems: 'center', paddingTop: 8, paddingBottom: 6 },
   title: { color: '#e7eef6', fontWeight: '700', fontSize: 18, marginBottom: 6 },
-  balanceChargeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    justifyContent: 'center',
-  },
-  balanceRowSpacer: { flex: 1 },
-  balanceRow: { flexDirection: 'row', alignItems: 'center' },
-  coin: { width: 20, height: 20, marginRight: 4 },
-  balanceText: { fontSize: 16, fontWeight: 'bold', color: '#f0ad57' },
-  chargeBtnWrap: { flex: 1, flexDirection: 'row', justifyContent: 'flex-start', paddingLeft: 12 },
-  chargeBtn: {
-    backgroundColor: '#ff3344',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  chargeText: { color: '#fff', fontWeight: '700' },
 
   errorWrap: { paddingHorizontal: 16, paddingVertical: 8 },
   errorText: { color: '#e57373', fontSize: 14 },

@@ -1196,6 +1196,23 @@ class IAPService {
   }
 
   /**
+   * 根據產品 ID 取得平台顯示價格（含正確幣別符號，例如 "NT$170"、"$5.99"）。
+   * 從雙平台（App Store / Google Play）回傳的商品資料取得，找不到時回傳空字串。
+   * @param productId - 產品 ID
+   * @returns 平台顯示價格字串，找不到則回傳空字串
+   */
+  getProductDisplayPrice(productId: string): string {
+    const product = this.cachedProducts.find(
+      (p) => (p as any).productId === productId || p.id === productId
+    );
+    if (!product) {
+      return '';
+    }
+    // 優先使用 displayPrice（商店原始價格字串，含幣別符號）；否則退回 price
+    return (product as any).displayPrice ?? (product as any).price ?? '';
+  }
+
+  /**
    * 驗證收據（調用後端 API）
    * @param purchase - 購買物件
    * @returns Promise<{ productName: string; coinsAdded: number; message?: string } | undefined> 驗證結果
