@@ -13,6 +13,11 @@ const COIN_KEY = "userCoin";
 const LANG_KEY = "userLangCode";
 const LANG_MANUAL_KEY = "userLangManual"; // "1" 表示使用者曾於設定中手動切換語系
 const ROLE_LEVEL_KEY = "userRoleLevel"; // 權限級別 (1:普通, 5:小編, 9:Admin)
+const AUTO_PLAY_SECONDS_KEY = "autoPlaySeconds"; // 劇情自動播放每段間隔秒數
+
+// 自動播放間隔：預設 3 秒，最低 1 秒
+export const DEFAULT_AUTO_PLAY_SECONDS = 3;
+export const MIN_AUTO_PLAY_SECONDS = 1;
 
 // ----------- ACCESS TOKEN FUNCTIONS ----------- //
 const setStoreToken = async (token: string) => {
@@ -332,6 +337,29 @@ const getUserRoleLevel = async (): Promise<number | null> => {
   }
 };
 
+// ----------- AUTO PLAY SETTINGS ----------- //
+// 劇情自動播放間隔（秒）。為裝置層級偏好，與帳號無關，登出時不清除。
+const setAutoPlaySeconds = async (seconds: number) => {
+  try {
+    const safe = Math.max(MIN_AUTO_PLAY_SECONDS, Math.round(seconds));
+    await SecureStore.setItemAsync(AUTO_PLAY_SECONDS_KEY, String(safe));
+  } catch (e) {
+    console.error("setAutoPlaySeconds error", e);
+  }
+};
+
+const getAutoPlaySeconds = async (): Promise<number> => {
+  try {
+    const value = await SecureStore.getItemAsync(AUTO_PLAY_SECONDS_KEY);
+    const parsed = value != null ? parseInt(value, 10) : NaN;
+    if (Number.isNaN(parsed)) return DEFAULT_AUTO_PLAY_SECONDS;
+    return Math.max(MIN_AUTO_PLAY_SECONDS, parsed);
+  } catch (e) {
+    console.error("getAutoPlaySeconds error", e);
+    return DEFAULT_AUTO_PLAY_SECONDS;
+  }
+};
+
 // 清除全部 user profile 資料
 const clearUserProfile = async () => {
   try {
@@ -385,5 +413,9 @@ export default {
   getUserLangManual,
   setUserRoleLevel,
   getUserRoleLevel,
-  clearUserProfile
+  clearUserProfile,
+
+  // Auto Play
+  setAutoPlaySeconds,
+  getAutoPlaySeconds,
 };

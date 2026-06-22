@@ -23,6 +23,7 @@ function Narrator(props) {
     textContentSize,
     textContentBaseColor,
     choseRef,
+    isActive = true,
   } = props;
 
   const imgUrl = useMemo(
@@ -63,7 +64,7 @@ function Narrator(props) {
       {videoMsg ? (
         <NarratorVideo videoMsg={videoMsg} videoDirection={videoDirection} />
       ) : null}
-      {choice1Content ? (
+      {choice1Content && isActive ? (
         <NarratorOption
           {...props}
           onPressOption={onPressOption}

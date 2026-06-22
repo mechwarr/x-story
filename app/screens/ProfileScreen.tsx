@@ -35,21 +35,32 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { Picker } from '@react-native-picker/picker';
 
 /**
- * 容錯解析後端生日字串 → 本地 Date（解析不出來回 null）。
+ * 容錯解析後端生日 → 本地 Date（解析不出來回 null）。
  * Hermes 的 new Date() 只吃嚴格 ISO，後端若回 "YYYY-MM-DD HH:mm:ss"（空格）、
- * "YYYY/MM/DD"、非補零等格式會變 Invalid Date，故先抽出日期部分手動建構。
- * 以本地時間 new Date(y, m-1, d) 建構，避免 UTC 午夜在不同時區造成差一天。
+ * "YYYY/MM/DD"、含時區位移（+08:00 / Z）、Unix 時間戳等格式都要能還原，
+ * 故優先用正則從字串中擷取年月日，並以本地時間 new Date(y, m-1, d) 建構，
+ * 避免 UTC 午夜在不同時區造成差一天。
  */
-function parseBirthdayString(raw?: string | null): Date | null {
-  if (!raw) return null;
+function parseBirthdayString(raw?: string | number | null): Date | null {
+  if (raw === null || raw === undefined) return null;
+
+  // Unix 時間戳（數字或純數字字串）：10 位視為秒、13 位視為毫秒
+  if (typeof raw === 'number' || /^\d{10,13}$/.test(String(raw).trim())) {
+    const n = Number(raw);
+    const dt = new Date(n < 1e12 ? n * 1000 : n);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+
   const s = String(raw).trim();
   if (!s) return null;
-  const datePart = s.split(/[T ]/)[0]; // 去掉時間部分（T 或空格分隔）
-  const m = datePart.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+
+  // 從字串任意位置擷取第一段 YYYY-MM-DD / YYYY/MM/DD（涵蓋帶時間、時區、空格分隔等）
+  const m = s.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (m) {
     const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
     if (!isNaN(dt.getTime())) return dt;
   }
+
   const fallback = new Date(s); // 退路：完整 ISO 交給原生解析
   return isNaN(fallback.getTime()) ? null : fallback;
 }
@@ -71,6 +82,9 @@ export default function ProfileScreen() {
   const [name, setName] = useState<string>('');
   /** null 表示尚未帶入/設定生日，畫面顯示 yyyy/mm/dd 占位字串 */
   const [birthday, setBirthday] = useState<Date | null>(null);
+  /** iOS bottom sheet 暫存的生日：開啟即帶入預設值，按「確定」才寫回 birthday。
+   *  解決 iOS spinner 未轉動就不觸發 onChange，導致 birthday 仍為 null、送出時被略過的問題。 */
+  const [draftBirthday, setDraftBirthday] = useState<Date | null>(null);
   const [gender, setGender] = useState<GenderCode>(0);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   /** iOS：性別以列顯示選中值，點擊後開 bottom sheet（Picker） */
@@ -110,16 +124,22 @@ export default function ProfileScreen() {
 
       if (userData) {
         if (userData.name) setName(userData.name);
-        if (userData.birthday) {
-          const birthdayDate = parseBirthdayString(userData.birthday);
-          if (birthdayDate) setBirthday(birthdayDate);
+        // 後端欄位名為 birthDate（非 birthday）
+        if (userData.birthDate) {
+          const birthdayDate = parseBirthdayString(userData.birthDate);
+          if (birthdayDate) {
+            setBirthday(birthdayDate);
+          } else {
+            // 後端有回生日但格式無法解析 → 留意 log 中的原始值，避免誤判為「無資料」
+            console.warn('[ProfileScreen] 生日資料無法解析，暫顯示占位字串。原始值:', userData.birthDate);
+          }
         }
         if (typeof userData.gender === 'number' && (userData.gender === 1 || userData.gender === 2)) {
           setGender(userData.gender);
         } else {
           setGender(0);
         }
-        const hasBirthday = !!(userData.birthday && String(userData.birthday).trim());
+        const hasBirthday = !!(userData.birthDate && String(userData.birthDate).trim());
         const hasGender = userData.gender === 1 || userData.gender === 2;
         // 生日 + 性別皆齊全 = 已完成個人資料；任一缺 → 仍顯示任務獎勵 CTA
         const profileComplete = hasBirthday && hasGender;
@@ -145,14 +165,32 @@ export default function ProfileScreen() {
     }, [loadUserProfile])
   );
 
+  /** 首次/未設定生日時的選擇器預設值（不會送出，僅供 picker 起始顯示） */
+  const birthdayPickerValue = birthday ?? new Date(1995, 7, 5);
+
   // ---- 事件：日期變更 ----
+  // Android：原生對話框「確定」時即帶回所選日期 → 直接寫回 birthday。
   const onChangeBirthday = (e: DateTimePickerEvent, date?: Date) => {
     if (Platform.OS === 'android') setShowDatePicker(false);
     if (date) setBirthday(date);
   };
 
-  /** 首次/未設定生日時的選擇器預設值（不會送出，僅供 picker 起始顯示） */
-  const birthdayPickerValue = birthday ?? new Date(1995, 7, 5);
+  /** iOS：開啟生日 sheet → 先把目前值（或預設）放進 draft，確保未轉動也有值可確定 */
+  const openBirthdayPicker = () => {
+    setDraftBirthday(birthday ?? birthdayPickerValue);
+    setShowDatePicker(true);
+  };
+
+  /** iOS：sheet 內滾動只更新 draft，不直接動 birthday */
+  const onChangeDraftBirthday = (e: DateTimePickerEvent, date?: Date) => {
+    if (date) setDraftBirthday(date);
+  };
+
+  /** iOS：按「確定」才把 draft 寫回 birthday（未轉動時即帶入預設值）*/
+  const confirmBirthday = () => {
+    if (draftBirthday) setBirthday(draftBirthday);
+    setShowDatePicker(false);
+  };
   const hasBirthday = !!birthday;
   const birthdayText = birthday
     ? `${birthday.getFullYear()}/${birthday.getMonth() + 1}/${birthday.getDate()}`
@@ -175,7 +213,7 @@ export default function ProfileScreen() {
       const birthdayISO = buildBirthdayPayload();
       const result = await updateUserProfile({
         name,
-        birthday: birthdayISO,
+        birthDate: birthdayISO,
         gender,
       });
 
@@ -209,7 +247,7 @@ export default function ProfileScreen() {
       const birthdayISO = buildBirthdayPayload();
       const result = await updateUserProfile({
         name,
-        birthday: birthdayISO,
+        birthDate: birthdayISO,
         gender,
       });
 
@@ -380,10 +418,24 @@ export default function ProfileScreen() {
                 </View>
                 <View style={[styles.walletRow, styles.walletRowRight]}>
                   <Pressable style={styles.chargeBtn} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
-                    <Text style={[styles.chargeText, { fontSize: bodyFontSize }]} numberOfLines={1}>{translate('profileTopUp')}</Text>
+                    <Text
+                      style={[styles.chargeText, { fontSize: bodyFontSize }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                    >
+                      {translate('profileTopUp')}
+                    </Text>
                   </Pressable>
-                  <Pressable onPress={() => navigation.navigate(routes.HISTORY as never)}>
-                    <Text style={[styles.linkText, { fontSize: bodyFontSize }]} numberOfLines={1}>{translate('profileViewRecords')}</Text>
+                  <Pressable style={styles.recordsBtn} onPress={() => navigation.navigate(routes.HISTORY as never)}>
+                    <Text
+                      style={[styles.linkText, { fontSize: bodyFontSize }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                    >
+                      {translate('profileViewRecords')}
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -402,7 +454,7 @@ export default function ProfileScreen() {
               </View>
 
               {/* 生日 */}
-              <Pressable style={styles.inputRow} onPress={() => setShowDatePicker(true)}>
+              <Pressable style={styles.inputRow} onPress={() => (Platform.OS === 'ios' ? openBirthdayPicker() : setShowDatePicker(true))}>
                 <Text style={[styles.label, { fontSize: labelFontSize }]}>{translate('profileBirthdayLabel')}</Text>
                 <View style={styles.valueBox}>
                   <Text
@@ -577,15 +629,15 @@ export default function ProfileScreen() {
             >
               <View style={[styles.datePickerToolbar, { paddingTop: Math.max(insets.top, 12) }]}>
                 <View style={styles.datePickerToolbarSpacer} />
-                <Pressable onPress={() => setShowDatePicker(false)} hitSlop={12}>
+                <Pressable onPress={confirmBirthday} hitSlop={12}>
                   <Text style={styles.datePickerDoneText}>{translate('ok')}</Text>
                 </Pressable>
               </View>
               <DateTimePicker
-                value={birthdayPickerValue}
+                value={draftBirthday ?? birthdayPickerValue}
                 mode="date"
                 display="spinner"
-                onChange={onChangeBirthday}
+                onChange={onChangeDraftBirthday}
                 maximumDate={new Date()}
                 themeVariant="dark"
                 accentColor="#009688"
@@ -704,6 +756,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
+    flexShrink: 1, // 寬度不足時可收縮，配合 adjustsFontSizeToFit 縮小文字
+  },
+  recordsBtn: {
+    flexShrink: 1, // 同上：寬度不足時收縮，讓「查看紀錄」文字縮小而非溢出
   },
   chargeText: { color: '#fff', fontWeight: '700' },
   linkText: {

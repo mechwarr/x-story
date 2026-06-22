@@ -68,7 +68,7 @@ export default function LoginContainer({ onLoginSuccess }) {
       const userData = await getUserProfile();
       // 快取權限級別（roleLevel，9 = Admin），供首頁判斷是否顯示未上架書籍
       await tokenStorage.setUserRoleLevel(Number(userData?.roleLevel) || 0);
-      const hasBirthday = !!(userData?.birthday && String(userData.birthday).trim());
+      const hasBirthday = !!(userData?.birthDate && String(userData.birthDate).trim());
       const hasGender = userData?.gender === 1 || userData?.gender === 2;
       // 生日 + 性別皆齊全才算完成；任一缺 → 首次登入導向 ProfileScreen
       setPendingProfileRedirect(!(hasBirthday && hasGender));

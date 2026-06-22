@@ -1,6 +1,6 @@
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import axios from 'axios';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Content from './Content';
@@ -12,6 +12,8 @@ import storage from '../storage/storage';
 import { bookDataBaseUrl } from '../config/apiClient';
 import { getBookstoreList, getAllAdminBookstores, getEffectiveRoleLevel, refreshRoleLevelCache } from '../config/userApiClient';
 import { canViewUnlisted } from '../config/roles';
+import { matchesCurrentStoryLang } from '../i18n/i18n';
+import { useLanguage } from '../i18n/LanguageContext';
 import routes from '../navigations/routes';
 import { consumePendingProfileRedirect } from '../auth/firstLoginRedirect';
 
@@ -42,6 +44,24 @@ function HomeScreen() {
     finish: null,
     continue: null,
   });
+
+  // 當前語系（zh-TW / zh-CN / en）。語系變更時重新計算要顯示的分類。
+  const { lang } = useLanguage();
+
+  // 只渲染「當前語系下實際有書」的分類。
+  // 原本直接把後端全部分類（繁中5 + 简中5 + 英文5，共 15 個、且英文固定排在最後）丟給 FlatList，
+  // 非當前語系的分類會渲染成高度 0 的空區塊。英語模式下前 10 個（全中文）都是空的，
+  // 英文分類落在 initialNumToRender(預設 10) 之外而永遠不被掛載，導致英語書「資料正確卻畫不出來」。
+  // 先濾掉沒有書的分類，當前語系的分類就會排在最前面、必定被渲染。
+  const visibleTypes = useMemo(() => {
+    const list = storyInfo?.storyList || [];
+    return (storyInfo?.type || []).filter((t) =>
+      list.some(
+        (b) =>
+          b?.story_type === t?.story_type && matchesCurrentStoryLang(b?.lang)
+      )
+    );
+  }, [storyInfo?.type, storyInfo?.storyList, lang]);
 
   const renderItem = ({ item }) => (
     <Books
@@ -174,8 +194,28 @@ function HomeScreen() {
           );
         }
 
+        // 安全網：書籍存在於 storyList、但其 story_type 不在 story-type 分類清單裡時，
+        // 補一個「合成分類」，避免該書因為沒有對應分類區塊而整個消失。
+        // （英語書曾全部不顯示，即因 App 端拿到的 story-type 缺少 Crime / Sci-Fi 等英語分類。）
+        // 區塊樣式來自全域 menu config，不靠 type 物件，故合成分類只需 id + story_type。
+        const fetchedTypes = type?.data ?? [];
+        const knownStoryTypes = new Set(fetchedTypes.map((t) => t?.story_type));
+        const orphanTypes = [
+          ...new Set(
+            displayStoryList
+              .map((b) => b?.story_type)
+              .filter((st) => st && !knownStoryTypes.has(st))
+          ),
+        ].map((st) => ({ id: `synthetic-${st}`, story_type: st, lang: null }));
+        if (orphanTypes.length) {
+          console.warn(
+            '[HomeScreen] story-type 缺少對應分類，已補合成分類以免書籍消失:',
+            orphanTypes.map((t) => t.story_type)
+          );
+        }
+
         setStoryInfo({
-          type: type?.data ?? [],
+          type: [...fetchedTypes, ...orphanTypes],
           config: config?.data ?? [],
           news: newsData?.data?.[0]?.news_content ?? '',
           nochapter: nochapter?.data ?? [],
@@ -212,7 +252,7 @@ function HomeScreen() {
       />
       <Content>
         <FlatList
-          data={storyInfo.type}
+          data={visibleTypes}
           keyExtractor={(item) => item?.id?.toString()}
           renderItem={renderItem}
           showsVerticalScrollIndicator={false}

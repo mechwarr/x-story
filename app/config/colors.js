@@ -29,4 +29,6 @@ export default {
   personalText: '#CACAD2',
 
   versionText: 'rgb(110,195,197)',
+
+  autoPlayGreen: '#4CAF50',
 };

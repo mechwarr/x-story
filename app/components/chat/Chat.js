@@ -1,21 +1,14 @@
-import React, { useMemo, useEffect } from 'react';
-import { View, StyleSheet, Dimensions, Image, Pressable, Platform } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, StyleSheet, Pressable, Platform } from 'react-native';
 
 
 import colors from '../../config/colors';
-import { isTabletWidth } from '../../config/responsive';
 import ChatImageArea from './ChatImageArea';
 import ChatSoundArea from './ChatSoundArea';
 
 import ChatTextArea from './ChatTextArea';
 import ChatVideoArea from './ChatVideoArea';
 import PersonalPhoto from './PersonalPhoto';
-import useStore from '../../store/story';
-import apiclient  from '../../config/apiClient';
-
-const domain = apiclient.currentBaseUrl() + 'images/update/';
-const screenWidth = Dimensions.get('window').width;
-const isTablet = isTabletWidth(screenWidth);
 
 function Chat({
   textContentColor,
@@ -35,25 +28,6 @@ function Chat({
   const roleData = useMemo(() => {
     return roleList?.find((e) => e?.role_name?.trim() === roleName?.trim());
   }, [role, roleList]);
-
-  const imgSize = useStore((state) => state.imgSize);
-  const setImgSize = useStore((state) => state.setImgSize);
-
-  useEffect(() => {
-    if (!imgMsg) return;
-    if (imgSize) setImgSize(null);
-    const imageUrl = domain + imgMsg;
-    Image.getSize(imageUrl, (width, height) => {
-      let resizeRate =
-        isTablet ? (screenWidth * 0.6) / width : 256 / width;
-      const newImage = {
-        width: isTablet ? screenWidth * 0.6 : 256,
-        height: height * resizeRate,
-      };
-      setImgSize(newImage);
-    });
-  }, [imgMsg]);
-
 
   return (
     <Pressable onPress={() => onPressOption(null)}>
@@ -98,7 +72,6 @@ function Chat({
             <ChatImageArea
               imgMsg={imgMsg}
               backgroundColor={styles.imgBackground}
-              imgSize={imgSize}
             />
           ) : null}
           {videoMsg ? <ChatVideoArea videoMsg={videoMsg} /> : null}

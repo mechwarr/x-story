@@ -4,6 +4,7 @@ import colors from '../../config/colors';
 import AppText from '../AppText';
 import Book from './Book';
 import { matchesCurrentStoryLang } from '../../i18n/i18n';
+import { useLanguage } from '../../i18n/LanguageContext';
 
 function Books({ type, config, storyList, storyCache, nochapter }) {
   const {
@@ -14,6 +15,10 @@ function Books({ type, config, storyList, storyCache, nochapter }) {
   
   const renderItem = ({ item,index }) => <Book storyData={item} storyCache={storyCache} nochapter={nochapter} index={index}/>;
 
+  // 目前語系（zh-TW / zh-CN / en）。納入 useMemo 依賴，確保切換語系時重新篩選，
+  // 不再只依賴 LanguageGate 的整棵重新掛載（若日後改為保留畫面不卸載也不會失準）。
+  const { lang } = useLanguage();
+
   // 依「分類」與「使用者語系」篩選：避免同一本書的多語版本同時出現（重複顯示），
   // 並只顯示與 App 啟動語系相符的書籍。
   const listData = useMemo(() => {
@@ -21,10 +26,10 @@ function Books({ type, config, storyList, storyCache, nochapter }) {
       (e) =>
         e?.story_type === type?.story_type && matchesCurrentStoryLang(e?.lang)
     );
-  }, [storyList, type?.story_type]);
+  }, [storyList, type?.story_type, lang]);
 
-  if (!listData?.length) return;
-  
+  if (!listData?.length) return null;
+
   return (
     <View style={styles.container}>
       {!storyList?.length ? null : (

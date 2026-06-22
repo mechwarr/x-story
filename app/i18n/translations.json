@@ -1,13 +1,23 @@
 {
     "languageSettings": {
-        "zh-TW": "語系設定",
-        "zh-CN": "语系设定",
-        "en": "Language"
+        "zh-TW": "閱讀設定",
+        "zh-CN": "阅读设定",
+        "en": "Reading Settings"
     },
     "selectLanguage": {
         "zh-TW": "選擇語言",
         "zh-CN": "选择语言",
         "en": "Select Language"
+    },
+    "autoPlaySpeed": {
+        "zh-TW": "自動播放速度",
+        "zh-CN": "自动播放速度",
+        "en": "Auto-play Speed"
+    },
+    "autoPlaySecondsUnit": {
+        "zh-TW": "{n} 秒",
+        "zh-CN": "{n} 秒",
+        "en": "{n}s"
     },
     "menuContinueWatching": {
         "zh-TW": "繼續觀看",

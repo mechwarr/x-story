@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
@@ -10,19 +10,48 @@ import useResponsive from "../hook/useResponsive";
 import routes from "../navigations/routes";
 import { translate } from "../i18n/i18n";
 import { useLanguage, LANGUAGE_OPTIONS } from "../i18n/LanguageContext";
+import Storage, {
+  DEFAULT_AUTO_PLAY_SECONDS,
+  MIN_AUTO_PLAY_SECONDS,
+} from "../auth/Storage";
 
-// 語系設定畫面：以下拉選單在 繁體中文 / 簡體中文 / English 之間手動切換。
-// 切換後會持久化並標記為手動，且整個畫面子樹會以新語系重新掛載（見 _layout.tsx 的 LanguageGate）。
+// 設定畫面：
+//  - 語系：以下拉選單在 繁體中文 / 簡體中文 / English 之間手動切換。
+//    切換後會持久化並標記為手動，且整個畫面子樹會以新語系重新掛載（見 _layout.tsx 的 LanguageGate）。
+//  - 自動播放速度：以 < 秒數 > 步進器調整劇情自動播放的每段間隔（最低 1 秒），持久化於 Storage。
 function LanguageScreen() {
   const { scale } = useResponsive();
   const { lang, changeLanguage } = useLanguage();
   const navigation = useNavigation();
   const [open, setOpen] = useState(false);
+  const [autoPlaySeconds, setAutoPlaySeconds] = useState(
+    DEFAULT_AUTO_PLAY_SECONDS
+  );
 
   const current =
     LANGUAGE_OPTIONS.find((o) => o.code === lang) ?? LANGUAGE_OPTIONS[0];
 
   const fs = Math.round(16 * scale);
+
+  // 載入已儲存的自動播放間隔
+  useEffect(() => {
+    let mounted = true;
+    Storage.getAutoPlaySeconds().then((s) => {
+      if (mounted) setAutoPlaySeconds(s);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // 調整自動播放間隔（最低 MIN_AUTO_PLAY_SECONDS）並持久化
+  const changeAutoPlaySeconds = (delta) => {
+    setAutoPlaySeconds((prev) => {
+      const next = Math.max(MIN_AUTO_PLAY_SECONDS, prev + delta);
+      Storage.setAutoPlaySeconds(next);
+      return next;
+    });
+  };
 
   const handleSelect = (code) => {
     setOpen(false);
@@ -89,6 +118,40 @@ function LanguageScreen() {
             })}
           </View>
         )}
+
+        {/* 自動播放速度：< 秒數 > 步進器，最低 1 秒 */}
+        <Text
+          style={[
+            styles.label,
+            styles.autoPlayLabel,
+            { fontSize: Math.round(15 * scale) },
+          ]}
+        >
+          {translate("autoPlaySpeed")}
+        </Text>
+        <View style={styles.stepper}>
+          <Pressable
+            style={[
+              styles.stepBtn,
+              autoPlaySeconds <= MIN_AUTO_PLAY_SECONDS && styles.stepBtnDisabled,
+            ]}
+            onPress={() => changeAutoPlaySeconds(-1)}
+            disabled={autoPlaySeconds <= MIN_AUTO_PLAY_SECONDS}
+            hitSlop={8}
+          >
+            <Text style={[styles.stepCaret, { fontSize: fs }]}>{"<"}</Text>
+          </Pressable>
+          <Text style={[styles.stepValue, { fontSize: fs }]}>
+            {translate("autoPlaySecondsUnit", { n: autoPlaySeconds })}
+          </Text>
+          <Pressable
+            style={styles.stepBtn}
+            onPress={() => changeAutoPlaySeconds(1)}
+            hitSlop={8}
+          >
+            <Text style={[styles.stepCaret, { fontSize: fs }]}>{">"}</Text>
+          </Pressable>
+        </View>
       </Content>
     </Screen>
   );
@@ -150,6 +213,35 @@ const styles = StyleSheet.create({
   check: {
     color: colors.versionText,
     marginLeft: 12,
+  },
+  autoPlayLabel: {
+    marginTop: 28,
+  },
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#4A4A4D",
+    borderWidth: 1,
+    borderColor: colors.textInputBorder,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  stepBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+  },
+  stepBtnDisabled: {
+    opacity: 0.35,
+  },
+  stepCaret: {
+    color: colors.white,
+    fontWeight: "bold",
+  },
+  stepValue: {
+    color: colors.white,
+    fontWeight: "bold",
   },
 });
 

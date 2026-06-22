@@ -356,7 +356,7 @@ export interface UserProfile {
   id?: number;
   name?: string;
   email?: string;
-  birthday?: string; // ISO 8601 格式日期字串
+  birthDate?: string; // 後端欄位名為 birthDate（ISO 8601 日期字串）
   gender?: GenderCode;
   roleLevel?: number; // 權限級別（1=普通, 5=小編, 9=Admin），詳見 config/roles.ts
   createdAt?: string;
@@ -375,7 +375,7 @@ export interface GetUserProfileResponse {
   id?: number;
   name?: string;
   email?: string;
-  birthday?: string;
+  birthDate?: string; // 後端欄位名為 birthDate
   gender?: GenderCode;
 }
 
@@ -463,7 +463,7 @@ export async function refreshRoleLevelCache(): Promise<number> {
 /** 更新資料時性別：0=未送出/未選，1=男，2=女 */
 export interface UpdateUserProfileRequest {
   name?: string;
-  birthday?: string; // ISO 8601 格式日期字串
+  birthDate?: string; // 後端欄位名為 birthDate（ISO 8601 日期字串，如 "1995-08-05"）
   gender?: GenderCode;
 }
 
@@ -495,6 +495,7 @@ export async function updateUserProfile(
       headers['Authorization'] = `Bearer ${token}`;
     }
     
+    console.log("[userApiClient] → PATCH api/users/me payload:", payload);
     const res = await userApi.patch<UpdateUserProfileResponse>(endpoint, payload, headers);
 
     console.log("[userApiClient] ✓ 成功更新用戶資料:", res);
