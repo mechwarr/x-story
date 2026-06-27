@@ -39,7 +39,12 @@ function StoryHeader({ storyName, author, config, isAutoPlay, onToggleAutoPlay }
       {/* 自動播放開關：綠底圓角鈕，置中於書名與作者之間，僅劇情內（有傳 onToggleAutoPlay）時顯示 */}
       {onToggleAutoPlay ? (
         <View style={styles.centerGroup} pointerEvents="box-none">
-          <Pressable onPress={onToggleAutoPlay} hitSlop={8} style={styles.autoBtn}>
+          {/* 自動播放中（自動中）→ 底色由綠轉灰，暗示「點一下可停止自動」；文字顏色不變 */}
+          <Pressable
+            onPress={onToggleAutoPlay}
+            hitSlop={8}
+            style={[styles.autoBtn, isAutoPlay && styles.autoBtnActive]}
+          >
             <AppText style={styles.autoBtnText}>Auto</AppText>
           </Pressable>
         </View>
@@ -99,6 +104,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.autoPlayGreen,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  autoBtnActive: {
+    backgroundColor: colors.autoPlayGray,
   },
   autoBtnText: {
     color: '#fff',

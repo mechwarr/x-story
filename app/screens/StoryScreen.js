@@ -63,6 +63,14 @@ function StoryScreen({ route }) {
   // 如果 cachedIndex.story 是 null，初始改成0，避免 FlatList 空白
   const initialStoryIndex = cachedIndex?.story === null ? 0 : cachedIndex?.story ?? initStoryIdx;
 
+  // 【診斷】進入畫面時收到的 cachedIndex（確認 path / scrollOffset 是否被帶進來）
+  console.log('[紀錄診斷] 進入 cachedIndex =', cachedIndex == null ? null : {
+    story: cachedIndex.story,
+    screen: cachedIndex.screen,
+    scrollOffset: cachedIndex.scrollOffset,
+    pathLen: Array.isArray(cachedIndex.path) ? cachedIndex.path.length : '(無 path 欄位)',
+  });
+
   const [index, setIndex] = useState({
     story: initialStoryIndex,
     screen: cachedIndex?.screen ?? 0,
@@ -86,7 +94,6 @@ function StoryScreen({ route }) {
   // （{ chapterId, screeningId, dialogId }）。
   const pendingJumpRef = useRef(null);
   const hasRecordedReadRef = useRef(false);
-  const [shouldScrollInit, setShouldScrollInit] = useState(false);
   const prevStoryLength = useRef(0);
   const [showPurchaseOverlay, setShowPurchaseOverlay] = useState(false);
   const [isBookPurchased, setIsBookPurchased] = useState(false);
@@ -102,7 +109,7 @@ function StoryScreen({ route }) {
   const { coins, refreshCoins } = useCoins();
   const priceCoins = storyData?.priceCoins ?? 0;
 
-  // 場次快速切換器：取得使用者權限級別（role >= 6 才顯示）
+  // 場次快速切換器：取得使用者權限級別（role >= 9 才顯示）
   const [roleLevel, setRoleLevel] = useState(0);
   useEffect(() => {
     let mounted = true;
@@ -192,6 +199,9 @@ function StoryScreen({ route }) {
       chapterId,
       storyData,
       read_range_end,
+      // 連同試閱旗標一起存檔：從「繼續觀看」回來時才能還原當時的試閱／購買閘門
+      // （否則 free_open 遺失，章節型書籍恢復時會誤判試閱範圍）。
+      free_open,
       nochapter,
       cachedIndex: {
         story: index.story,
@@ -207,24 +217,43 @@ function StoryScreen({ route }) {
   // 本章已結束 / 已換章（這些流程會 deleteStory('continueStory')）→ 設為 true，
   // 避免「離開畫面 / 進背景」的保底存檔把剛刪掉的進度又寫回去。
   const skipPersistRef = useRef(false);
+  // story 的鏡像 ref：讓存檔（含保底存檔）能讀到最新「造訪路徑」而不受 setState 非同步影響。
+  const storyRef = useRef([]);
 
-  // 統一的「繼續觀看」進度存檔：翻頁即存與離開保底存檔共用同一份 payload，
-  // 一律帶上最新的 story / screen / scrollOffset。story 為 null（尚未讀任一段）時不存。
+  // 進入畫面時的「待還原」資料：依存檔的造訪路徑（path＝使用者實際看過的對話 order 序列，
+  // 含分歧選擇）＋捲動位置，於落點場次內容載入後一次性還原。只消費一次。
+  const restoreRef = useRef(
+    cachedIndex
+      ? {
+          path: Array.isArray(cachedIndex.path) ? cachedIndex.path : null,
+          scrollOffset: cachedIndex.scrollOffset ?? 0,
+        }
+      : null
+  );
+  // 待還原的捲動位置：非 null 時，捲動 effect 會把列表定位到此 offset（還原劇情後的捲動落點）。
+  const [pendingScrollOffset, setPendingScrollOffset] = useState(null);
+
+  // 組出存檔 payload：一律帶上最新的 story / screen / scrollOffset，並把目前已造訪的
+  // 對話 order 序列存成 path（含分歧選擇），回來才能重建使用者實際看過的劇情。
+  const buildPayload = useCallback(
+    () => ({
+      ...cacheData,
+      cachedIndex: {
+        story: index.story,
+        screen: index.screen,
+        scrollOffset: scrollOffsetRef.current,
+        path: storyRef.current.map((it) => it?.order).filter((o) => o != null),
+      },
+    }),
+    [cacheData, index.story, index.screen]
+  );
+
+  // 統一的「繼續觀看」進度存檔。story 為 null（尚未讀任一段）時不存。
   const persistProgress = useCallback(() => {
     if (skipPersistRef.current) return;
     if (index.story === null) return;
-    storage.storeStory(
-      {
-        ...cacheData,
-        cachedIndex: {
-          story: index.story,
-          screen: index.screen,
-          scrollOffset: scrollOffsetRef.current,
-        },
-      },
-      'continueStory'
-    );
-  }, [cacheData, index.story, index.screen]);
+    storage.storeStory(buildPayload(), 'continueStory');
+  }, [buildPayload, index.story]);
 
   // 讓 AppState / 離開畫面的監聽器持有穩定參考，又能讀到最新的 persistProgress。
   const persistProgressRef = useRef(persistProgress);
@@ -591,7 +620,12 @@ function StoryScreen({ route }) {
       return;
     }
 
-    if (index.story === null) return;
+    if (index.story === null) {
+      if (restoreRef.current) {
+        console.log('[紀錄診斷] 還原被擋：index.story 為 null（cachedIndex.story 無效），無法重建劇情');
+      }
+      return;
+    }
 
     if (queryInfo.content[index.story]?.contentPresent === '結尾') {
       // 跨場次：補存「下一場起點」，避免剛推進到新場次、還沒點下一句就離開時退回上一場。
@@ -604,6 +638,7 @@ function StoryScreen({ route }) {
               story: 0,
               screen: index.screen + 1,
               scrollOffset: 0,
+              path: [], // 新場次尚未造訪任何對話，回來時退回線性還原至第一段
             },
           },
           'continueStory'
@@ -617,71 +652,107 @@ function StoryScreen({ route }) {
       return;
     }
 
-    if (shouldScrollInit) {
-      // 初始化滾動：一次設定整段
-      setStory(queryInfo.content.slice(0, index.story + 1));
-      setShouldScrollInit(false);
-    } else {
-      // 用戶點擊逐段加入
-      setStory((prev) => {
-        const newItem = queryInfo.content[index.story];
-        if (prev.length && prev[prev.length - 1]?.id === newItem?.id) return prev;
-        return [...prev, newItem];
-      });
+    // 還原：落點場次內容載入後，依存檔的造訪路徑（path）重建使用者實際看過的劇情（含分歧選擇），
+    // 並標記待還原的捲動位置。restoreRef 只消費一次，避免重覆重建。
+    if (restoreRef.current) {
+      const r = restoreRef.current;
+      restoreRef.current = null;
 
-      storage.storeStory(
-        {
-          ...cacheData,
-          cachedIndex: {
-            story: index.story,
-            screen: index.screen,
-            scrollOffset: scrollOffsetRef.current,
-          },
-        },
-        'continueStory'
-      );
+      let rebuilt;
+      if (Array.isArray(r.path) && r.path.length) {
+        const byOrder = new Map(queryInfo.content.map((c) => [String(c.order), c]));
+        rebuilt = r.path.map((o) => byOrder.get(String(o))).filter(Boolean);
+      }
+      // 無造訪路徑（舊版存檔）→ 退回線性還原到 index.story
+      if (!rebuilt || !rebuilt.length) {
+        rebuilt = queryInfo.content.slice(0, (index.story ?? 0) + 1);
+      }
+
+      console.log('[紀錄診斷] 還原觸發 → 存檔pathLen=', Array.isArray(r.path) ? r.path.length : '(無)',
+        'content.len=', queryInfo.content.length, '重建後story.len=', rebuilt.length,
+        'index.story=', index.story, 'scrollOffset=', r.scrollOffset);
+
+      setStory(rebuilt);
+      storyRef.current = rebuilt;
+      // 對齊 index.story 至最後造訪段落，後續點擊／選擇才能正確續看（若已相同則不更新，避免本 effect 重跑）
+      const last = rebuilt[rebuilt.length - 1];
+      const lastIdx = queryInfo.content.findIndex((c) => String(c.order) === String(last?.order));
+      if (lastIdx >= 0 && lastIdx !== index.story) {
+        setIndex((prev) => ({ ...prev, story: lastIdx }));
+      }
+      setPendingScrollOffset(r.scrollOffset ?? 0);
+      return;
     }
-  }, [index.story, queryInfo.content, cachedIndex?.story, shouldScrollInit]);
 
-  // 滾動控制：初始化或用戶新增故事後滾動
+    // 用戶點擊逐段加入（存檔交由下方「story 變更」effect 處理，以讀到最新造訪路徑）
+    setStory((prev) => {
+      const newItem = queryInfo.content[index.story];
+      if (prev.length && prev[prev.length - 1]?.id === newItem?.id) return prev;
+      return [...prev, newItem];
+    });
+  }, [index.story, queryInfo.content]);
+
+  // 劇情序列（story）變更後存檔：在此存才讀得到最新的造訪路徑（含分歧選擇）。
+  // 還原進行中（restoreRef 尚未消費或捲動尚未定位）不存，避免覆寫成中間狀態。
   useEffect(() => {
-    if (shouldScrollInit) {
-      setTimeout(() => {
+    storyRef.current = story; // 同步鏡像，供保底存檔讀取最新路徑
+    if (restoreRef.current) {
+      console.log('[紀錄診斷] 存檔略過：還原尚未完成 (restoreRef 仍在)，story.len=', story.length);
+      return;
+    }
+    if (pendingScrollOffset != null) {
+      console.log('[紀錄診斷] 存檔略過：捲動還原中 (pendingScrollOffset)，story.len=', story.length);
+      return;
+    }
+    if (skipPersistRef.current) return;
+    if (index.story === null || !story.length) return;
+    const payload = buildPayload();
+    console.log('[紀錄診斷] 存檔 → screen=', index.screen, 'story=', index.story,
+      'pathLen=', payload.cachedIndex.path.length, 'scrollOffset=', payload.cachedIndex.scrollOffset);
+    storage.storeStory(payload, 'continueStory');
+  }, [story]);
+
+  // 捲動控制：
+  //  - 還原階段（pendingScrollOffset != null）：定位到離開當下的捲動位置（offset 為 0 則捲到最後一段）
+  //  - 一般新增段落：自動捲到最新一段
+  useEffect(() => {
+    if (pendingScrollOffset != null) {
+      const offset = pendingScrollOffset;
+      prevStoryLength.current = story.length; // 先對齊，避免還原後誤判為「新增段落」又捲一次
+      const t = setTimeout(() => {
         if (flatlistRef.current && story.length > 0) {
-          const savedOffset = cachedIndex?.scrollOffset;
-          if (savedOffset != null && savedOffset > 0) {
-            // 有儲存捲動位置 → 以像素位移精準還原到離開當下的捲動處
-            flatlistRef.current.scrollToOffset({ offset: savedOffset, animated: false });
-            scrollOffsetRef.current = savedOffset;
-            console.log('初始化還原捲動 offset:', savedOffset);
+          if (offset > 0) {
+            flatlistRef.current.scrollToOffset({ offset, animated: false });
           } else {
-            // 無捲動位置（舊資料）→ 退回以對話索引定位。
-            // 夾住索引，避免 cachedIndex.story 大於實際內容數時 scrollToIndex 越界、無限重試卡死
-            const safeIndex = Math.min(Math.max(index.story ?? 0, 0), story.length - 1);
             flatlistRef.current.scrollToIndex({
-              index: safeIndex,
-              animated: true,
-              viewPosition: 0,
+              index: story.length - 1,
+              animated: false,
+              viewPosition: 0.5,
             });
-            console.log('初始化滾動到 index:', safeIndex);
           }
+          scrollOffsetRef.current = offset;
+          console.log('還原捲動位置 offset:', offset);
         }
-        setShouldScrollInit(false);
-      }, 200);
-    } else if (story.length > prevStoryLength.current) {
-      setTimeout(() => {
+        setPendingScrollOffset(null);
+      }, 250);
+      return () => clearTimeout(t);
+    }
+
+    if (story.length > prevStoryLength.current) {
+      const t = setTimeout(() => {
         if (flatlistRef.current) {
           flatlistRef.current.scrollToIndex({
             index: story.length - 1,
             animated: true,
             viewPosition: 0.5,
           });
-          console.log('用戶點擊新增，自動滾動到 index:', story.length - 1);
         }
       }, 200);
+      prevStoryLength.current = story.length;
+      return () => clearTimeout(t);
     }
     prevStoryLength.current = story.length;
-  }, [story, shouldScrollInit]);
+  }, [story, pendingScrollOffset]);
 
   // 自動播放：開啟後每 autoPlaySeconds 秒推進一段（等同點一下畫面）。遇下列情形暫停：
   //  - 目前段落帶選項（choice1Content）→ 停下等使用者選；選完 index.story 變動、本 effect
@@ -763,7 +834,6 @@ function StoryScreen({ route }) {
       }
     };
 
-    if (cachedIndex) setShouldScrollInit(true);
     fetchData();
   }, [read_range_end, purchaseChecked]);
 
@@ -788,17 +858,6 @@ function StoryScreen({ route }) {
           isAutoPlay={isAutoPlay}
           onToggleAutoPlay={() => setIsAutoPlay((v) => !v)}
         />
-        {console.log('[ScreeningSwitcher] roleLevel=', roleLevel,
-          'canSwitch=', canSwitchScreening(roleLevel),
-          'purchaseChecked=', purchaseChecked,
-          'screenings=', queryInfo.screenings === null ? 'null(未載入)' : screeningList.length)}
-        {canSwitchScreening(roleLevel) && screeningList.length > 0 && (
-          <ScreeningSwitcher
-            sessions={screeningList}
-            currentIndex={index.screen}
-            onSelect={goToScreening}
-          />
-        )}
         <Pressable
           onPress={_.debounce(() => onPressOption(null), 200)}
           style={{ flex: 1 }}
@@ -858,6 +917,16 @@ function StoryScreen({ route }) {
             }
           />
         </Pressable>
+
+        {/* 場次切換器（把手樣式）：渲染順序排在 FlatList 之後，確保 Android/iOS 都疊在內容最上層、
+            可見且可點。預設 top:0，握把貼齊最頂端、位於 Auto 鈕上方。 */}
+        {canSwitchScreening(roleLevel) && screeningList.length > 0 && (
+          <ScreeningSwitcher
+            sessions={screeningList}
+            currentIndex={index.screen}
+            onSelect={goToScreening}
+          />
+        )}
 
         <Modal
           visible={showPurchaseOverlay}

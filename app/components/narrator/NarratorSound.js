@@ -16,8 +16,8 @@ function NarratorSound({ soundMsg }) {
     setSound(_sound);
   }, [soundMsg]);
 
+  // 不自動播放：改由使用者點擊下方播放按鈕（Pressable）才播放。
   useEffect(() => {
-    playSound();
     return () => {
       setTimeout(() => {
         try {

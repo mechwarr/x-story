@@ -426,11 +426,19 @@ export async function getEffectiveRoleLevel(): Promise<number> {
     const token = await tokenStorage.getToken();
     if (!token) return 0;
 
+    // 快取為 null（功能上線前已登入者）或 0（先前因 token 暫時失效而誤寫的哨兵值；
+    // 後端真實角色僅 1/5/9，永不為 0）時，一律視為「未知」重新查一次 api/users/me。
     let roleLevel = await tokenStorage.getUserRoleLevel();
-    if (roleLevel === null) {
+    if (roleLevel === null || roleLevel === 0) {
       const profile = await getUserProfile();
-      roleLevel = Number(profile?.roleLevel) || 0;
-      await tokenStorage.setUserRoleLevel(roleLevel);
+      if (profile && profile.roleLevel != null) {
+        roleLevel = Number(profile.roleLevel) || 0;
+        // 僅在取得有效（>0）角色時才寫入快取，避免把暫時性失敗污染成永久 0
+        if (roleLevel > 0) await tokenStorage.setUserRoleLevel(roleLevel);
+      } else {
+        // 仍取不到（token 暫時過期等）→ 本次回 0，但不寫快取；待 token 有效後會自我修復
+        return 0;
+      }
     }
     return Number(roleLevel) || 0;
   } catch (error) {
@@ -447,13 +455,22 @@ export async function getEffectiveRoleLevel(): Promise<number> {
 export async function refreshRoleLevelCache(): Promise<number> {
   try {
     const profile = await getUserProfile();
-    const level = Number(profile?.roleLevel) || 0;
-    await tokenStorage.setUserRoleLevel(level);
-    return level;
+    // 僅在成功取得「含 roleLevel 的個資」時才覆寫快取。
+    // 取不到（api/users/me 回 401/null，多半是 token 暫時失效而非角色被降級）時，
+    // 保留原快取、絕不寫 0，避免把 Admin 在暫時性錯誤下誤砍為 0（離開 App 過久回來最常見）。
+    if (profile && profile.roleLevel != null) {
+      const level = Number(profile.roleLevel) || 0;
+      if (level > 0) {
+        await tokenStorage.setUserRoleLevel(level);
+        return level;
+      }
+    }
+    const cached = await tokenStorage.getUserRoleLevel();
+    return Number(cached) || 0;
   } catch (error) {
-    console.warn("[userApiClient] 重新查詢權限失敗，快取歸零:", (error as any)?.message);
-    await tokenStorage.setUserRoleLevel(0);
-    return 0;
+    console.warn("[userApiClient] 重新查詢權限失敗，保留原快取:", (error as any)?.message);
+    const cached = await tokenStorage.getUserRoleLevel();
+    return Number(cached) || 0;
   }
 }
 

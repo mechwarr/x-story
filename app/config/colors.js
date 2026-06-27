@@ -31,4 +31,5 @@ export default {
   versionText: 'rgb(110,195,197)',
 
   autoPlayGreen: '#4CAF50',
+  autoPlayGray: '#9E9E9E', // 自動播放進行中（自動中）的按鈕底色，點一下即停止自動
 };

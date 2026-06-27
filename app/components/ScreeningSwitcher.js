@@ -3,14 +3,16 @@ import { View, Pressable, Text, ScrollView, StyleSheet } from 'react-native';
 import { translate } from '../i18n/i18n';
 
 /**
- * 場次快速切換器（僅 role >= 6 由父層決定是否掛載）。
+ * 場次快速切換器（僅 role >= 9 由父層決定是否掛載）。
  *
  * 收合：頂端置中黑底膠囊 + 短白線握把，僅佔握把觸控區，不遮蔽播放器內容。
  * 展開：黑底面板顯示 < 場次 {場次ID} >，左右箭頭切上下場，
  *       下方為全部場次清單，超長時可垂直滾動拖曳。
  * 任一切換（上一場 / 下一場 / 點選任意場次）後立即收回，只剩頂部握把。
+ *
+ * `top` 由父層傳入，預設 0（貼齊最頂端、位於 Auto 鈕上方）。
  */
-export default function ScreeningSwitcher({ sessions = [], currentIndex, onSelect }) {
+export default function ScreeningSwitcher({ sessions = [], currentIndex, onSelect, top = 0 }) {
   const [expanded, setExpanded] = useState(false);
   const listRef = useRef(null);
 
@@ -40,7 +42,7 @@ export default function ScreeningSwitcher({ sessions = [], currentIndex, onSelec
 
   return (
     // box-none：面板以外的空白區不攔截觸控 → 不影響底下劇情輕觸推進
-    <View style={styles.wrap} pointerEvents="box-none">
+    <View style={[styles.wrap, { top }]} pointerEvents="box-none">
       {!expanded ? (
         <Pressable style={styles.handle} hitSlop={10} onPress={() => setExpanded(true)}>
           <View style={styles.grabLine} />
@@ -110,9 +112,9 @@ const ITEM_HEIGHT = 40; // 單筆場次按鈕高度（含 margin），供初始�
 const styles = StyleSheet.create({
   wrap: {
     position: 'absolute',
-    top: 0,
     left: 0,
     right: 0,
+    // top 由父層傳入（預設 0：貼齊最頂端、位於 Auto 鈕上方）
     alignItems: 'center',
     zIndex: 20,
   },

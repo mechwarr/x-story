@@ -15,7 +15,8 @@ import apiclient  from '../../config/apiClient';
 import { isTabletWidth } from '../../config/responsive';
 import { translate } from '../../i18n/i18n';
 import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
-import { purchaseStoryWithCoins } from '../../config/userApiClient';
+import { purchaseStoryWithCoins, getEffectiveRoleLevel } from '../../config/userApiClient';
+import { isAdmin } from '../../config/roles';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../../config/idempotencyKeyCache';
 import { useCoins } from '../../store/coinContext';
 import storage from '../../storage/storage';
@@ -90,7 +91,31 @@ function Book(props) {
     free_open: chapter?.free_open,
   };
 
-  // 從頭開始：有章節進章節列表，否則進故事頁
+  // 繼續觀看：以該書「最後一次的存檔」(continueStory item) 原樣回到原章節/場次/對話順序，
+  // 一次到位。存檔本身即含 storyId / chapterId / read_range_end / free_open / storyData /
+  // nochapter，以及 cachedIndex(screen＝場次, story＝對話索引, path＝造訪對話順序, scrollOffset)。
+  // 這裡直接帶入這些欄位、不經 storyPayload 重新推導，避免覆蓋掉存檔的定位資訊
+  // （storyPayload 會把 storyId 改成 storyData.id、並用 nochapter 重算 chapterId/read_range_end）。
+  const goToContinue = () => {
+    navigation.navigate(routes.HOME, {
+      screen: routes.STORY,
+      params: {
+        name: main_menu_name,
+        author,
+        storyId: props.storyId ?? id,
+        chapterId: chapterId ?? chapter?.id,
+        storyData,
+        nochapter,
+        // 章節/場次/對話順序的還原核心：一律以存檔為準。
+        cachedIndex: props.cachedIndex,
+        read_range_end: read_range_end ?? chapter?.read_range_end,
+        // 優先用存檔保留的試閱旗標；舊版存檔沒有時退回 nochapter 推導。
+        free_open: props.free_open ?? chapter?.free_open,
+      },
+    });
+  };
+
+  // 從頭開始（重新閱讀）：有章節進章節列表，否則進故事頁
   const goToStart = () => {
     if (hasChapter) {
       navigation.navigate(routes.HOME, {
@@ -229,9 +254,17 @@ function Book(props) {
 
       <Pressable
         style={styles.container}
-        onPress={() => {
-          // 未擁有（鎖頭）：僅允許有章節的書進入章節列表（顯示購買按鈕），無章節則不反應
-          if (!isOpen) {
+        onPress={async () => {
+          // 未公開（鎖頭）：僅「一般入口」受限。「繼續觀看 / 再次回味」是已在書櫃中的書，
+          // 永遠可進入、不受此閘門限制。
+          //  - role >= 9（Admin）：可點擊預覽，有章節進章節列表、無章節進故事頁。
+          //  - 其餘角色：跳出多語系 alert「敬請期待」，不進入。
+          if (!isOpen && !showIcon && !showReviewIcon) {
+            const roleLevel = await getEffectiveRoleLevel();
+            if (!isAdmin(roleLevel)) {
+              showAlert(translate('noticeTitle'), translate('comingSoon'));
+              return;
+            }
             if (hasChapter) {
               navigation.navigate(routes.HOME, {
                 screen: routes.CHAPTER,
@@ -243,19 +276,18 @@ function Book(props) {
                   nochapter,
                 },
               });
+            } else {
+              navigation.navigate(routes.HOME, {
+                screen: routes.STORY,
+                params: storyPayload,
+              });
             }
             return;
           }
 
           if (showIcon) {
-            // 繼續觀看
-            navigation.navigate(routes.HOME, {
-              screen: routes.STORY,
-              params: {
-                ...props,
-                ...storyPayload,
-              },
-            });
+            // 繼續觀看：回到最後存檔的章節/場次/對話順序
+            goToContinue();
           } else if (showReviewIcon) {
             // 再次回味
             if (hasChapter) {
@@ -275,14 +307,16 @@ function Book(props) {
               });
             }
           } else {
-            // 一般選項：自訂介紹彈窗（雙平台一致）
+            // 一般選項：每次點擊都跳出簡介彈窗，讓使用者選擇。
+            // - 重新閱讀（左）：goToStart，從頭開始（有章節會進章節選單頁）。
+            // - 繼續閱讀（右）：前往繼續觀看清單頁（ContinueScreen）。
             showAlert(
               main_menu_title,
               main_menu_content,
               [
                 { text: main_menu_btn_left, onPress: goToStart },
                 {
-                  text: translate('ok'),
+                  text: main_menu_btn_right || translate('ok'),
                   onPress: () => navigation.navigate(routes.CONTINUE),
                 },
               ],

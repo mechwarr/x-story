@@ -80,14 +80,22 @@ export default function useInitApp(
         // 如果外部提供了失敗回調，優先使用外部的（用於應用喚醒場景）
         // 否則使用內部的失敗處理（用於應用重啟場景）
         const refreshFailedCallback = onTokenRefreshFailed || handleRefreshFailed;
-        
-        // 調用刷新 token（內部會先檢查是否超過 30 天）；網路異常時不登出
-        await tokenRefreshService.refreshToken(
-          onTokenRefreshProgress,
-          refreshFailedCallback,
-          handleLoginExpired,
-          undefined // onNetworkError：應用重啟時可選提示，此處不額外處理
-        );
+
+        // 背景刷新 token（不 await）：避免刷新端點連不上時，啟動畫面卡在網路 timeout（~70s）。
+        // 關鍵在於「不 await」→ 不阻塞下方 setChecking(false)，App 先以現有 token 進入主畫面。
+        // onProgress 維持原機制（刷新期間顯示／結束隱藏 loading）；註：未達刷新間隔(1h)會提早
+        // return、根本不會觸發 onProgress，故正常啟動不會閃 loading。
+        // 刷新成功會更新 token，真·權限過期 / 超過 30 天仍由 callback 提示登出，網路異常則不登出。
+        tokenRefreshService
+          .refreshToken(
+            onTokenRefreshProgress, // onProgress：刷新進度（顯示/隱藏 loading）
+            refreshFailedCallback,
+            handleLoginExpired,
+            undefined // onNetworkError：網路異常不登出
+          )
+          .catch((e) =>
+            console.warn('[useInitApp] 背景刷新 token 例外（忽略）:', (e as any)?.message)
+          );
       }
 
       // ✅ 初始化微信 SDK（僅在 iOS 平台）

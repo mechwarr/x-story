@@ -23,11 +23,11 @@ export const ROLE = {
 export const UNLISTED_VISIBILITY_MIN_LEVEL = 9;
 
 /**
- * 可使用「場次快速切換器」（播放頭部下拉切換場次）的最低權限級別。
- * 需求：role >= 6。與 UNLISTED_VISIBILITY_MIN_LEVEL 同值但語意不同，
+ * 可使用「場次快速切換器」（播放頭部把手切換場次）的最低權限級別。
+ * 需求：role >= 9（僅 Admin）。與 UNLISTED_VISIBILITY_MIN_LEVEL 同值但語意不同，
  * 各自獨立以免日後其中一項門檻調整時互相牽連。
  */
-export const SCREENING_SWITCH_MIN_LEVEL = 6;
+export const SCREENING_SWITCH_MIN_LEVEL = 9;
 
 /**
  * 是否為 Admin（roleLevel >= 9）。
@@ -37,7 +37,7 @@ export function isAdmin(roleLevel: number | null | undefined): boolean {
 }
 
 /**
- * 是否可使用場次快速切換器（roleLevel >= 6）。
+ * 是否可使用場次快速切換器（roleLevel >= 9，僅 Admin）。
  * null / undefined / 非數值一律視為無權限。
  */
 export function canSwitchScreening(roleLevel: number | null | undefined): boolean {

@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useCallback } from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions, Pressable } from 'react-native';
 import { Video } from 'expo-av';
 import colors from '../../config/colors';
 import apiclient  from '../../config/apiClient';
@@ -19,15 +19,10 @@ function NarratorVideo({ videoMsg, videoDirection }) {
     [videoDirection]
   );
 
-  const onLoad = useCallback(async () => {
-    if (!video.current) {
-      console.warn('[NarratorVideo] video ref is null onLoad');
-      return;
-    }
-    console.log('[NarratorVideo] onLoad fired, try playAsync');
+  // 不自動播放：改由使用者點擊（Pressable / 原生播放控制）才播放。
+  const onPress = useCallback(async () => {
     try {
-      const status = await video.current.playAsync();
-      console.log('[NarratorVideo] playAsync success:', status);
+      await video.current?.playAsync();
     } catch (error) {
       console.error('[NarratorVideo] playAsync error:', error);
     }
@@ -38,17 +33,17 @@ function NarratorVideo({ videoMsg, videoDirection }) {
   }, []);
 
   return (
-    <View style={styles.container}>
+    <Pressable style={styles.container} onPress={onPress}>
       <Video
         ref={video}
         style={videoStyle}
         source={{ uri: videoUrl }}
         resizeMode="contain"
         shouldPlay={false}
-        onLoad={onLoad}
+        useNativeControls
         onPlaybackStatusUpdate={onPlaybackStatusUpdate}
       />
-    </View>
+    </Pressable>
   );
 }
 

@@ -12,10 +12,13 @@ import storage from '../storage/storage';
 import { bookDataBaseUrl } from '../config/apiClient';
 import { getBookstoreList, getAllAdminBookstores, getEffectiveRoleLevel, refreshRoleLevelCache } from '../config/userApiClient';
 import { canViewUnlisted } from '../config/roles';
-import { matchesCurrentStoryLang } from '../i18n/i18n';
+import { matchesCurrentStoryLang, translate } from '../i18n/i18n';
 import { useLanguage } from '../i18n/LanguageContext';
 import routes from '../navigations/routes';
 import { consumePendingProfileRedirect } from '../auth/firstLoginRedirect';
+import { tokenRefreshService } from '../config/authApiClient';
+import { useAuth } from '../auth/AuthContext';
+import { showAlert } from '../components/CustomAlert';
 
 // 書籍資料端點（menu / news / story-type / nochapter / story-list）統一使用 bookDataBaseUrl，
 // 固定走正式站、不隨 __DEV__ 切換（原因與來源詳見 config/apiClient.ts 的 bookDataBaseUrl 註解）。
@@ -24,6 +27,7 @@ const url = bookDataBaseUrl;
 function HomeScreen() {
   const isFocus = useIsFocused();
   const navigation = useNavigation();
+  const { logout } = useAuth(); // 後台權限驗證失敗、強制刷新仍失敗時用於登出
 
   // 首次登入且個人資料未完成 → 進入主畫面後自動導向 ProfileScreen（僅觸發一次）
   useEffect(() => {
@@ -105,14 +109,47 @@ function HomeScreen() {
         // - 其餘角色（含 role 6）：一般用戶，走公開的 GET api/bookstorelist（僅上架書籍）
         let bookstoreList = [];
         if (canSeeUnlisted) {
-          const adminResult = await getAllAdminBookstores();
+          let adminResult = await getAllAdminBookstores();
           if (adminResult.authError) {
-            // 後端拒絕（token 過期或角色被降級，與本地快取不符）→ 修正權限快取並退回公開清單，
-            // 避免畫面一片空白或停留在過期的管理員視圖。
-            console.warn('[HomeScreen] 後台書店權限驗證失敗，退回公開書店清單並更新權限快取');
-            await refreshRoleLevelCache();
-            canSeeUnlisted = false;
-            bookstoreList = await getBookstoreList();
+            // 後台被拒（401/403）：可能只是 access token 暫時過期（refreshToken 仍有效，常見於
+            // 久未使用回到 App），也可能是 refreshToken 真的失效（登入過期）或角色被降級。
+            // 先「強制刷新 token」再判斷，避免把暫時性失敗誤判為降級/登出：
+            //  - 刷新成功 → 用新 token 重試後台清單；仍被拒才視為角色真被降級 → 退回公開清單。
+            //  - 刷新失敗（權限過期 / 超過 30 天）→ promptLogout 提示後登出。
+            //  - 純網路異常 → 不登出，本次靜默退回公開清單，下次聚焦再試。
+            console.warn('[HomeScreen] 後台書店權限驗證失敗，先強制刷新 token 再判斷');
+            let networkIssue = false;
+            const promptLogout = () => {
+              showAlert(
+                '帳戶權限過期',
+                '您的登入權限已過期，請重新登入。',
+                [{ text: translate('ok'), onPress: () => { logout(); } }],
+                { cancelable: false }
+              );
+            };
+            const refreshed = await tokenRefreshService.refreshToken(
+              undefined,                      // onProgress
+              promptLogout,                   // onRefreshFailed（權限過期）
+              promptLogout,                   // onLoginExpired（超過 30 天）
+              () => { networkIssue = true; }, // onNetworkError（不登出）
+              true                            // forceRefresh：忽略 1 小時間隔限制
+            );
+
+            if (refreshed) {
+              adminResult = await getAllAdminBookstores(); // 用新 token 重試一次
+            }
+
+            if (refreshed && !adminResult.authError) {
+              // 刷新後成功 → 維持 Admin 視圖
+              bookstoreList = adminResult.items;
+            } else {
+              // 刷新後仍被拒（角色真被降級）、或刷新失敗 / 網路異常 → 退回公開清單。
+              // 僅在刷新成功（token 有效）時才更新角色快取，取得後端真實角色；
+              // 刷新失敗時不動快取（refreshRoleLevelCache 本就不會誤寫 0，但此處連呼叫都省去）。
+              if (refreshed) await refreshRoleLevelCache();
+              canSeeUnlisted = false;
+              bookstoreList = await getBookstoreList();
+            }
           } else {
             bookstoreList = adminResult.items;
           }

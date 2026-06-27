@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Image } from "react-native";
+import { Image, Text, View } from "react-native";
 import {
   createDrawerNavigator,
   DrawerContentScrollView,
@@ -50,6 +50,21 @@ export default function AppNavigator() {
   const drawerWidth = isTablet ? 260 : 180;
   const drawerIconSize = Math.round(HEADER_ICON_BASE_SIZE * scale);
 
+  // 選單文字統一樣式：所有語系共用同一 fontSize，不依長度縮放。
+  const drawerLabelStyle = {
+    fontSize: isTablet ? 22 : 20,
+    fontWeight: "bold",
+    color: colors.white,
+  };
+
+  // 自訂 label render：用 flex:1 撐滿剩餘寬度並允許換行（移除預設的 numberOfLines={1}），
+  // 較長語系（如英文）會自動換行而不會被 "..." 省略，字體大小維持統一。
+  const renderDrawerLabel = (label) => () => (
+    <View style={{ flex: 1 }}>
+      <Text style={drawerLabelStyle}>{label}</Text>
+    </View>
+  );
+
   return (
     <StoryContext.Provider
       value={{
@@ -68,11 +83,6 @@ export default function AppNavigator() {
           drawerStyle: {
             backgroundColor: colors.homeBackground,
             width: drawerWidth,
-          },
-          drawerLabelStyle: {
-            fontSize: isTablet ? 22 : 20,
-            fontWeight: "bold",
-            color: colors.white,
           },
         }}
         backBehavior="firstRoute"
@@ -97,22 +107,22 @@ export default function AppNavigator() {
         <Drawer.Screen
           name={routes.CONTINUE}
           component={ContinueScreen}
-          options={{ drawerLabel: translate("menuContinueWatching") }}
+          options={{ drawerLabel: renderDrawerLabel(translate("menuContinueWatching")) }}
         />
         <Drawer.Screen
           name={routes.REVIEW}
           component={ReviewScreen}
-          options={{ drawerLabel: translate("menuReviewAgain") }}
+          options={{ drawerLabel: renderDrawerLabel(translate("menuReviewAgain")) }}
         />
         <Drawer.Screen
           name={routes.VERSION}
           component={VersionScreen}
-          options={{ drawerLabel: translate("menuVersionInfo") }}
+          options={{ drawerLabel: renderDrawerLabel(translate("menuVersionInfo")) }}
         />
         <Drawer.Screen
           name={routes.LANGUAGE}
           component={LanguageScreen}
-          options={{ drawerLabel: translate("languageSettings") }}
+          options={{ drawerLabel: renderDrawerLabel(translate("languageSettings")) }}
         />
         {/* 代幣商城：保留此 Drawer.Screen 僅作為左側選單項目的載體（DrawerItemList
             會自動列出已註冊的 screen）。實際點擊時攔截 drawerItemPress，改 navigate
@@ -121,7 +131,7 @@ export default function AppNavigator() {
         <Drawer.Screen
           name={routes.PURCHASE}
           component={ShopScreen}
-          options={{ drawerLabel: translate("menuTokenShop") }}
+          options={{ drawerLabel: renderDrawerLabel(translate("menuTokenShop")) }}
           listeners={({ navigation }) => ({
             drawerItemPress: (e) => {
               e.preventDefault();
@@ -132,7 +142,7 @@ export default function AppNavigator() {
         <Drawer.Screen
           name={routes.RESET}
           component={ResetScreen}
-          options={{ drawerLabel: translate("menuResetApp") }}
+          options={{ drawerLabel: renderDrawerLabel(translate("menuResetApp")) }}
         />
       </Drawer.Navigator>
     </StoryContext.Provider>

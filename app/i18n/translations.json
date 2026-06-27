@@ -249,6 +249,11 @@
         "zh-CN": "提示",
         "en": "Notice"
     },
+    "comingSoon": {
+        "zh-TW": "敬請期待",
+        "zh-CN": "敬请期待",
+        "en": "Coming soon"
+    },
     "trialRangeNotSet": {
         "zh-TW": "尚未設定試閱範圍，試閱長度需大於 0",
         "zh-CN": "尚未设置试阅范围，试阅长度需大于 0",

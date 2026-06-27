@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Video } from 'expo-av';
 import colors from '../../config/colors';
@@ -9,9 +9,7 @@ function ChatVideoArea({ videoMsg }) {
   // const [status, setStatus] = useState({});
   const videoUrl = apiclient.currentBaseUrl() + 'images/update/' + videoMsg;
 
-  useEffect(() => {
-    video.current?.playAsync();
-  }, []);
+  // 不自動播放：改由使用者點擊（Pressable / 原生播放控制）才播放。
 
   return (
     <Pressable
