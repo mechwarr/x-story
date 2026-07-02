@@ -24,6 +24,8 @@ function Narrator(props) {
     textContentBaseColor,
     choseRef,
     isActive = true,
+    // 是否可主動播放影片/音效：true=逐段推進新增（自動/手動點擊），false=繼續閱讀還原的歷史段落。
+    autoPlay = true,
   } = props;
 
   const imgUrl = useMemo(
@@ -60,9 +62,13 @@ function Narrator(props) {
           source={{ uri: imgUrl }}
         />
       ) : null}
-      {soundMsg ? <NarratorSound soundMsg={soundMsg} /> : null}
+      {soundMsg ? <NarratorSound soundMsg={soundMsg} autoPlay={autoPlay} /> : null}
       {videoMsg ? (
-        <NarratorVideo videoMsg={videoMsg} videoDirection={videoDirection} />
+        <NarratorVideo
+          videoMsg={videoMsg}
+          videoDirection={videoDirection}
+          autoPlay={autoPlay}
+        />
       ) : null}
       {choice1Content && isActive ? (
         <NarratorOption

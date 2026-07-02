@@ -1,31 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { StyleSheet, Pressable, Image } from 'react-native';
-import { Audio } from 'expo-av';
 import apiclient  from '../../config/apiClient';
+import mediaPlayer from '../../services/mediaPlayer';
 
-function NarratorSound({ soundMsg }) {
-  const [sound, setSound] = useState('');
-
-  const playSound = useCallback(async () => {
+function NarratorSound({ soundMsg, autoPlay = true }) {
+  // 旁白音效：逐段推進新增時自動播放，並提供按鈕可再次點擊重播。
+  // 經由單一播放管理（同時只播一個對象、離開頁面釋放）。
+  const playSound = useCallback(() => {
     const soundUrl = apiclient.currentBaseUrl() + 'images/update/' + soundMsg;
-    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-    const { _sound } = await Audio.Sound.createAsync(
-      { uri: soundUrl },
-      { shouldPlay: true }
-    );
-    setSound(_sound);
+    mediaPlayer.playSound(soundUrl);
   }, [soundMsg]);
 
-  // 不自動播放：改由使用者點擊下方播放按鈕（Pressable）才播放。
+  // 進場時自動播放一次；但「繼續閱讀還原」的歷史段落（autoPlay=false）不主動播，
+  // 僅保留喇叭按鈕供使用者手動點擊。
   useEffect(() => {
-    return () => {
-      setTimeout(() => {
-        try {
-          console.log('Unloading Sound');
-          sound?.unloadAsync();
-        } catch {}
-      }, 40000);
-    };
+    if (autoPlay) playSound();
   }, []);
 
   return (

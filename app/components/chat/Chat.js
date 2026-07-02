@@ -131,6 +131,7 @@ function Chat({
 const styles = StyleSheet.create({
   chatLeft: {
     flexDirection: 'row',
+    alignItems: 'flex-start', // 頭像欄貼齊頂端，避免被旁邊圖片/內容撐高（與 chatRight 一致）
     paddingVertical: 5,
   },
   chatRight: {

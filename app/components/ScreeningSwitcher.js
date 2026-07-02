@@ -6,7 +6,9 @@ import { translate } from '../i18n/i18n';
  * 場次快速切換器（僅 role >= 9 由父層決定是否掛載）。
  *
  * 收合：頂端置中黑底膠囊 + 短白線握把，僅佔握把觸控區，不遮蔽播放器內容。
- * 展開：黑底面板顯示 < 場次 {場次ID} >，左右箭頭切上下場，
+ * 展開：黑底面板顯示 < 場次 {場次順序order} >，左右箭頭切上下場，
+ *       （顯示 order 而非資料庫主鍵 id：order 跨語系穩定、且與 choiceNext 跳轉目標同一基準；
+ *        id 為全域自增主鍵，換語系即不同，顯示出來會誤導。）
  *       下方為全部場次清單，超長時可垂直滾動拖曳。
  * 任一切換（上一場 / 下一場 / 點選任意場次）後立即收回，只剩頂部握把。
  *
@@ -19,7 +21,8 @@ export default function ScreeningSwitcher({ sessions = [], currentIndex, onSelec
   const total = sessions.length;
   const atStart = currentIndex <= 0;
   const atEnd = currentIndex >= total - 1;
-  const currentSessionId = sessions[currentIndex]?.id;
+  // 顯示用：場次順序 order（跨語系穩定、對齊 choiceNext 跳轉基準），非資料庫 id。
+  const currentSessionOrder = sessions[currentIndex]?.order;
 
   // 每次展開時，將清單捲動到目前場次附近
   useEffect(() => {
@@ -62,7 +65,7 @@ export default function ScreeningSwitcher({ sessions = [], currentIndex, onSelec
 
             <Pressable style={styles.center} onPress={() => setExpanded(false)}>
               <Text style={styles.label}>{translate('screening')}</Text>
-              <Text style={styles.session}>{currentSessionId ?? '-'}</Text>
+              <Text style={styles.session}>{currentSessionOrder ?? '-'}</Text>
               <Text style={styles.sub}>{total ? currentIndex + 1 : 0} / {total}</Text>
             </Pressable>
 
@@ -95,7 +98,7 @@ export default function ScreeningSwitcher({ sessions = [], currentIndex, onSelec
                   onPress={() => jumpTo(i)}
                 >
                   <Text style={[styles.itemText, active && styles.itemTextActive]}>
-                    {i + 1}. {translate('screening')} {s?.id ?? '-'}
+                    {i + 1}. {translate('screening')} {s?.order ?? '-'}
                   </Text>
                 </Pressable>
               );

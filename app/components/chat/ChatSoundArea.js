@@ -1,31 +1,14 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { View, StyleSheet, Pressable, Image } from 'react-native';
-import { Audio } from 'expo-av';
 import apiclient  from '../../config/apiClient';
+import mediaPlayer from '../../services/mediaPlayer';
 
 function ChatSoundArea({ soundMsg, backgroundColor }) {
-  const [sound, setSound] = useState();
-
-  const playSound = useCallback(async () => {
+  // 對話音效：使用者點擊才播。經由單一播放管理（同時只播一個對象、離開頁面釋放）。
+  const playSound = useCallback(() => {
     const soundUrl = apiclient.currentBaseUrl() + 'images/update/' + soundMsg;
-    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-    const { _sound } = await Audio.Sound.createAsync(
-      { uri: soundUrl },
-      { shouldPlay: true }
-    );
-    setSound(_sound);
+    mediaPlayer.playSound(soundUrl);
   }, [soundMsg]);
-
-  useEffect(() => {
-    return () => {
-      setTimeout(() => {
-        try {
-          // console.log('Unloading Sound');
-          sound?.unloadAsync();
-        } catch {}
-      }, 40000);
-    };
-  }, []);
 
   return (
     <Pressable onPress={playSound} style={{ flex: 1 }}>

@@ -30,12 +30,24 @@ import { purchaseStoryWithCoins, recordBookRead, getEffectiveRoleLevel } from '.
 import { canSwitchScreening } from '../config/roles';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
 import { useCoins } from '../store/coinContext';
-import { translate, matchesCurrentStoryLang } from '../i18n/i18n';
+import { translate, matchesCurrentStoryLang, getCurrentLang } from '../i18n/i18n';
 import { syncPurchasedStoryIds, canAccessChapter } from '../services/bookAccessService';
+import mediaPlayer from '../services/mediaPlayer';
 import useResponsive from '../hook/useResponsive';
 
 const domain = apiclient.currentBaseUrl() + 'images/update/';
 const initStoryIdx = null;
+
+// 選項跳轉目標（choiceNext）各段皆為資料表的「順序欄位 order」（字串），需以 order 比對；
+// 相容前導零別名（'32'==='032'、'001'==='1'），與 CMS orderAliasKeys 行為一致。
+const ordersEqual = (a, b) => {
+  const x = String(a ?? '').trim();
+  const y = String(b ?? '').trim();
+  if (!x || !y) return false;
+  if (x === y) return true;
+  if (/^\d+$/.test(x) && /^\d+$/.test(y)) return +x === +y;
+  return false;
+};
 
 function StoryScreen({ route }) {
   const navigation = useGuardedNavigate();
@@ -95,6 +107,10 @@ function StoryScreen({ route }) {
   const pendingJumpRef = useRef(null);
   const hasRecordedReadRef = useRef(false);
   const prevStoryLength = useRef(0);
+  // 試閱播畢鎖：跳出購買覆蓋層後，即使關掉灰色區域仍維持「可滑動回看已讀內容、
+  // 但不可再推進剩餘劇情」。一旦試閱耗盡即設 true，封鎖所有 onPressOption 推進；
+  // 購買成功會 replace/navigate 重掛畫面，此 ref 自然重置。
+  const storyLockedRef = useRef(false);
   const [showPurchaseOverlay, setShowPurchaseOverlay] = useState(false);
   const [isBookPurchased, setIsBookPurchased] = useState(false);
   const [purchaseChecked, setPurchaseChecked] = useState(false);
@@ -157,6 +173,7 @@ function StoryScreen({ route }) {
       if (targetScreen < 0 || targetScreen >= screeningList.length) return;
       if (targetScreen === index.screen) return;
       choseRef.current = false;
+      storyLockedRef.current = false; // 主動換場次（管理者切換器）→ 解除試閱播畢鎖
       hasRecordedReadRef.current = false; // 換場次重新計一次閱讀
       scrollOffsetRef.current = 0; // 換場次重置捲動基準，避免沿用上一場次的 offset
       setStory([]);
@@ -265,6 +282,7 @@ function StoryScreen({ route }) {
     const sub = AppState.addEventListener('change', (next) => {
       if (next === 'background' || next === 'inactive') {
         persistProgressRef.current();
+        mediaPlayer.release(); // 進背景：釋放目前播放對象，避免背景殘留出聲／占用記憶體
       }
     });
     const unsubBeforeRemove = rawNavigation.addListener('beforeRemove', () => {
@@ -274,6 +292,7 @@ function StoryScreen({ route }) {
       sub.remove();
       unsubBeforeRemove();
       persistProgressRef.current();
+      mediaPlayer.release(); // 離開劇情頁：釋放目前播放對象與記憶體
     };
   }, [rawNavigation]);
 
@@ -288,20 +307,42 @@ function StoryScreen({ route }) {
       }
       return false;
     });
+    // 【轉場診斷】對話定位：對話 order=dialogId → 內容陣列索引（在目前場次的 content 內）。
+    console.log('[轉場診斷] 對話定位 →', {
+      lang: getCurrentLang(),
+      dialogId,
+      resolvedContentIndex: id,
+      contentLen: queryInfo.content?.length,
+      contentOrders: queryInfo.content?.map((e) => e.order),
+    });
     if (id < 0) {
       console.warn('[onPressOption] 找不到對話 order：', dialogId);
+      if (__DEV__) showAlert('提示', `找不到對話 order：${dialogId}`);
       return;
     }
     setIndex((prev) => ({ ...prev, story: id }));
     choseRef.current = true;
   };
 
+  // 選項跳轉目標的「場次」段，CMS 是以場次的「順序欄位 order」儲存（字串，如 '32'），
+  // 不是資料表主鍵 id（轉學生那本 order=32 的場次其 id 其實是 364）。因此跳轉前必須先做
+  // order → 實際場次 的轉換（對齊 CMS 的 screeningIdByOrder 對照表），否則拿 order 去比 id
+  // 永遠對不到、跳轉失敗。此處回傳 screeningList 的「索引」（App 以 index.screen 定位場次）。
+  // 相容前導零別名（'001' 與 '1'、'02' 與 '2'），與 CMS orderAliasKeys 行為一致。回傳 -1 表找不到。
+  const resolveScreeningIndexByOrder = (screeningOrder) => {
+    const key = String(screeningOrder ?? '').trim();
+    if (!key) return -1;
+    return screeningList.findIndex((s) => ordersEqual(s?.order, key));
+  };
+
   // idx 可能是：
   //   "對話"            → 同章同場次，僅切換對話
-  //   "場次:對話"        → 同章換場次，再定位對話
+  //   "場次:對話"        → 同章換場次，再定位對話（場次為 order，需經 resolveScreeningIndexByOrder 轉換）
   //   "章節:場次:對話"   → 跨章節（replace 重掛），再定位場次/對話
   // 不帶 idx（null/空字串）→ 點畫面任意處推進到下一段
   const onPressOption = (idx) => {
+    // 試閱播畢鎖：覆蓋層跳出後，封鎖所有推進（點畫面 / 選項），只保留 FlatList 可滑動回看。
+    if (storyLockedRef.current) return;
     if (idx === null || idx === undefined || idx === '') {
       // 點畫面推進：若目前是「選項段」卻未點任何選項就點畫面 → 預設選第一個選項。
       const current = index.story != null ? queryInfo.content?.[index.story] : null;
@@ -331,35 +372,92 @@ function StoryScreen({ route }) {
       [dialogPart] = parts;
     }
 
-    // 1) 跨章節：以 replace 重掛 StoryScreen，並帶入目標場次/對話待新章載入後定位。
-    if (chapterPart != null && String(chapterPart) !== String(chapterId)) {
-      const target = chapterListRef.current.find(
-        (c) => String(c?.id) === String(chapterPart)
+    // 【轉場診斷】記錄「選項按下的瞬間」全部輸入：目前語系、原始 idx、拆解後三段 order，
+    // 以及目前所在章節 / 場次。把繁中與英文各跑一次的這段輸出並排對照，即可看出哪一段 order
+    // 在兩個語系解析到不同結果。
+    console.log('[轉場診斷] 選項按下 →', {
+      lang: getCurrentLang(),
+      rawIdx: String(idx),
+      parts,
+      chapterPart, screeningPart, dialogPart,
+      curChapterId: String(chapterId),
+      curScreenIndex: index.screen,
+      curScreenOrder: screeningList[index.screen]?.order,
+    });
+    // 語系過濾後的章節清單（order ↔ id ↔ lang）：跨章節跳轉就是在這份清單上用 order 找 id，
+    // 兩語系若採番不一致，這裡就會看到不同的 order→id 對應。
+    console.log('[轉場診斷] 章節清單(語系過濾後) =',
+      chapterListRef.current.map((c) => ({ order: c?.order, id: c?.id, lang: c?.lang })));
+    // 目前場次清單（order ↔ id）：同章換場次以 order 比對，於此對照兩語系的場次採番。
+    console.log('[轉場診斷] 場次清單 =',
+      screeningList.map((s, i) => ({ i, order: s?.order, id: s?.id })));
+
+    // 1) 跨章節：chapterPart 是章節的「順序 order」（非主鍵 id）。先以目前章節的 order 判斷是否
+    //    真的跨章，若是再用 order 找出目標章節、取其 id 以 replace 重掛 StoryScreen。
+    //    （非跨章＝chapterPart 即本章 order → 不在此處理，落到下方案例2 用 screeningPart 換場次。）
+    if (chapterPart != null) {
+      const curChapter = chapterListRef.current.find(
+        (c) => String(c?.id) === String(chapterId)
       );
-      if (!target) {
-        console.warn('[onPressOption] 找不到章節 id：', chapterPart);
+      const isCrossChapter = !ordersEqual(chapterPart, curChapter?.order);
+      // 【轉場診斷】跨章判斷：印出「本章 order」與「目標 chapterPart」的比對結果。
+      // 若同一個 chapterPart 在繁中判定為跨章、英文卻判定為同章（或反之），代表本章 order
+      // 在兩語系不一致（curChapter.order 因語系而異）。
+      console.log('[轉場診斷] 跨章判斷 →', {
+        lang: getCurrentLang(),
+        chapterPart,
+        curChapterOrder: curChapter?.order,
+        curChapterId: curChapter?.id,
+        isCrossChapter,
+      });
+      if (isCrossChapter) {
+        const target = chapterListRef.current.find((c) =>
+          ordersEqual(c?.order, chapterPart)
+        );
+        // 【轉場診斷】跨章目標解析：order=chapterPart → 實際章節 id（語系專屬）。
+        console.log('[轉場診斷] 跨章目標解析 →', {
+          lang: getCurrentLang(),
+          chapterPart,
+          targetId: target?.id ?? '(找不到)',
+          targetOrder: target?.order,
+          targetLang: target?.lang,
+        });
+        if (!target) {
+          console.warn('[onPressOption] 找不到章節 order：', chapterPart);
+          if (__DEV__) showAlert('提示', `找不到章節 order：${chapterPart}`);
+          return;
+        }
+        // 目標章節不可閱讀（試閱外且未購買）→ 暫存跳轉目標、跳購買提示；購買成功後再續。
+        if (!canAccessChapter({ freeOpen: target.free_open, isBookPurchased })) {
+          pendingJumpRef.current = {
+            chapterId: target.id,
+            screeningId: screeningPart,
+            dialogId: dialogPart,
+          };
+          setShowPurchaseOverlay(true);
+          return;
+        }
+        choseRef.current = true;
+        jumpTo({ chapterId: target.id, screeningId: screeningPart, dialogId: dialogPart });
         return;
       }
-      // 目標章節不可閱讀（試閱外且未購買）→ 暫存跳轉目標、跳購買提示；購買成功後再續。
-      if (!canAccessChapter({ freeOpen: target.free_open, isBookPurchased })) {
-        pendingJumpRef.current = {
-          chapterId: target.id,
-          screeningId: screeningPart,
-          dialogId: dialogPart,
-        };
-        setShowPurchaseOverlay(true);
-        return;
-      }
-      choseRef.current = true;
-      jumpTo({ chapterId: target.id, screeningId: screeningPart, dialogId: dialogPart });
-      return;
     }
 
     // 2) 同章換場次（含「章節:場次:對話」但章節為本章的情形）。
+    //    screeningPart 是場次的「順序 order」，需經 resolveScreeningIndexByOrder 轉成實際場次索引。
     if (screeningPart != null) {
-      const targetScreen = screeningList.findIndex(
-        (s) => String(s?.id) === String(screeningPart)
-      );
+      const targetScreen = resolveScreeningIndexByOrder(screeningPart);
+      // 【轉場診斷】同章換場次：場次 order=screeningPart → 場次清單索引。
+      // 兩語系若採番不一致，同一 screeningPart 會解析到不同 index（或一方 -1 找不到）。
+      console.log('[轉場診斷] 換場次解析 →', {
+        lang: getCurrentLang(),
+        screeningPart,
+        dialogPart,
+        resolvedScreenIndex: targetScreen,
+        resolvedScreenId: screeningList[targetScreen]?.id ?? '(找不到)',
+        curScreenIndex: index.screen,
+        willStaySameScreen: targetScreen === index.screen,
+      });
       if (targetScreen < 0) {
         // 試閱未購買時，找不到多半是該場次被 read_range_end 截斷在試閱範圍外
         // → 暫存跳轉目標、跳購買提示；購買成功後重掛取得完整場次再續。
@@ -372,7 +470,8 @@ function StoryScreen({ route }) {
           setShowPurchaseOverlay(true);
           return;
         }
-        console.warn('[onPressOption] 找不到場次 id：', screeningPart);
+        console.warn('[onPressOption] 找不到場次 order：', screeningPart);
+        if (__DEV__) showAlert('提示', `找不到場次 order：${screeningPart}`);
         return;
       }
       if (targetScreen === index.screen) {
@@ -418,6 +517,7 @@ function StoryScreen({ route }) {
           // 1) 試閱播畢：未持有本書且為試閱（開放）章節 → 此處場次已被 read_range_end 截斷，
           //    代表已到「試閱的最後內容」，跳出購買提示（優先於自動續章）。
           if (free_open === '開放' && !isBookPurchased) {
+            storyLockedRef.current = true; // 鎖住推進：之後只能滑動回看，不能再播剩餘劇情
             setShowPurchaseOverlay(true);
             return;
           }
@@ -451,11 +551,16 @@ function StoryScreen({ route }) {
             }
           }
 
-          // 3) 整本書已讀完（非章節型書籍，或章節型已無下一章）→ 標記完成並回首頁（HomeScreen）。
+          // 3) 整本書已讀完（非章節型書籍，或章節型已無下一章）→ 標記完成、清掉繼續觀看進度。
+          //    章節型書籍：回到「章節選單」(讓使用者重選/回味)；非章節型：無章節選單，回首頁。
           skipPersistRef.current = true; // 抑制離開保底存檔，避免把剛刪掉的進度又寫回
           storage.deleteStory({ storyId }, 'continueStory');
           storage.storeStory({ storyId, storyData, nochapter }, 'finishStory');
-          navigation.navigate(routes.MAIN);
+          if (storyData?.chapter_type === '章節') {
+            navigation.navigate(routes.CHAPTER, { name, author, storyId, storyData });
+          } else {
+            navigation.navigate(routes.MAIN);
+          }
         }
       } catch (error) {
         console.error('API 請求失敗：', error);
@@ -616,6 +721,7 @@ function StoryScreen({ route }) {
         setIndex((prev) => ({ ...prev, story: id })); // 觸發本 effect 再跑一次走 append
       } else {
         console.warn('[onPressOption] 換場次後找不到對話 order：', dialogId);
+        if (__DEV__) showAlert('提示', `換場次後找不到對話 order：${dialogId}`);
       }
       return;
     }
@@ -628,9 +734,14 @@ function StoryScreen({ route }) {
     }
 
     if (queryInfo.content[index.story]?.contentPresent === '結尾') {
+      const screeningsArr = Array.isArray(queryInfo.screenings) ? queryInfo.screenings : [];
+      const hasNextScreening = index.screen + 1 < screeningsArr.length;
       // 跨場次：補存「下一場起點」，避免剛推進到新場次、還沒點下一句就離開時退回上一場。
       // （此處 setIndex 會把 story 重設為 null，之後的「翻頁即存」要等使用者在新場次點一下才會觸發。）
-      if (!skipPersistRef.current) {
+      // 僅在「本章仍有下一場次」時補存；最後一場的結尾不補存——否則會把「即將結束的書」又寫回繼續觀看，
+      // 與下方 fetchStories「整本讀完」分支的 deleteStory 形成 AsyncStorage 競態，導致書籍殘留在繼續觀看
+      // 而被重複／接續播放。最後一場的收尾交給 fetchStories：有下一章→接續下一章；無→入完成並跳回首頁。
+      if (!skipPersistRef.current && hasNextScreening) {
         storage.storeStory(
           {
             ...cacheData,
@@ -668,6 +779,10 @@ function StoryScreen({ route }) {
         rebuilt = queryInfo.content.slice(0, (index.story ?? 0) + 1);
       }
 
+      // 繼續閱讀還原：這批是「動態重建的歷史紀錄」，其影片/音效不可主動播放（autoPlay:false）。
+      // 旁白音效仍保留喇叭按鈕，使用者可手動點擊重播。
+      rebuilt = rebuilt.map((it) => ({ ...it, autoPlay: false }));
+
       console.log('[紀錄診斷] 還原觸發 → 存檔pathLen=', Array.isArray(r.path) ? r.path.length : '(無)',
         'content.len=', queryInfo.content.length, '重建後story.len=', rebuilt.length,
         'index.story=', index.story, 'scrollOffset=', r.scrollOffset);
@@ -684,9 +799,25 @@ function StoryScreen({ route }) {
       return;
     }
 
+    // 轉場已落地：新段落（index.story）已確定成為作用中段落，代表上一次「選擇/換場次/換章」
+    // 的轉場流程結束。此處把 choseRef 解鎖，讓這個新段落若帶選項時可以再次被選——
+    // 否則 choseRef 會一直卡在 true（原本只有管理者手動切換場次才會重設），造成「帶選項的段落
+    // （即使只有一個選項）點了沒反應、也沒有任何 log」（onPressOption 會在 `if (choseRef.current)
+    // return` 早退）。此重設安全：舊的選項段已非最後一段、其 NarratorOption 不再渲染。
+    if (choseRef.current) {
+      console.log('[轉場診斷] 段落落地 → 解鎖 choseRef（false）', {
+        lang: getCurrentLang(),
+        storyIndex: index.story,
+        order: queryInfo.content[index.story]?.order,
+        hasChoice: !!queryInfo.content[index.story]?.choice1Content,
+      });
+      choseRef.current = false;
+    }
+
     // 用戶點擊逐段加入（存檔交由下方「story 變更」effect 處理，以讀到最新造訪路徑）
+    // 自動閱讀／手動點擊推進新增的這一段：影片/音效可主動播放（autoPlay:true）。
     setStory((prev) => {
-      const newItem = queryInfo.content[index.story];
+      const newItem = { ...queryInfo.content[index.story], autoPlay: true };
       if (prev.length && prev[prev.length - 1]?.id === newItem?.id) return prev;
       return [...prev, newItem];
     });
@@ -804,12 +935,24 @@ function StoryScreen({ route }) {
         let landingScreen = screeningsList.length
           ? Math.min(Math.max(cachedIndex?.screen ?? 0, 0), screeningsList.length - 1)
           : 0;
-        // 跨章節跳轉落點：以 targetScreeningId（場次 .id）覆蓋還原的場次索引，
+        // 跨章節／試閱解鎖後跳轉落點：targetScreeningId 來自 choiceNext 的「場次順序 order」
+        // （非主鍵 id），需以 order 比對才能對到實際場次（對齊 resolveScreeningIndexByOrder /
+        // CMS screeningIdByOrder）。此處 screeningsList 為本地剛組好的清單，故就地比對 order。
         // 並把 targetDialogId（對話 order）交給「待定位」機制於內容載入後消化。
         if (targetScreeningId != null) {
-          const ti = screeningsList.findIndex(
-            (s) => String(s?.id) === String(targetScreeningId)
+          const ti = screeningsList.findIndex((s) =>
+            ordersEqual(s?.order, targetScreeningId)
           );
+          // 【轉場診斷】跨章重掛後的場次落點：在「新章節（語系專屬 chapterId）」的場次清單上，
+          // 用 targetScreeningId(order) 找落點 index。兩語系的新章場次採番若不同，落點會不同。
+          console.log('[轉場診斷] 重掛落點(場次) →', {
+            lang: getCurrentLang(),
+            chapterId: String(chapterId),
+            targetScreeningId,
+            targetDialogId,
+            landingScreenIndex: ti >= 0 ? ti : landingScreen,
+            screeningOrders: screeningsList.map((s) => s?.order),
+          });
           if (ti >= 0) landingScreen = ti;
         }
         if (targetDialogId != null) {
@@ -852,7 +995,7 @@ function StoryScreen({ route }) {
     >
       <SafeAreaView style={{ flex: 1, position: 'relative' }}>
         <StoryHeader
-          storyName={name}
+          storyName={storyData?.main_menu_name ?? name}
           author={author}
           config={queryInfo.config}
           isAutoPlay={isAutoPlay}
@@ -909,6 +1052,8 @@ function StoryScreen({ route }) {
                   index={index}
                   onPressOption={onPressOption}
                   choseRef={choseRef}
+                  // 僅「逐段推進新增」的段落可主動播放；「繼續閱讀還原」的歷史段落 autoPlay:false。
+                  autoPlay={item.autoPlay === true}
                   // 選項只在目前作用中的最後一段顯示；選完後對應段落 append、此段不再是最後一段
                   // → 選項自動消失。
                   isActive={index === story.length - 1}

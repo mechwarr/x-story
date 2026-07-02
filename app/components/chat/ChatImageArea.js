@@ -4,17 +4,22 @@ import ImageModal from '../ImageModal';
 import routes from '../../navigations/routes';
 import apiclient  from '../../config/apiClient';
 import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
+import useResponsive from '../../hook/useResponsive';
 
 const domain = apiclient.currentBaseUrl() + 'images/update/';
 // 載入前的預設比例，避免取得原圖尺寸前 aspectRatio 為 0 導致高度塌陷。
 const DEFAULT_ASPECT_RATIO = 4 / 3;
+// 訊息圖片的基準寬度（手機）。平板用 ms() 統一放大，不滿版以免撐爆整列、把頭像欄拉高。
+const IMG_BASE_WIDTH = 256;
 
 function ChatImageArea({ imgMsg, backgroundColor }) {
   const imageUrl = domain + imgMsg;
   const modalRef = useRef(null);
   const navigation = useGuardedNavigate();
-  // RWD：圖片寬度一律滿版（width 100% = 對話列扣掉頭像/間距後的剩餘寬度），
-  // 高度依原圖比例（aspectRatio）自適應，手機／平板同一套邏輯、不另設固定寬度。
+  const { ms } = useResponsive();
+  // RWD：圖片寬度收斂到基準寬（手機 256、平板 ms() 放大），高度依原圖比例（aspectRatio）
+  // 自適應；不再滿版，避免訊息列被撐寬撐高、連帶把左側頭像欄拉長。
+  const imgWidth = ms(IMG_BASE_WIDTH);
   const [aspectRatio, setAspectRatio] = useState(DEFAULT_ASPECT_RATIO);
 
   useEffect(() => {
@@ -33,7 +38,7 @@ function ChatImageArea({ imgMsg, backgroundColor }) {
   }, [imageUrl]);
 
   return (
-    <View style={[{ flex: 1 }]}>
+    <View style={{ alignSelf: 'flex-start' }}>
       <Pressable
         onPress={() => {
           navigation.navigate(routes.IMAGE, {
@@ -44,7 +49,7 @@ function ChatImageArea({ imgMsg, backgroundColor }) {
         <View style={[styles.container, backgroundColor]}>
           <Image
             fadeDuration={0}
-            style={[styles.img, { width: '100%', aspectRatio }]}
+            style={[styles.img, { width: imgWidth, aspectRatio }]}
             source={{ uri: imageUrl }}
             resizeMode='contain'
           />
@@ -57,7 +62,7 @@ function ChatImageArea({ imgMsg, backgroundColor }) {
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
+    alignSelf: 'flex-start',
     borderRadius: 15,
   },
   img: {

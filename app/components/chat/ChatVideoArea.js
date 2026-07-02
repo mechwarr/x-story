@@ -3,19 +3,18 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import { Video } from 'expo-av';
 import colors from '../../config/colors';
 import apiclient  from '../../config/apiClient';
+import mediaPlayer from '../../services/mediaPlayer';
 
 function ChatVideoArea({ videoMsg }) {
   const video = useRef(null);
   // const [status, setStatus] = useState({});
   const videoUrl = apiclient.currentBaseUrl() + 'images/update/' + videoMsg;
 
-  // 不自動播放：改由使用者點擊（Pressable / 原生播放控制）才播放。
+  // 訊息影片：不自動播放，使用者點擊才播。經由單一播放管理（同時只播一個對象）。
 
   return (
     <Pressable
-      onPress={() => {
-        video.current?.playAsync();
-      }}
+      onPress={() => mediaPlayer.playVideo(video)}
     >
       <View style={styles.container}>
         <Video

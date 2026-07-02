@@ -13,6 +13,14 @@ const NarratorOption = (props) => {
           <Pressable
             key={e}
             onPress={() => {
+              // 【轉場診斷】選項實際被按下：印出目標 choiceNext 與當下 choseRef 狀態。
+              // 若按下卻沒有後續 [轉場診斷] 選項按下 → 代表被 onPressOption 內的 choseRef guard 擋掉；
+              // 若連這行都沒印 → 代表 Pressable 被 disabled（choseRef.current 為 true）而未觸發。
+              console.log('[轉場診斷] NarratorOption 按下 →', {
+                choice: e,
+                choiceNext: props?.[`choice${e}Next`],
+                choseRef: choseRef?.current,
+              });
               onPressOption && onPressOption(props?.[`choice${e}Next`]);
             }}
             disabled={choseRef?.current}
