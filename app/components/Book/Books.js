@@ -6,14 +6,22 @@ import Book from './Book';
 import { matchesCurrentStoryLang } from '../../i18n/i18n';
 import { useLanguage } from '../../i18n/LanguageContext';
 
-function Books({ type, config, storyList, storyCache, nochapter }) {
+function Books({ type, config, storyList, storyCache, nochapter, menuFoolproofConfig }) {
   const {
     story_type_size = 20,
     story_type_color = '#fff',
     story_type_weight = '',
   } = config;
-  
-  const renderItem = ({ item,index }) => <Book storyData={item} storyCache={storyCache} nochapter={nochapter} index={index}/>;
+
+  const renderItem = ({ item,index }) => (
+    <Book
+      storyData={item}
+      storyCache={storyCache}
+      nochapter={nochapter}
+      index={index}
+      menuFoolproofConfig={menuFoolproofConfig}
+    />
+  );
 
   // 目前語系（zh-TW / zh-CN / en）。納入 useMemo 依賴，確保切換語系時重新篩選，
   // 不再只依賴 LanguageGate 的整棵重新掛載（若日後改為保留畫面不卸載也不會失準）。

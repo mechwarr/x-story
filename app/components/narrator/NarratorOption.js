@@ -30,7 +30,9 @@ const NarratorOption = (props) => {
               alignContent: 'center',
               width: 300,
               height: 50,
-              borderWidth: 4,
+              borderWidth: 0,
+              borderRadius: 10,
+              paddingHorizontal: 12,
               backgroundColor: props?.[`choice${e}BaseColor`],
             }}
           >

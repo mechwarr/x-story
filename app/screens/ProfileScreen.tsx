@@ -107,7 +107,8 @@ export default function ProfileScreen() {
   const bodyFontSize = ms(17);
   const labelFontSize = ms(14);
   const submitFontSize = ms(16);
-  const avatarSize = Math.min(Math.round(contentWidth / 12), 40);
+  // 頭像維持 1:1 圓形比例，寬度 RWD：手機為螢幕寬 30%、平板為 25%。
+  const avatarSize = Math.round(windowWidth * (isTablet ? 0.25 : 0.3));
   const iconSize = ms(HEADER_ICON_BASE_SIZE);
 
   // ---- 載入用戶資料（換帳號後每次進入此畫面都重新拉取，避免顯示上一帳號名稱/生日/性別）----

@@ -30,7 +30,7 @@ import { purchaseStoryWithCoins, recordBookRead, getEffectiveRoleLevel } from '.
 import { canSwitchScreening } from '../config/roles';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
 import { useCoins } from '../store/coinContext';
-import { translate, matchesCurrentStoryLang, getCurrentLang } from '../i18n/i18n';
+import { translate, matchesCurrentStoryLang, getCurrentLang, pickConfigByLang } from '../i18n/i18n';
 import { syncPurchasedStoryIds, canAccessChapter } from '../services/bookAccessService';
 import mediaPlayer from '../services/mediaPlayer';
 import useResponsive from '../hook/useResponsive';
@@ -47,6 +47,25 @@ const ordersEqual = (a, b) => {
   if (x === y) return true;
   if (/^\d+$/.test(x) && /^\d+$/.test(y)) return +x === +y;
   return false;
+};
+
+// 整本劇情結束哨符：內容段的 order === '999999'（長度 6 的六個 9），或 order 空白，
+// 即代表整個故事到此結束，須導回首頁（HomeScreen），且一律回首頁、不回章節選單。
+// 此判斷刻意與 contentPresent 無關（無論是否為「結尾」皆適用）——「結尾」只是該場次的
+// 最後一段，換場次與否由 contentPresent 決定，是否整本結束則單看此哨符。
+// 註：呼叫端需先確認 item 存在（undefined 會被 String(undefined??'') 視為空白而誤判結束）。
+const STORY_END_ORDER = '999999';
+const isStoryEnd = (item) => {
+  const o = String(item?.order ?? '').trim();
+  return o === '' || o === STORY_END_ORDER;
+};
+
+// 內容段的 order 必為「純數字序號」或「空白」（空白＝結束哨符，交由 isStoryEnd 處理）。
+// 出現非空白又非純數字者（如殘留的 '001:001:015' 冒號格式、或任何雜訊）即視為無法解析，
+// 呼叫端須跳出錯誤提示並返回首頁。
+const isParseableOrder = (order) => {
+  const o = String(order ?? '').trim();
+  return o === '' || /^\d+$/.test(o);
 };
 
 function StoryScreen({ route }) {
@@ -209,6 +228,16 @@ function StoryScreen({ route }) {
     },
     [storyId, name, author, storyData, nochapter, read_range_end, free_open, rawNavigation]
   );
+
+  // 整本結束一律回首頁（HomeScreen），不分書籍型態、不回章節選單。清掉「繼續觀看」進度、
+  // 寫入完成旗標。走原生 navigation（非 guarded），避免 useGuardedNavigate 的前置延遲。
+  // 三處共用：①內容段命中結束哨符（order 999999／空白）②場次全部播畢的收尾 ③order 無法解析的錯誤退場。
+  const finishToHome = useCallback(() => {
+    skipPersistRef.current = true; // 抑制離開保底存檔，避免把剛刪掉的進度又寫回
+    storage.deleteStory({ storyId }, 'continueStory');
+    storage.storeStory({ storyId, storyData, nochapter }, 'finishStory');
+    rawNavigation.navigate(routes.MAIN);
+  }, [storyId, storyData, nochapter, rawNavigation]);
 
   const cacheData = useMemo(
     () => ({
@@ -502,6 +531,19 @@ function StoryScreen({ route }) {
           const content = await axios.get(apiclient.currentBaseUrl() + `api/v1/admin/content/${storyId}/${chapterId}/${_id}`
           );
           if (content?.data?.length) {
+            // 內容載入即驗證 order：全部須為純數字序號或空白。出現無法解析者（如殘留冒號格式
+            // 或雜訊）→ 跳錯誤提示並返回首頁；否則交給 a.order - b.order 排序會產生 NaN、
+            // 排序與定位全亂。空白不算錯誤（＝結束哨符，由 isStoryEnd 導回首頁）。
+            const badItem = content.data.find((it) => !isParseableOrder(it?.order));
+            if (badItem) {
+              console.error('[StoryScreen] 無法解析的 order：', badItem?.order, badItem);
+              showAlert(
+                translate('genericErrorTitle'),
+                translate('storyOrderParseErrorMessage'),
+                [{ text: translate('ok'), onPress: () => finishToHome() }]
+              );
+              return;
+            }
             const storyContent = content.data.slice().sort((a, b) => a.order - b.order);
             setQueryInfo((prev) => ({
               ...prev,
@@ -514,23 +556,33 @@ function StoryScreen({ route }) {
           // 場次清單已載入且確實播完（screen 超過尾端）才返回；
           // 空清單（length === 0，可能是設定問題）不在此彈回，避免一進章節就被踢出
 
-          // 1) 試閱播畢：未持有本書且為試閱（開放）章節 → 此處場次已被 read_range_end 截斷，
+          // 本章播畢後先判斷「是否真的還有被鎖住的內容可解鎖」，避免在全書真正的結尾誤跳購買：
+          //   - previewTruncated：本章試閱被 read_range_end 截斷（截斷後場次數 < 原始場次數）
+          //     → 後面還有本章剩餘劇情被鎖住。
+          //   - nextChapter：仍有下一章 → 後面還有內容。
+          // 兩者皆無 → 這就是整本書的真結尾（無下一章、也無被截斷的剩餘場次），不該跳購買
+          //           （無論身份／是否購買），交由下方分支 3 收尾回章節選單/首頁。
+          const nextChapter =
+            storyData?.chapter_type === '章節' ? getNextChapter() : null;
+          const previewTruncated =
+            typeof queryInfo.screeningsTotal === 'number' &&
+            screenings.length < queryInfo.screeningsTotal;
+          const hasMoreToUnlock = previewTruncated || nextChapter != null;
+
+          // 1) 試閱播畢：未持有本書、為試閱（開放）章節，且後面確實還有被鎖內容 →
           //    代表已到「試閱的最後內容」，跳出購買提示（優先於自動續章）。
-          if (free_open === '開放' && !isBookPurchased) {
+          if (free_open === '開放' && !isBookPurchased && hasMoreToUnlock) {
             storyLockedRef.current = true; // 鎖住推進：之後只能滑動回看，不能再播剩餘劇情
             setShowPurchaseOverlay(true);
             return;
           }
 
           // 2) 章節型書籍：本章播畢後若仍有「可閱讀」的下一章，原地接續到下一章第一場次。
-          if (storyData?.chapter_type === '章節') {
-            const nextChapter = getNextChapter();
-            const nextAccessible =
-              nextChapter &&
-              canAccessChapter({
-                freeOpen: nextChapter.free_open,
-                isBookPurchased,
-              });
+          if (nextChapter) {
+            const nextAccessible = canAccessChapter({
+              freeOpen: nextChapter.free_open,
+              isBookPurchased,
+            });
             if (nextAccessible) {
               // 換章前清掉本章的「繼續觀看」快取，避免下次回來停在舊章節尾端。
               skipPersistRef.current = true; // 抑制離開保底存檔，避免把剛刪掉的進度又寫回
@@ -551,16 +603,9 @@ function StoryScreen({ route }) {
             }
           }
 
-          // 3) 整本書已讀完（非章節型書籍，或章節型已無下一章）→ 標記完成、清掉繼續觀看進度。
-          //    章節型書籍：回到「章節選單」(讓使用者重選/回味)；非章節型：無章節選單，回首頁。
-          skipPersistRef.current = true; // 抑制離開保底存檔，避免把剛刪掉的進度又寫回
-          storage.deleteStory({ storyId }, 'continueStory');
-          storage.storeStory({ storyId, storyData, nochapter }, 'finishStory');
-          if (storyData?.chapter_type === '章節') {
-            navigation.navigate(routes.CHAPTER, { name, author, storyId, storyData });
-          } else {
-            navigation.navigate(routes.MAIN);
-          }
+          // 3) 整本書已讀完（非章節型書籍，或章節型已無下一章）→ 標記完成、清掉繼續觀看進度，
+          //    一律回首頁（不分書籍型態、不回章節選單，與結束哨符 999999 的收尾一致）。
+          finishToHome();
         }
       } catch (error) {
         console.error('API 請求失敗：', error);
@@ -568,7 +613,7 @@ function StoryScreen({ route }) {
     };
 
     if (Array.isArray(queryInfo.screenings)) fetchStories();
-  }, [index.screen, queryInfo.screenings, free_open, isBookPurchased]);
+  }, [index.screen, queryInfo.screenings, free_open, isBookPurchased, finishToHome]);
 
   useEffect(() => {
     let mounted = true;
@@ -733,6 +778,16 @@ function StoryScreen({ route }) {
       return;
     }
 
+    // 整本劇情結束哨符（order === '999999' 或空白，與 contentPresent 無關）：命中即結束整本、
+    // 導回首頁。必須擺在「結尾 → 換場次」之前判斷——多重結局的各結局是彼此相鄰的場次，
+    // 若先被結尾邏輯 screen+1 就會誤接續播放到下一個結局而回不了首頁。
+    // 一律回首頁（不分書籍型態、不回章節選單）。此哨符段不進入 story 陣列（不顯示）。
+    const activeItem = queryInfo.content[index.story];
+    if (activeItem && isStoryEnd(activeItem)) {
+      finishToHome();
+      return;
+    }
+
     if (queryInfo.content[index.story]?.contentPresent === '結尾') {
       const screeningsArr = Array.isArray(queryInfo.screenings) ? queryInfo.screenings : [];
       const hasNextScreening = index.screen + 1 < screeningsArr.length;
@@ -821,7 +876,7 @@ function StoryScreen({ route }) {
       if (prev.length && prev[prev.length - 1]?.id === newItem?.id) return prev;
       return [...prev, newItem];
     });
-  }, [index.story, queryInfo.content]);
+  }, [index.story, queryInfo.content, finishToHome]);
 
   // 劇情序列（story）變更後存檔：在此存才讀得到最新的造訪路徑（含分歧選擇）。
   // 還原進行中（restoreRef 尚未消費或捲動尚未定位）不存，避免覆寫成中間狀態。
@@ -885,10 +940,12 @@ function StoryScreen({ route }) {
     prevStoryLength.current = story.length;
   }, [story, pendingScrollOffset]);
 
-  // 自動播放：開啟後每 autoPlaySeconds 秒推進一段（等同點一下畫面）。遇下列情形暫停：
+  // 自動播放：開啟後每 autoPlaySeconds 秒推進一段（等同點一下畫面）。
+  //  - 尚未開始或剛換到新場次（story 為 null）→ 自動推進到本場次第一段，毋須手動先點一下。
   //  - 目前段落帶選項（choice1Content）→ 停下等使用者選；選完 index.story 變動、本 effect
   //    重跑即自動續播（故此處只 return、不關閉開關）。
-  //  - 下一段為「結尾」（即將換場次）或本場次已無下一段 → 關閉自動播放，由使用者手動續看。
+  //  - 下一段為「結尾」→ 代表推進後會換場次：仍自動推進，換場次後由上方 null 分支接續播放。
+  //  - 場次已全部播畢（screen 超出場次數）→ 交由 fetchStories 收尾，不在此推進。
   //  - 顯示購買提示（試閱播畢／跳轉被擋）→ 關閉自動播放。
   useEffect(() => {
     if (!isAutoPlay) return;
@@ -896,18 +953,34 @@ function StoryScreen({ route }) {
       setIsAutoPlay(false);
       return;
     }
-    if (index.story === null || !queryInfo.content?.length) return;
+    if (!queryInfo.content?.length) return;
+
+    const screeningsArr = Array.isArray(queryInfo.screenings) ? queryInfo.screenings : [];
+
+    // 尚未開始或剛換到新場次（story 為 null）：自動推進到本場次第一段。
+    // 但若場次已全部播畢（screen 超出場次數）→ 交給 fetchStories 收尾，不在此推進。
+    if (index.story === null) {
+      if (index.screen >= screeningsArr.length) return;
+      const timer = setTimeout(() => onPressOption(null), autoPlaySeconds * 1000);
+      return () => clearTimeout(timer);
+    }
+
     const current = queryInfo.content[index.story];
     if (!current) return;
+    // 目前段落即整本結束哨符（order 999999／空白）→ 內容 effect 會導回首頁，這裡不再排推進計時器。
+    if (isStoryEnd(current)) return;
+    // 目前段落即「結尾」→ 換場次進行中，交給內容 effect 轉場，維持自動播放不關閉。
+    if (current.contentPresent === '結尾') return;
     if (current.choice1Content) return; // 有選項 → 暫停等待使用者
     const next = queryInfo.content[index.story + 1];
-    if (!next || next.contentPresent === '結尾') {
-      setIsAutoPlay(false); // 換場次前暫停
+    if (!next) {
+      setIsAutoPlay(false); // 本場次已無下一段且無「結尾」標記（異常）→ 停下
       return;
     }
+    // next 為「結尾」時不停下：推進到該段會觸發換場次，換場次後由上方 null 分支接續播放。
     const timer = setTimeout(() => onPressOption(null), autoPlaySeconds * 1000);
     return () => clearTimeout(timer);
-  }, [isAutoPlay, index.story, queryInfo.content, showPurchaseOverlay, autoPlaySeconds]);
+  }, [isAutoPlay, index.story, index.screen, queryInfo.content, queryInfo.screenings, showPurchaseOverlay, autoPlaySeconds]);
 
   useEffect(() => {
     // 等購買狀態確認(purchaseChecked)後再抓場次：否則會先以「未購買」截斷試閱長度，
@@ -921,6 +994,8 @@ function StoryScreen({ route }) {
         const screenings = await axios.get(URL + `api/v1/admin/screenings/${storyId}/${chapterId}`);
         const role = await axios.get(URL + `api/v1/admin/role`);
         const roleConf = await axios.get(URL + `api/v1/admin/setup-story-role`);
+        // 故事角色-防呆視窗參數表：用於替點角色頭像跳出的角色簡介彈窗套字樣。
+        const roleFoolproofConf = await axios.get(URL + `api/v1/admin/setup-story-role-foolproof`);
 
         const rawScreenings = Array.isArray(screenings?.data) ? screenings.data : [];
         // 僅「試閱中且未購買」才依 read_range_end（試閱場次範圍尾）截斷；
@@ -960,12 +1035,26 @@ function StoryScreen({ route }) {
         }
         const screenData = screeningsList[landingScreen];
 
+        // admin/role 為「全站」角色清單（跨所有故事與語系），若直接交給 Chat 以 role_name 比對，
+        // 同名角色（如「警察」在多本故事都有）會誤抓到別本故事的那一隻（頭像／性別／簡介全錯）。
+        // 故此處先過濾成「本故事(storyid) + 目前語系(lang)」，再交下游比對。
+        const roleList = (Array.isArray(role?.data) ? role.data : []).filter(
+          (r) => Number(r?.storyid) === Number(storyId) && matchesCurrentStoryLang(r?.lang)
+        );
+
+        // 依目前語系挑出相符的 setup-story-list / setup-story-role 參數列
+        // （取代固定 data[0]），讓書名／作者／角色名樣式隨語系更新。
         setQueryInfo({
-          config: config?.data?.[0] ?? {},
+          config: pickConfigByLang(config?.data) ?? {},
           screenings: screeningsList,
-          role: role?.data ?? {},
+          // 未截斷前的原始場次數：供「本章播畢」判斷試閱是否真的被 read_range_end 截斷
+          // （screenings.length < screeningsTotal 代表後面還有被鎖的本章劇情），
+          // 以區分「試閱中途截斷（該賣書）」與「全書真正的結尾（不該賣書）」。
+          screeningsTotal: rawScreenings.length,
+          role: roleList,
           imageUrl: domain + screenData?.bg_view,
-          roleConf: roleConf?.data?.[0],
+          roleConf: pickConfigByLang(roleConf?.data) ?? {},
+          roleFoolproofConf: pickConfigByLang(roleFoolproofConf?.data) ?? {},
         });
 
         setIndex({
@@ -995,7 +1084,9 @@ function StoryScreen({ route }) {
     >
       <SafeAreaView style={{ flex: 1, position: 'relative' }}>
         <StoryHeader
-          storyName={storyData?.main_menu_name ?? name}
+          // 故事內的故事名稱：優先用 story-list 的 stroy_name（CMS「故事內的故事名稱」欄位），
+          // 舊資料無此欄時退回主選單故事名稱 main_menu_name，再退回導覽帶入的 name。
+          storyName={storyData?.stroy_name ?? storyData?.main_menu_name ?? name}
           author={author}
           config={queryInfo.config}
           isAutoPlay={isAutoPlay}
@@ -1040,6 +1131,7 @@ function StoryScreen({ route }) {
                   onPressOption={onPressOption}
                   index={index}
                   roleConf={queryInfo.roleConf}
+                  roleFoolproofConf={queryInfo.roleFoolproofConf}
                 />
               ) : (
                 <Narrator

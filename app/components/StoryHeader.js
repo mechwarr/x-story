@@ -16,10 +16,15 @@ function StoryHeader({ storyName, author, config, isAutoPlay, onToggleAutoPlay }
 
   return (
     <View style={styles.container}>
-      {/* 書名（config 未載入前不顯示） */}
+      {/* 書名（config 未載入前不顯示）。
+          允許最多兩行；長書名時以 adjustsFontSizeToFit 自動縮小字級塞進兩行，
+          字級基準仍取 CMS 的 stroy_name_size（變動）。 */}
       <View style={styles.titleGroup}>
         {author_size ? (
           <AppText
+            numberOfLines={2}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
             style={[
               styles.text,
               {
@@ -39,7 +44,7 @@ function StoryHeader({ storyName, author, config, isAutoPlay, onToggleAutoPlay }
       {/* 自動播放開關：綠底圓角鈕，置中於書名與作者之間，僅劇情內（有傳 onToggleAutoPlay）時顯示 */}
       {onToggleAutoPlay ? (
         <View style={styles.centerGroup} pointerEvents="box-none">
-          {/* 自動播放中（自動中）→ 底色由綠轉灰，暗示「點一下可停止自動」；文字顏色不變 */}
+          {/* 關閉時為灰底（預設）；自動播放啟動中 → 底色轉綠，暗示「自動中」；文字顏色不變 */}
           <Pressable
             onPress={onToggleAutoPlay}
             hitSlop={8}
@@ -86,6 +91,8 @@ const styles = StyleSheet.create({
   },
   titleGroup: {
     flexShrink: 1,
+    // 侷限在左側（避免長書名折兩行時往右壓到置中的 Auto 鈕）。
+    maxWidth: '40%',
   },
   rightGroup: {
     flexDirection: 'row',
@@ -100,13 +107,13 @@ const styles = StyleSheet.create({
   autoBtn: {
     height: 30,
     paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: colors.autoPlayGreen,
+    borderRadius: 20,
+    backgroundColor: colors.autoPlayGray,
     alignItems: 'center',
     justifyContent: 'center',
   },
   autoBtnActive: {
-    backgroundColor: colors.autoPlayGray,
+    backgroundColor: 'rgba(19, 158, 155, 0.7)',
   },
   autoBtnText: {
     color: '#fff',

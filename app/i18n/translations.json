@@ -244,6 +244,11 @@
         "zh-CN": "错误",
         "en": "Error"
     },
+    "storyOrderParseErrorMessage": {
+        "zh-TW": "劇情資料有誤（順序無法解析），將返回首頁。",
+        "zh-CN": "剧情数据有误（顺序无法解析），将返回首页。",
+        "en": "The story data is invalid (unparseable order). Returning to home."
+    },
     "noticeTitle": {
         "zh-TW": "提示",
         "zh-CN": "提示",

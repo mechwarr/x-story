@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { View, StyleSheet, Image, Pressable, Text, Platform } from 'react-native';
 import { useNavigation, DrawerActions } from '@react-navigation/native';
 import routes from '../navigations/routes';
-import AppText from './AppText';
+import NewsMarquee from './NewsMarquee';
 import { useCoins } from '../store/coinContext';
 import useResponsive from '../hook/useResponsive';
 import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
@@ -33,25 +33,22 @@ function AppHeader({ news, config, onNewsPress }) {
         />
       </Pressable>
 
-      {/* 中間新聞文字 */}
+      {/* 中間新聞文字（跑馬燈：由右進、往左出、輪迴播放） */}
       {news ? (
-        <Pressable 
+        <Pressable
           style={styles.newsContainer}
           onPress={onNewsPress}
         >
-          <AppText
-            style={{
-              flex: 1,
-              flexWrap: 'wrap',
-              color: config?.[0]?.news_color ?? '#fff',
-              fontSize: config?.[0]?.news_font_size ?? 20,
-              ...(config?.[0]?.news_weight === '粗' && {
+          <NewsMarquee
+            text={news}
+            textStyle={{
+              color: config?.news_color ?? '#fff',
+              fontSize: config?.news_font_size ?? 20,
+              ...(config?.news_weight === '粗' && {
                 fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
               }),
             }}
-          >
-            {news}
-          </AppText>
+          />
         </Pressable>
       ) : null}
 

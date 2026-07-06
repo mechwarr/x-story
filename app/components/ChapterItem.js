@@ -25,6 +25,7 @@ import colors from '../config/colors';
 import storage from '../storage/storage';
 import { canAccessChapter } from '../services/bookAccessService';
 import useResponsive from '../hook/useResponsive';
+import { toAlertTextStyle } from '../config/foolproofStyle';
 
 const ChapterItem = (props) => {
   const {
@@ -47,6 +48,7 @@ const ChapterItem = (props) => {
     storyData,
     nochapter,
     uiConfig,
+    toastConfig,
     storyName,
     priceCoins = 0,
     coins = 0,
@@ -158,17 +160,44 @@ const ChapterItem = (props) => {
         return;
       }
       if (isFreeOpen) {
+        // (分)章節-防呆視窗：標題/內文/兩顆按鈕的字級與顏色，來自 setup-chapter-foolproof
+        // 參數表（toastConfig，已於 ChapterScreen 依語系挑列）。未設定的欄位會自動略過、沿用預設。
         showAlert(
           window_title,
           chapter_infor,
           [
-            { text: window_btn_left, cancelable: true },
+            {
+              text: window_btn_left,
+              cancelable: true,
+              textStyle: toAlertTextStyle(
+                toastConfig?.chapter_foolproof_stroy_item1_size,
+                toastConfig?.chapter_foolproof_stroy_item1_weight,
+                toastConfig?.chapter_foolproof_stroy_item1_color
+              ),
+            },
             {
               text: translate('ok'),
               onPress: navigateToStory,
+              textStyle: toAlertTextStyle(
+                toastConfig?.chapter_foolproof_stroy_item2_size,
+                toastConfig?.chapter_foolproof_stroy_item2_weight,
+                toastConfig?.chapter_foolproof_stroy_item2_color
+              ),
             },
           ],
-          { cancelable: true }
+          { cancelable: true },
+          {
+            titleStyle: toAlertTextStyle(
+              toastConfig?.chapter_foolproof_story_name_size,
+              toastConfig?.chapter_foolproof_story_name_weight,
+              toastConfig?.chapter_foolproof_story_name_color
+            ),
+            messageStyle: toAlertTextStyle(
+              toastConfig?.chapter_foolproof_stroy_information_size,
+              toastConfig?.chapter_foolproof_stroy_information_weight,
+              toastConfig?.chapter_foolproof_stroy_information_color
+            ),
+          }
         );
       } else {
         navigateToStory();

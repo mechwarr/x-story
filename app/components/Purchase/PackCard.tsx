@@ -118,7 +118,14 @@ export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style,
 
       {/* 右：價格區塊 */}
       <View style={[styles.right, { backgroundColor: rightColor }]}>
-        <Text style={styles.price}>{displayPrice || String(priceUsd)}</Text>
+        <Text
+          style={styles.price}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
+        >
+          {displayPrice || String(priceUsd)}
+        </Text>
       </View>
     </Pressable>
   );
@@ -208,11 +215,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,                      // 防止被壓縮
+    paddingHorizontal: 8,               // 左右內距，避免文字貼邊
   },
   price: {
     color: '#0E4C44',
     fontSize: 24,                      // 稍微縮小價格文字，與整體協調
     fontWeight: '900',
     letterSpacing: 0.5,
+    textAlign: 'center',
+    alignSelf: 'stretch',              // 撐滿容器寬度，adjustsFontSizeToFit 才會生效
   },
 });

@@ -18,6 +18,10 @@ const StoryNavigator = () => {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
+        // 卡片底色設深色，避免畫面切換（含全書結束回主頁）時預設白底造成的白閃。
+        cardStyle: {
+          backgroundColor: colors.dark,
+        },
         headerStyle: {
           backgroundColor: colors.dark,
         },

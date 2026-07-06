@@ -8,6 +8,8 @@ import { useFocusEffect, useRoute } from '@react-navigation/native';
 import apiclient from '../config/apiClient';
 import { useCoins } from '../store/coinContext';
 import { syncPurchasedStoryIds } from '../services/bookAccessService';
+import { pickConfigByLang } from '../i18n/i18n';
+import { useLanguage } from '../i18n/LanguageContext';
 
 const ChapterScreen = () => {
   const [queryInfo, setQueryInfo] = useState({
@@ -25,6 +27,9 @@ const ChapterScreen = () => {
   );
 
   const { coins, refreshCoins } = useCoins();
+  // 目前語系；切換語系時重新抓取＋重挑相符語系的參數列（與 Books 的防禦式做法一致，
+  // 即使日後 _layout 不再以 lang 為 key 重新掛載也不會失準）。
+  const { lang } = useLanguage();
   const priceCoins = storyData?.priceCoins ?? 0;
   const isLocallyPurchased = localPurchasedIds.includes(Number(storyId));
 
@@ -76,12 +81,14 @@ const ChapterScreen = () => {
         const storyConfig = await axios.get(
           url + `api/v1/admin/setup-story-list`
         );
+        // 依目前 App 語系挑出相符的那一筆參數（取代原本寫死的 data[0]/data[1]），
+        // 否則切換語系後樣式仍套用固定第一筆、不會跟著語系更新。
         setQueryInfo({
           listData: chapterList?.data ?? [],
-          toastConfig: toastConfig?.data?.[1] ?? {},
-          uiConfig: uiConfig?.data?.[0] ?? {},
-          storyConfig: storyConfig?.data[0] ?? [],
-          config: UIConfig?.data,
+          toastConfig: pickConfigByLang(toastConfig?.data) ?? {},
+          uiConfig: pickConfigByLang(uiConfig?.data) ?? {},
+          storyConfig: pickConfigByLang(storyConfig?.data) ?? {},
+          config: pickConfigByLang(UIConfig?.data) ?? {},
         });
         // if (response?.data && Array.isArray(response.data)) {
         //   // const storyTypes = response.data[0];
@@ -95,7 +102,7 @@ const ChapterScreen = () => {
     };
 
     fetchData();
-  }, []);
+  }, [lang]);
 
   useFocusEffect(
     useCallback(() => {
@@ -109,12 +116,14 @@ const ChapterScreen = () => {
     <SafeAreaView
       style={{
         flex: 1,
-        backgroundColor: queryInfo?.config?.[0]?.view_color ?? '#fff',
+        backgroundColor: queryInfo?.config?.view_color ?? '#fff',
       }}
     >
       <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
       <StoryHeader
-        storyName={name}
+        // 章節頁頂部書名：與 StoryScreen 一致，優先用 story-list 的 stroy_name
+        //（CMS「故事內的故事名稱」欄位），舊資料無此欄時退回 main_menu_name，再退回導覽帶入的 name。
+        storyName={storyData?.stroy_name ?? storyData?.main_menu_name ?? name}
         author={author}
         config={queryInfo?.storyConfig}
       />

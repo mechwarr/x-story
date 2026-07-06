@@ -23,6 +23,7 @@ function Chat({
   roleName,
   roleList,
   roleConf,
+  roleFoolproofConf,
   onPressOption,
 }) {
   const roleData = useMemo(() => {
@@ -38,6 +39,7 @@ function Chat({
             name={roleData?.role_name}
             {...roleData}
             roleConf={roleConf}
+            roleFoolproofConf={roleFoolproofConf}
             role={role}
           />
           {textMsg ? (
@@ -120,6 +122,7 @@ function Chat({
             name={roleData?.role_name}
             {...roleData}
             roleConf={roleConf}
+            roleFoolproofConf={roleFoolproofConf}
             role={role}
           />
         </View>

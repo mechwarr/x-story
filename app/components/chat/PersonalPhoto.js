@@ -11,6 +11,7 @@ import apiclient  from '../../config/apiClient';
 
 import AppText from '../AppText';
 import { translate } from '../../i18n/i18n';
+import { toAlertTextStyle } from '../../config/foolproofStyle';
 const domain = apiclient.currentBaseUrl() + 'images/update/';
 
 function PersonalPhoto(props) {
@@ -21,6 +22,7 @@ function PersonalPhoto(props) {
     role_foolproof_title,
     role_foolproof_content,
     roleConf,
+    roleFoolproofConf,
     role,
   } = props;
 
@@ -28,12 +30,36 @@ function PersonalPhoto(props) {
     return (
       <Pressable
         onPress={() => {
-          showAlert(role_foolproof_title, role_infor, [
+          // 故事角色-防呆視窗：標題/內文/按鈕字樣來自 setup-story-role-foolproof 參數表
+          // （roleFoolproofConf，已於 StoryScreen 依語系挑列）。未設定的欄位自動略過、沿用預設。
+          showAlert(
+            role_foolproof_title,
+            role_infor,
+            [
+              {
+                text: translate('ok'),
+                cancelable: true,
+                textStyle: toAlertTextStyle(
+                  roleFoolproofConf?.setup_story_role_foolproof_size,
+                  roleFoolproofConf?.setup_story_role_foolproof_weight,
+                  roleFoolproofConf?.setup_story_role_foolproof_color
+                ),
+              },
+            ],
+            undefined,
             {
-              text: translate('ok'),
-              cancelable: true,
-            },
-          ]);
+              titleStyle: toAlertTextStyle(
+                roleFoolproofConf?.setup_story_role_foolproof_name_size,
+                roleFoolproofConf?.setup_story_role_foolproof_name_weight,
+                roleFoolproofConf?.setup_story_role_foolproof_name_color
+              ),
+              messageStyle: toAlertTextStyle(
+                roleFoolproofConf?.setup_story_role_foolproof_information_size,
+                roleFoolproofConf?.setup_story_role_foolproof_information_weight,
+                roleFoolproofConf?.setup_story_role_foolproof_information_color
+              ),
+            }
+          );
           // : onPressOption && onPressOption(null);
         }}
       >

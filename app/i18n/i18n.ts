@@ -70,6 +70,20 @@ export const matchesCurrentStoryLang = (rawLang?: string | null): boolean => {
   return normalizeStoryLang(rawLang) === normalizeLang(currentLang);
 };
 
+// 從「多語系參數表」（後端各支參數 API 皆回傳全部語系的資料列）中，
+// 挑出與目前 App 語系相符的那一筆設定。
+// 後端 list API（menu / setup-chapter / setup-story-list / setup-story-role / *-foolproof）
+// 只是 findAll()，未依 lang 過濾，資料列順序也不保證，故不能用固定索引 data[0]/data[1]，
+// 否則不論使用者切到哪個語系，永遠套用同一列（通常是第一筆）的樣式 → 樣式不會隨語系更新。
+// 比對沿用 matchesCurrentStoryLang（已處理簡繁字形／英文描述／語言碼差異）。
+// 找不到相符語系時退回第一筆，避免整組樣式消失。
+export const pickConfigByLang = <T extends { lang?: string | null }>(
+  rows?: T[] | null
+): T | undefined => {
+  if (!Array.isArray(rows) || rows.length === 0) return undefined;
+  return rows.find((row) => matchesCurrentStoryLang(row?.lang)) ?? rows[0];
+};
+
 // 取得翻譯字串
 // 支援 {placeholder} 內插：translate('key', { price: 100, name: '書名' })
 // 向後相容：第二參數若為字串，仍視為語言碼（translate('key', 'zh-TW')）

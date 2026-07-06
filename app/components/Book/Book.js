@@ -12,7 +12,7 @@ import routes from '../../navigations/routes';
 import AppText from '../AppText';
 import colors from '../../config/colors';
 import apiclient  from '../../config/apiClient';
-import { isTabletWidth } from '../../config/responsive';
+import { isTabletWidth, getUiScale } from '../../config/responsive';
 import { translate } from '../../i18n/i18n';
 import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins, getEffectiveRoleLevel } from '../../config/userApiClient';
@@ -20,15 +20,29 @@ import { isAdmin } from '../../config/roles';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../../config/idempotencyKeyCache';
 import { useCoins } from '../../store/coinContext';
 import storage from '../../storage/storage';
+import { toAlertTextStyle } from '../../config/foolproofStyle';
 
 const screenWidth = Dimensions.get('window').width;
 const isTablet = isTabletWidth(screenWidth);
+
+// 平板統一放大係數（與全站一致：手機 1、平板 TABLET_UI_SCALE）。
+// 書名字級以此縮放，lineHeight / 保留高度皆由字級推導，平板自動跟著放大。
+const uiScale = getUiScale(screenWidth);
+const ms = (size) => Math.round(size * uiScale);
 
 // 解鎖鎖頭 icon：平板 RWD 放大 1/3，手機維持原尺寸
 const LOCK_ICON_BASE_SIZE = 40;
 const LOCK_ICON_SIZE = isTablet
   ? Math.round(LOCK_ICON_BASE_SIZE * (4 / 3))
   : LOCK_ICON_BASE_SIZE;
+
+// 書封尺寸（手機 / 平板各一份，書名寬度一律跟隨書封寬度，避免各處寫死 150 / 225）。
+const COVER_SIZE = isTablet ? { width: 225, height: 330 } : { width: 150, height: 220 };
+
+// 書名排版常數（單一可調來源）
+const NAME_MAX_LINES = 2; // 最多兩行：同時決定 numberOfLines 與保留高度
+const NAME_LINE_HEIGHT_RATIO = 1.4; // 行高／字級比例
+const NAME_FONT_SIZE_DEFAULT = 15; // CMS 未設定字級時的預設
 
 function Book(props) {
   const {
@@ -40,6 +54,7 @@ function Book(props) {
     index,
     chapterId,
     read_range_end,
+    menuFoolproofConfig,
   } = props;
   const {
     main_menu_name,
@@ -65,7 +80,11 @@ function Book(props) {
   const hasChapter = chapter_type === '章節';
   const isOpen = open === '公開';
 
-  const padImgStyle = isTablet ? { width: 225, height: 330 } : {};
+  // 書名排版：以 CMS 字級為唯一輸入，經 ms() 吃平板縮放後，
+  // lineHeight 與「兩行保留高度」全部推導；單行於此高度中垂直置中、兩行自然填滿。
+  const nameFontSize = ms(Number(main_menu_name_size) || NAME_FONT_SIZE_DEFAULT);
+  const lineHeight = Math.round(nameFontSize * NAME_LINE_HEIGHT_RATIO);
+  const nameBoxHeight = lineHeight * NAME_MAX_LINES;
 
   const chapter = useMemo(() => {
     return nochapter?.find((e) => e.storyid === id);
@@ -310,17 +329,44 @@ function Book(props) {
             // 一般選項：每次點擊都跳出簡介彈窗，讓使用者選擇。
             // - 重新閱讀（左）：goToStart，從頭開始（有章節會進章節選單頁）。
             // - 繼續閱讀（右）：前往繼續觀看清單頁（ContinueScreen）。
+            // 主選單-防呆視窗：標題/內文/兩顆按鈕字樣來自 menu-foolproof 參數表
+            // （menuFoolproofConfig，已於 HomeScreen 依語系挑列）。未設定的欄位自動略過、沿用預設。
             showAlert(
               main_menu_title,
               main_menu_content,
               [
-                { text: main_menu_btn_left, onPress: goToStart },
+                {
+                  text: main_menu_btn_left,
+                  onPress: goToStart,
+                  textStyle: toAlertTextStyle(
+                    menuFoolproofConfig?.menu_foolproof_stroy_item1_size,
+                    menuFoolproofConfig?.menu_foolproof_stroy_item1_weight,
+                    menuFoolproofConfig?.menu_foolproof_stroy_item1_color
+                  ),
+                },
                 {
                   text: main_menu_btn_right || translate('ok'),
                   onPress: () => navigation.navigate(routes.CONTINUE),
+                  textStyle: toAlertTextStyle(
+                    menuFoolproofConfig?.menu_foolproof_stroy_item2_size,
+                    menuFoolproofConfig?.menu_foolproof_stroy_item2_weight,
+                    menuFoolproofConfig?.menu_foolproof_stroy_item2_color
+                  ),
                 },
               ],
-              { cancelable: true }
+              { cancelable: true },
+              {
+                titleStyle: toAlertTextStyle(
+                  menuFoolproofConfig?.menu_foolproof_story_name_size,
+                  menuFoolproofConfig?.menu_foolproof_story_name_weight,
+                  menuFoolproofConfig?.menu_foolproof_story_name_color
+                ),
+                messageStyle: toAlertTextStyle(
+                  menuFoolproofConfig?.menu_foolproof_stroy_information_size,
+                  menuFoolproofConfig?.menu_foolproof_stroy_information_weight,
+                  menuFoolproofConfig?.menu_foolproof_stroy_information_color
+                ),
+              }
             );
           }
         }}
@@ -334,7 +380,7 @@ function Book(props) {
               source={require('../../../assets/continue.png')}
             />
             <Image
-              style={[styles.img, padImgStyle]}
+              style={[styles.img, COVER_SIZE]}
               source={{
                 uri: imageUri,
               }}
@@ -348,7 +394,7 @@ function Book(props) {
               source={require('../../../assets/reload.png')}
             />
             <Image
-              style={[styles.img, padImgStyle]}
+              style={[styles.img, COVER_SIZE]}
               source={{ uri: imageUri }}
             />
           </View>
@@ -365,10 +411,10 @@ function Book(props) {
             ) : null}
 
             <Image
-              style={[styles.img, padImgStyle]}
+              style={[styles.img, COVER_SIZE]}
               source={{ uri: imageUri }}
             />
-            {index === 0 && storyStatus?.isNew ? (
+            {storyStatus?.isNew ? (
               <Image
                 style={[
                   styles.newIcon,
@@ -379,13 +425,17 @@ function Book(props) {
             ) : null}
           </View>
         )}
-        <View style={styles.nameContainer}>
+        <View style={[styles.nameContainer, { minHeight: nameBoxHeight, justifyContent: 'center' }]}>
           <AppText
-            numberOfLines={1}
+            numberOfLines={NAME_MAX_LINES}
             style={[
               styles.name,
               {
-                fontSize: main_menu_name_size || 15,
+                width: COVER_SIZE.width,
+                fontSize: nameFontSize,
+                lineHeight,
+                includeFontPadding: false,
+                textAlignVertical: 'center',
                 color: main_menu_name_color || '#fff',
                 ...(main_menu_name_weight === '粗' && {
                   fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
@@ -412,15 +462,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   name: {
-    fontSize: 20,
     color: colors.leftChatBackground,
-    width: 150,
     textAlign: 'center',
   },
-  img: {
-    width: 150,
-    height: 220,
-  },
+  // 尺寸由 COVER_SIZE 決定（手機 / 平板），此處僅保留非尺寸樣式
+  img: {},
   coverIcon: {
     position: 'absolute',
     zIndex: 1,

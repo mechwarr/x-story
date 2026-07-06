@@ -12,7 +12,7 @@ import storage from '../storage/storage';
 import { bookDataBaseUrl } from '../config/apiClient';
 import { getBookstoreList, getAllAdminBookstores, getEffectiveRoleLevel, refreshRoleLevelCache } from '../config/userApiClient';
 import { canViewUnlisted } from '../config/roles';
-import { matchesCurrentStoryLang, translate } from '../i18n/i18n';
+import { matchesCurrentStoryLang, translate, pickConfigByLang } from '../i18n/i18n';
 import { useLanguage } from '../i18n/LanguageContext';
 import routes from '../navigations/routes';
 import { consumePendingProfileRedirect } from '../auth/firstLoginRedirect';
@@ -39,7 +39,7 @@ function HomeScreen() {
   const [storyInfo, setStoryInfo] = useState({
     type: [],
     config: {},
-    news: '',
+    newsList: [],
     storyInfo: [],
     storyList: [],
   });
@@ -67,10 +67,18 @@ function HomeScreen() {
     );
   }, [storyInfo?.type, storyInfo?.storyList, lang]);
 
+  // 最新消息依語系顯示：後端 news API 回傳多語系多列，須用 pickConfigByLang 依當前語系挑列
+  //（非固定 data[0]）。語系切換時重新挑列。
+  const news = useMemo(
+    () => pickConfigByLang(storyInfo?.newsList)?.news_content ?? '',
+    [storyInfo?.newsList, lang]
+  );
+
   const renderItem = ({ item }) => (
     <Books
       type={item}
-      config={storyInfo.config[0]}
+      config={storyInfo.config}
+      menuFoolproofConfig={storyInfo?.menuFoolproofConfig}
       nochapter={storyInfo?.nochapter}
       storyCache={storyCache}
       storyList={storyInfo?.storyList}
@@ -82,6 +90,10 @@ function HomeScreen() {
       try {
         const config = await axios.get(
           url + 'api/v1/admin/menu'
+        );
+        // 主選單-防呆視窗參數表：用於替 Book 開書時的簡介彈窗（main_menu_title/content/btn）套字樣。
+        const menuFoolproof = await axios.get(
+          url + 'api/v1/admin/menu-foolproof'
         );
         const newsData = await axios.get(
           url + 'api/v1/admin/news'
@@ -253,8 +265,11 @@ function HomeScreen() {
 
         setStoryInfo({
           type: [...fetchedTypes, ...orphanTypes],
-          config: config?.data ?? [],
-          news: newsData?.data?.[0]?.news_content ?? '',
+          // 依目前語系挑出相符的 menu 參數列（取代 config[0] 固定索引），
+          // 讓頁面底色／最新消息／分類標題樣式隨語系切換更新。
+          config: pickConfigByLang(config?.data) ?? {},
+          menuFoolproofConfig: pickConfigByLang(menuFoolproof?.data) ?? {},
+          newsList: newsData?.data ?? [],
           nochapter: nochapter?.data ?? [],
           storyList: displayStoryList,
         });
@@ -281,9 +296,9 @@ function HomeScreen() {
   }, [isFocus]);
 
   return (
-    <Screen style={{ backgroundColor: storyInfo.config?.[0]?.view_color }}>
-      <AppHeader 
-        news={storyInfo.news}
+    <Screen style={{ backgroundColor: storyInfo.config?.view_color }}>
+      <AppHeader
+        news={news}
         config={storyInfo.config}
         onNewsPress={() => storage.deleteAllStorage()}
       />

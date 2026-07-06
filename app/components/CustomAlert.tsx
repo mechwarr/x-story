@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Platform,
   Alert as RNAlert,
+  type TextStyle,
 } from 'react-native';
 import colors from '../config/colors';
 import useResponsive from '../hook/useResponsive';
@@ -20,6 +21,8 @@ export type AlertButton = {
   text?: string;
   onPress?: () => void;
   style?: AlertButtonStyle;
+  // 選用：覆寫此按鈕文字的字級／字重／顏色（供「防呆視窗」參數表套用樣式）。
+  textStyle?: TextStyle;
 };
 
 export type AlertOptions = {
@@ -27,11 +30,19 @@ export type AlertOptions = {
   onDismiss?: () => void;
 };
 
+// 選用：覆寫標題／內文字樣式（供各「防呆視窗」參數表依語系套用字級／字重／顏色）。
+// 不傳則維持預設外觀，現有呼叫端完全不受影響。
+export type AlertTextStyles = {
+  titleStyle?: TextStyle;
+  messageStyle?: TextStyle;
+};
+
 type AlertConfig = {
   title?: string;
   message?: string;
   buttons: AlertButton[];
   options?: AlertOptions;
+  textStyles?: AlertTextStyles;
 };
 
 // host 掛載後填入；未掛載前以原生 Alert 兜底，避免提示遺失。
@@ -44,13 +55,15 @@ export function showAlert(
   title?: string,
   message?: string,
   buttons?: AlertButton[],
-  options?: AlertOptions
+  options?: AlertOptions,
+  textStyles?: AlertTextStyles
 ): void {
   const config: AlertConfig = {
     title,
     message,
     buttons: buttons && buttons.length > 0 ? buttons : [{ text: 'OK' }],
     options,
+    textStyles,
   };
   if (enqueue) {
     enqueue(config);
@@ -128,6 +141,8 @@ export function CustomAlertHost(): React.ReactElement | null {
             styles.buttonText,
             { fontSize: ms(16) },
             isDestructive ? styles.buttonDestructiveText : styles.buttonPrimaryText,
+            // 防呆視窗參數表的按鈕字樣（若有）最後套用以覆寫預設。
+            btn.textStyle,
           ]}
         >
           {btn.text ?? 'OK'}
@@ -146,9 +161,21 @@ export function CustomAlertHost(): React.ReactElement | null {
     >
       <Pressable style={styles.overlay} onPress={handleBackdrop}>
         <Pressable style={[styles.card, { maxWidth: ms(340) }]} onPress={(e) => e.stopPropagation()}>
-          {!!current.title && <Text style={[styles.title, { fontSize: ms(18) }]}>{current.title}</Text>}
+          {!!current.title && (
+            <Text style={[styles.title, { fontSize: ms(18) }, current.textStyles?.titleStyle]}>
+              {current.title}
+            </Text>
+          )}
           {!!current.message && (
-            <Text style={[styles.message, { fontSize: ms(15), lineHeight: ms(22) }]}>{current.message}</Text>
+            <Text
+              style={[
+                styles.message,
+                { fontSize: ms(15), lineHeight: ms(22) },
+                current.textStyles?.messageStyle,
+              ]}
+            >
+              {current.message}
+            </Text>
           )}
           <View style={[styles.buttonRow, stacked && styles.buttonColumn]}>
             {buttons.map(renderButton)}
@@ -180,14 +207,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: Platform.OS === 'ios' ? '600' : 'bold',
     color: '#222',
-    textAlign: 'center',
+    textAlign: 'left',
     marginBottom: 8,
   },
   message: {
     fontSize: 15,
     lineHeight: 22,
     color: '#444',
-    textAlign: 'center',
+    textAlign: 'left',
     marginBottom: 20,
   },
   // 純文字按鈕靠右橫排（Android Material AlertDialog 慣例）；3 顆以上改直排並靠右。
