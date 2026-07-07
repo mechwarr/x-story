@@ -37,6 +37,12 @@ import useResponsive from '../hook/useResponsive';
 
 const domain = apiclient.currentBaseUrl() + 'images/update/';
 const initStoryIdx = null;
+// 穩定的空陣列預設：供 router.params 未帶 nochapter 時當預設值。
+// 若在此直接寫 `nochapter = []`，未帶參數時每次 render 都會產生新陣列，
+// 連帶讓依賴它的 finishToHome（useCallback）每次 render 都變新身分，
+// 進而使抓內容的 effect（依賴含 finishToHome）反覆重跑、setStory([]) 清空又重建，
+// 造成「一進入最頂部對話不斷閃爍」。用模組級常數即可保持引用穩定。
+const EMPTY_NOCHAPTER = [];
 
 // 選項跳轉目標（choiceNext）各段皆為資料表的「順序欄位 order」（字串），需以 order 比對；
 // 相容前導零別名（'32'==='032'、'001'==='1'），與 CMS orderAliasKeys 行為一致。
@@ -81,7 +87,7 @@ function StoryScreen({ route }) {
     author = '',
     name = '',
     storyData,
-    nochapter = [],
+    nochapter = EMPTY_NOCHAPTER,
     cachedIndex = null,
     read_range_end,
     free_open,
@@ -141,6 +147,11 @@ function StoryScreen({ route }) {
     Storage.getAutoPlaySeconds().then((s) => { if (mounted) setAutoPlaySeconds(s); });
     return () => { mounted = false; };
   }, []);
+  // 自動播放看門狗：記錄「已成功載入內容的場次 index」。轉場後 index.screen 前進、但新場次內容
+  // 尚未載入完成時，loadedScreenRef 會落後於 index.screen——即「正在等待內容」的空窗狀態。
+  const loadedScreenRef = useRef(null);
+  // 撞看門狗時遞增，作為 fetchStories effect 的額外依賴 → 強制重抓當前場次內容（重試轉場抓取）。
+  const [autoRetryTick, setAutoRetryTick] = useState(0);
   const { coins, refreshCoins } = useCoins();
   const priceCoins = storyData?.priceCoins ?? 0;
 
@@ -550,6 +561,7 @@ function StoryScreen({ route }) {
               content: storyContent,
               imageUrl: domain + screenings[index.screen]?.bg_view,
             }));
+            loadedScreenRef.current = index.screen; // 標記本場次內容已就緒（供自動播放看門狗判斷）
             setStory([]); // 先清空舊資料
           }
         } else if (screenings.length > 0 && index.screen >= screenings.length) {
@@ -613,7 +625,7 @@ function StoryScreen({ route }) {
     };
 
     if (Array.isArray(queryInfo.screenings)) fetchStories();
-  }, [index.screen, queryInfo.screenings, free_open, isBookPurchased, finishToHome]);
+  }, [index.screen, queryInfo.screenings, free_open, isBookPurchased, finishToHome, autoRetryTick]);
 
   useEffect(() => {
     let mounted = true;
@@ -942,8 +954,9 @@ function StoryScreen({ route }) {
 
   // 自動播放：開啟後每 autoPlaySeconds 秒推進一段（等同點一下畫面）。
   //  - 尚未開始或剛換到新場次（story 為 null）→ 自動推進到本場次第一段，毋須手動先點一下。
-  //  - 目前段落帶選項（choice1Content）→ 停下等使用者選；選完 index.story 變動、本 effect
-  //    重跑即自動續播（故此處只 return、不關閉開關）。
+  //  - 目前段落帶「多個選項」（choice2Content 亦有值）→ 停下等使用者選；選完 index.story 變動、
+  //    本 effect 重跑即自動續播（故此處只 return、不關閉開關）。
+  //  - 目前段落僅「單一選項」（只有 choice1Content）→ 無實際選擇，視同一般段落自動推進。
   //  - 下一段為「結尾」→ 代表推進後會換場次：仍自動推進，換場次後由上方 null 分支接續播放。
   //  - 場次已全部播畢（screen 超出場次數）→ 交由 fetchStories 收尾，不在此推進。
   //  - 顯示購買提示（試閱播畢／跳轉被擋）→ 關閉自動播放。
@@ -961,6 +974,9 @@ function StoryScreen({ route }) {
     // 但若場次已全部播畢（screen 超出場次數）→ 交給 fetchStories 收尾，不在此推進。
     if (index.story === null) {
       if (index.screen >= screeningsArr.length) return;
+      // 新場次內容尚未載入完成（loadedScreenRef 未追上）→ 先不推進，交由看門狗重抓，
+      // 避免把 story 推到 0 卻落在舊/空內容上。內容載入後本 effect 會因 content 變動重跑續播。
+      if (loadedScreenRef.current !== index.screen) return;
       const timer = setTimeout(() => onPressOption(null), autoPlaySeconds * 1000);
       return () => clearTimeout(timer);
     }
@@ -971,7 +987,17 @@ function StoryScreen({ route }) {
     if (isStoryEnd(current)) return;
     // 目前段落即「結尾」→ 換場次進行中，交給內容 effect 轉場，維持自動播放不關閉。
     if (current.contentPresent === '結尾') return;
-    if (current.choice1Content) return; // 有選項 → 暫停等待使用者
+    // 選項判斷：
+    //  - 多個選項（choice2Content 亦有值）→ 暫停等使用者選。
+    //  - 僅單一選項（只有 choice1Content）→ 無實際選擇，直接排計時器、交由 onPressOption(null)
+    //    走「預設選第一個」邏輯跳往 choice1Next（可能跨場次/章節）。此處先 return，不落入下方
+    //    以 index.story+1 判斷 next 的分支：單選項多為跳轉、未必有相鄰下一段，否則會被誤判為
+    //    無下一段而關閉自動播放。
+    if (current.choice1Content) {
+      if (current.choice2Content) return; // 多選項 → 暫停等待使用者
+      const timer = setTimeout(() => onPressOption(null), autoPlaySeconds * 1000);
+      return () => clearTimeout(timer);
+    }
     const next = queryInfo.content[index.story + 1];
     if (!next) {
       setIsAutoPlay(false); // 本場次已無下一段且無「結尾」標記（異常）→ 停下
@@ -981,6 +1007,28 @@ function StoryScreen({ route }) {
     const timer = setTimeout(() => onPressOption(null), autoPlaySeconds * 1000);
     return () => clearTimeout(timer);
   }, [isAutoPlay, index.story, index.screen, queryInfo.content, queryInfo.screenings, showPurchaseOverlay, autoPlaySeconds]);
+
+  // 自動播放看門狗：轉場後正在等待「當前場次」內容載入時（loadedScreenRef 尚未追上 index.screen），
+  // 若逾時仍未載入，多半是換場次抓取失敗（fetchStories 的 catch 只記錄、不重試）導致自動播放永久
+  // 卡在場次邊界 → 遞增 autoRetryTick 強制重抓一次。內容一旦載入，loadedScreenRef 追上、queryInfo.content
+  // 變動使上方推進 effect 重跑續播；本效果僅在「等待內容」空窗佈署，暫停等選項／結束哨符等狀態不會觸發。
+  useEffect(() => {
+    if (!isAutoPlay || showPurchaseOverlay) return;
+    const screeningsArr = Array.isArray(queryInfo.screenings) ? queryInfo.screenings : [];
+    const waitingForScreenContent =
+      index.screen < screeningsArr.length && loadedScreenRef.current !== index.screen;
+    if (!waitingForScreenContent) return;
+    // 看門秒數取「間隔秒數 + 緩衝」，確保比正常轉場久，避免與合法轉場搶跑造成無謂重抓。
+    const watchdogMs = (Math.max(autoPlaySeconds, 5) + 3) * 1000;
+    const timer = setTimeout(() => {
+      console.log('[自動播放看門狗] 等待場次內容逾時 → 重抓', {
+        screen: index.screen,
+        loaded: loadedScreenRef.current,
+      });
+      setAutoRetryTick((t) => t + 1);
+    }, watchdogMs);
+    return () => clearTimeout(timer);
+  }, [isAutoPlay, showPurchaseOverlay, index.screen, queryInfo.content, queryInfo.screenings, autoPlaySeconds, autoRetryTick]);
 
   useEffect(() => {
     // 等購買狀態確認(purchaseChecked)後再抓場次：否則會先以「未購買」截斷試閱長度，
