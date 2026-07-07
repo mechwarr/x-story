@@ -606,9 +606,10 @@ export interface GetUserCoinBalanceResponse {
 
 /**
  * 獲取當前登入使用者的金幣餘額
- * @returns Promise<number> 用戶金幣餘額，失敗時返回 0
+ * @returns Promise<number | null> 成功回傳餘額；失敗（逾時／401／格式錯誤）回傳 null。
+ *   刻意不回 0：0 會被上層當成「餘額真的是 0」而覆寫畫面；回 null 讓上層保留現有餘額並稍後重試。
  */
-export async function getUserCoinBalance(): Promise<number> {
+export async function getUserCoinBalance(): Promise<number | null> {
   try {
     const endpoint = "api/me/coins/balance";
     
@@ -628,11 +629,11 @@ export async function getUserCoinBalance(): Promise<number> {
       return res.balance;
     } else {
       console.warn("[userApiClient] ✗ 獲取用戶金幣餘額失敗，響應格式不正確:", res);
-      return 0;
+      return null;
     }
   } catch (error) {
     console.error("[userApiClient] 獲取用戶金幣餘額時發生錯誤:", error);
-    return 0;
+    return null;
   }
 }
 

@@ -32,6 +32,8 @@ function RootLayoutContent() {
   const [token, setToken] = useState<string | null>(null);
   const appState = useRef(AppState.currentState);
   const coinResetRef = useRef<(() => void) | null>(null);
+  // token 刷新成功後，透過此 ref 觸發金幣以新 token 重抓（CoinProvider 掛載時填入）。
+  const coinRefreshRef = useRef<((force?: boolean) => void) | null>(null);
 
   // 傳遞 progress callback 給 useInitApp（應用重啟時使用）
   const handleTokenRefreshProgress = (isProgress: boolean) => {
@@ -45,7 +47,8 @@ function RootLayoutContent() {
   const { checking, isLoggedIn, setIsLoggedIn } = useInitApp(
     handleTokenRefreshProgress,
     undefined,
-    () => coinResetRef.current?.() // 冷啟動時 token 過期/刷新失敗登出前也重置金幣
+    () => coinResetRef.current?.(), // 冷啟動時 token 過期/刷新失敗登出前也重置金幣
+    () => coinRefreshRef.current?.() // 冷啟動 token 刷新成功後，用新 token 立即重抓金幣
   );
 
   // 處理 token 刷新失敗：顯示 alert 並清除資料（用於應用喚醒場景）
@@ -140,7 +143,7 @@ function RootLayoutContent() {
             );
           };
 
-          await tokenRefreshService.refreshToken(
+          const refreshed = await tokenRefreshService.refreshToken(
             (isProgress) => {
               if (isProgress) {
                 showLoading();
@@ -152,6 +155,11 @@ function RootLayoutContent() {
             handleLoginExpired,
             handleNetworkError
           );
+
+          // 喚醒刷新成功後，用（可能是新的）token 立即重抓金幣，避免回到前景時卡著舊餘額（修法 3）。
+          if (refreshed) {
+            coinRefreshRef.current?.();
+          }
         } else {
           console.log('[RootLayout] ⚠️ 未登入或無 token，跳過刷新');
         }
@@ -246,7 +254,7 @@ function RootLayoutContent() {
 
   return (
     <AuthProvider value={{ isLoggedIn, setIsLoggedIn, logout, logoutLocalOnly }}>
-      <CoinProvider resetRef={coinResetRef}>
+      <CoinProvider resetRef={coinResetRef} refreshRef={coinRefreshRef}>
         <LanguageProvider>
         <SafeAreaWrapper style={{ flex: 1 }}>
         <LanguageGate>

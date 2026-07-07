@@ -12,7 +12,8 @@ import { clearAllUserData } from '../services/clearUserDataService';
 export default function useInitApp(
   onTokenRefreshProgress?: (isProgress: boolean) => void,
   onTokenRefreshFailed?: () => void,
-  onBeforeLogout?: () => void
+  onBeforeLogout?: () => void,
+  onTokenRefreshed?: () => void
 ) {
   const [checking, setChecking] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -93,6 +94,11 @@ export default function useInitApp(
             handleLoginExpired,
             undefined // onNetworkError：網路異常不登出
           )
+          .then((ok) => {
+            // 刷新成功（或未達刷新間隔仍視為 token 有效）後，用（可能是新的）token 立即重抓金幣，
+            // 避免 AppHeader 先前用舊/過期 token 抓失敗後卡著舊餘額（修法 3）。
+            if (ok) onTokenRefreshed?.();
+          })
           .catch((e) =>
             console.warn('[useInitApp] 背景刷新 token 例外（忽略）:', (e as any)?.message)
           );

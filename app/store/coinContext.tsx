@@ -18,13 +18,18 @@ const CoinContext = createContext<CoinContextType | undefined>(undefined);
 /** 供登出時重置金幣狀態，避免換帳號後仍顯示上一用戶餘額 */
 export type CoinResetRef = React.MutableRefObject<(() => void) | null>;
 
+/** 供 Provider 外部（如 token 刷新完成後）觸發刷新金幣用；預設強制刷新（略過防抖） */
+export type CoinRefreshRef = React.MutableRefObject<((force?: boolean) => void) | null>;
+
 interface CoinProviderProps {
   children: ReactNode;
   /** 可選：登出時呼叫 ref.current() 可將金幣狀態重置為 0 */
   resetRef?: CoinResetRef;
+  /** 可選：token 刷新成功後呼叫 ref.current() 以新 token 立即重抓餘額 */
+  refreshRef?: CoinRefreshRef;
 }
 
-export function CoinProvider({ children, resetRef }: CoinProviderProps) {
+export function CoinProvider({ children, resetRef, refreshRef }: CoinProviderProps) {
   const [coins, setCoinsState] = useState<number>(0);
   const lastRefreshAt = useRef<number>(0);
   const isLoadingRef = useRef<boolean>(false);
@@ -59,11 +64,20 @@ export function CoinProvider({ children, resetRef }: CoinProviderProps) {
     isLoadingRef.current = true;
     try {
       const balance = await getUserCoinBalance();
+      // 失敗時 getUserCoinBalance 回傳 null（逾時／401／格式錯誤）。
+      // 此時「不更新畫面成 0、也不更新 lastRefreshAt」——讓 30 秒防抖僅在成功後生效，
+      // 下一次聚焦／導頁能立即重試（修法 4），避免失敗後被防抖鎖住而卡著舊值。
+      if (balance === null) {
+        console.warn('[coinContext] 取金幣餘額失敗，保留現有餘額，稍後可立即重試');
+        await loadCoinsFromStorage();
+        return;
+      }
       setCoinsState(balance);
       await tokenStorage.setUserCoin(balance);
       lastRefreshAt.current = Date.now();
       console.log('[coinContext] ✓ 從 API 刷新金幣餘額:', balance);
     } catch (error) {
+      // 非預期例外同樣不更新 lastRefreshAt，退回本地快取
       console.error('[coinContext] 從 API 獲取金幣餘額失敗:', error);
       await loadCoinsFromStorage();
     } finally {
@@ -97,6 +111,18 @@ export function CoinProvider({ children, resetRef }: CoinProviderProps) {
     }
     await loadCoinsFromAPI();
   }, [loadCoinsFromAPI]);
+
+  // 暴露刷新函數給外部（token 刷新成功後呼叫，用新 token 立即重抓餘額）。
+  // 預設 force=true：token 剛換新，應略過 30 秒防抖直接刷新。
+  useEffect(() => {
+    if (!refreshRef) return;
+    refreshRef.current = (force?: boolean) => {
+      refreshCoins(force ?? true);
+    };
+    return () => {
+      refreshRef.current = null;
+    };
+  }, [refreshRef, refreshCoins]);
 
   return (
     <CoinContext.Provider value={{ coins, setCoins, refreshCoins }}>
