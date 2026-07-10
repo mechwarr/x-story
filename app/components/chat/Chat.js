@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
-import { View, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 
 
 import colors from '../../config/colors';
+import { toColor, toFontWeight } from '../../config/normalizeStyle';
 import ChatImageArea from './ChatImageArea';
 import ChatSoundArea from './ChatSoundArea';
 
@@ -30,6 +31,17 @@ function Chat({
     return roleList?.find((e) => e?.role_name?.trim() === roleName?.trim());
   }, [role, roleList]);
 
+  // 對話框底色（去空白）；空值時退回 StyleSheet 預設底，故 fallback 傳 ''。
+  const baseColor = toColor(textContentBaseColor, '');
+  const mainRoleColor = toColor(roleConf?.main_Role_Name_Color, '');
+  const supportingColor =
+    toColor(
+      roleData?.role_sex !== '女'
+        ? roleConf?.boy_Supporting_Color
+        : roleConf?.girl_Supporting_Color,
+      ''
+    ) || undefined;
+
   return (
     <Pressable onPress={() => onPressOption(null)}>
       {role !== '主角' ? (
@@ -46,17 +58,12 @@ function Chat({
             <ChatTextArea
               textMsg={textMsg}
               backgroundColor={{
-                backgroundColor:
-                  roleData?.role_sex !== '女'
-                    ? roleConf?.boy_Supporting_Color
-                    : roleConf?.girl_Supporting_Color,
+                backgroundColor: supportingColor,
               }}
               textStyle={{
                 fontSize: textContentSize || 20,
-                color: textContentColor || '#fff',
-                ...(textContentWeight === '粗' && {
-                  fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-                }),
+                color: toColor(textContentColor),
+                fontWeight: toFontWeight(textContentWeight),
               }}
             />
           ) : null}
@@ -64,8 +71,8 @@ function Chat({
             <ChatSoundArea
               soundMsg={soundMsg}
               backgroundColor={
-                textContentBaseColor
-                  ? { backgroundColor: textContentBaseColor }
+                baseColor
+                  ? { backgroundColor: baseColor }
                   : styles.leftBackground
               }
             />
@@ -84,16 +91,14 @@ function Chat({
             <ChatTextArea
               textMsg={textMsg}
               backgroundColor={
-                roleConf?.main_Role_Name_Color
-                  ? { backgroundColor: roleConf?.main_Role_Name_Color }
+                mainRoleColor
+                  ? { backgroundColor: mainRoleColor }
                   : styles.rightBackground
               }
               textStyle={{
                 fontSize: textContentSize || 20,
-                color: textContentColor || '#fff',
-                ...(textContentWeight === '粗' && {
-                  fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-                }),
+                color: toColor(textContentColor),
+                fontWeight: toFontWeight(textContentWeight),
               }}
             />
           ) : null}
@@ -102,8 +107,8 @@ function Chat({
               <ChatSoundArea
                 soundMsg={soundMsg}
                 backgroundColor={
-                  textContentBaseColor
-                    ? { backgroundColor: textContentBaseColor }
+                  baseColor
+                    ? { backgroundColor: baseColor }
                     : styles.rightBackground
                 }
               />

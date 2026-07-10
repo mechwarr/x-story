@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { View, StyleSheet, FlatList, Platform } from 'react-native';
+import { View, StyleSheet, FlatList } from 'react-native';
 import colors from '../../config/colors';
 import AppText from '../AppText';
+import { toColor, toFontWeight } from '../../config/normalizeStyle';
 import Book from './Book';
 import { matchesCurrentStoryLang } from '../../i18n/i18n';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -45,10 +46,8 @@ function Books({ type, config, storyList, storyCache, nochapter, menuFoolproofCo
           <AppText
             style={{
               fontSize: story_type_size ?? 20,
-              color: story_type_color ?? colors.leftChatBackground,
-              ...(story_type_weight === '粗' && {
-                fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-              }),
+              color: toColor(story_type_color, colors.leftChatBackground),
+              fontWeight: toFontWeight(story_type_weight),
             }}
           >
             {type?.story_type}

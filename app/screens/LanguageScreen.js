@@ -13,12 +13,13 @@ import { useLanguage, LANGUAGE_OPTIONS } from "../i18n/LanguageContext";
 import Storage, {
   DEFAULT_AUTO_PLAY_SECONDS,
   MIN_AUTO_PLAY_SECONDS,
+  MAX_AUTO_PLAY_SECONDS,
 } from "../auth/Storage";
 
 // 設定畫面：
 //  - 語系：以下拉選單在 繁體中文 / 簡體中文 / English 之間手動切換。
 //    切換後會持久化並標記為手動，且整個畫面子樹會以新語系重新掛載（見 _layout.tsx 的 LanguageGate）。
-//  - 自動播放速度：以 < 秒數 > 步進器調整劇情自動播放的每段間隔（最低 1 秒），持久化於 Storage。
+//  - 自動播放速度：以 < 秒數 > 步進器調整劇情自動播放的每段間隔（範圍 1~10 秒），持久化於 Storage。
 function LanguageScreen() {
   const { scale } = useResponsive();
   const { lang, changeLanguage } = useLanguage();
@@ -44,10 +45,13 @@ function LanguageScreen() {
     };
   }, []);
 
-  // 調整自動播放間隔（最低 MIN_AUTO_PLAY_SECONDS）並持久化
+  // 調整自動播放間隔（範圍 MIN~MAX_AUTO_PLAY_SECONDS）並持久化
   const changeAutoPlaySeconds = (delta) => {
     setAutoPlaySeconds((prev) => {
-      const next = Math.max(MIN_AUTO_PLAY_SECONDS, prev + delta);
+      const next = Math.min(
+        MAX_AUTO_PLAY_SECONDS,
+        Math.max(MIN_AUTO_PLAY_SECONDS, prev + delta)
+      );
       Storage.setAutoPlaySeconds(next);
       return next;
     });
@@ -119,7 +123,7 @@ function LanguageScreen() {
           </View>
         )}
 
-        {/* 自動播放速度：< 秒數 > 步進器，最低 1 秒 */}
+        {/* 自動播放速度：< 秒數 > 步進器，範圍 1~10 秒（只保留最快的 10 檔） */}
         <Text
           style={[
             styles.label,
@@ -145,8 +149,12 @@ function LanguageScreen() {
             {translate("autoPlaySecondsUnit", { n: autoPlaySeconds })}
           </Text>
           <Pressable
-            style={styles.stepBtn}
+            style={[
+              styles.stepBtn,
+              autoPlaySeconds >= MAX_AUTO_PLAY_SECONDS && styles.stepBtnDisabled,
+            ]}
             onPress={() => changeAutoPlaySeconds(1)}
+            disabled={autoPlaySeconds >= MAX_AUTO_PLAY_SECONDS}
             hitSlop={8}
           >
             <Text style={[styles.stepCaret, { fontSize: fs }]}>{">"}</Text>

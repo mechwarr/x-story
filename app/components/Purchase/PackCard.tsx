@@ -9,6 +9,7 @@ export type PackItem = {
   bonus?: number;
   priceUsd: number;
   displayPrice?: string;                // 商店原始價格字串（含幣別符號），優先顯示此字段
+  currencyCode?: string;                // 幣別代碼（如 TWD/JPY），零小數幣別用於去除 .00
 };
 
 // 產品 ID 到 coins 和 bonus 的映射表
@@ -34,9 +35,10 @@ type Props = {
   rightColor?: string;        // 右側色塊底色
   style?: ViewStyle;
   disabled?: boolean;          // 是否禁用
+  priceFontSize?: number;      // 價格字級（由外層依同批最長價格算出，讓同幣別各卡字級一致）
 };
 
-export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style, disabled = false }: Props) {
+export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style, disabled = false, priceFontSize = 24 }: Props) {
   const { name, title, priceUsd, displayPrice } = data;
   // 優先使用 name，如果沒有則使用 title
   const displayName = name || title;
@@ -118,11 +120,10 @@ export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style,
 
       {/* 右：價格區塊 */}
       <View style={[styles.right, { backgroundColor: rightColor }]}>
+        {/* 同批各卡共用 priceFontSize，避免大額價格被 adjustsFontSizeToFit 縮小而看起來像鼓勵買小額 */}
         <Text
-          style={styles.price}
+          style={[styles.price, { fontSize: priceFontSize }]}
           numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.6}
         >
           {displayPrice || String(priceUsd)}
         </Text>

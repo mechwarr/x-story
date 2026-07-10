@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
-import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import colors from '../../config/colors';
+import { toColor, toFontWeight } from '../../config/normalizeStyle';
 import AppText from '../AppText';
 import NarratorOption from './NarratorOption';
 import NarratorSound from './NarratorSound';
@@ -37,7 +38,7 @@ function Narrator(props) {
       {textMsg ? (
         <View
           style={{
-            backgroundColor: textContentBaseColor ?? 'transparent',
+            backgroundColor: toColor(textContentBaseColor, 'transparent'),
             borderRadius: 20,
             padding: 10,
           }}
@@ -46,10 +47,8 @@ function Narrator(props) {
             style={{
               textAlign: 'center',
               fontSize: textContentSize || 20,
-              color: textContentColor || '#fff',
-              ...(textContentWeight === '粗' && {
-                fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-              }),
+              color: toColor(textContentColor),
+              fontWeight: toFontWeight(textContentWeight),
             }}
           >
             {textMsg}

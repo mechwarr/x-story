@@ -4,7 +4,6 @@ import {
   Pressable,
   Image,
   ImageBackground,
-  Platform,
   Modal,
   Text,
 } from 'react-native';
@@ -26,6 +25,7 @@ import storage from '../storage/storage';
 import { canAccessChapter } from '../services/bookAccessService';
 import useResponsive from '../hook/useResponsive';
 import { toAlertTextStyle } from '../config/foolproofStyle';
+import { toColor, toFontWeight } from '../config/normalizeStyle';
 
 const ChapterItem = (props) => {
   const {
@@ -217,7 +217,7 @@ const ChapterItem = (props) => {
           styles.container,
           {
             borderWidth: +uiConfig?.chapter_outer_weight,
-            borderColor: uiConfig?.chapter_outer_color,
+            borderColor: toColor(uiConfig?.chapter_outer_color, '') || undefined,
           },
         ]}
         onPress={onPress}
@@ -234,12 +234,10 @@ const ChapterItem = (props) => {
           <AppText
           style={{
             fontSize: chapter_name_size || 20,
-            ...(chapter_name_weight === '粗' && {
-              fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-            }),
+            fontWeight: toFontWeight(chapter_name_weight),
             alignSelf: index % 2 !== 0 ? 'flex-end' : 'flex-start',
             alignItems: 'flex-end',
-            color: chapter_name_color || '#fff',
+            color: toColor(chapter_name_color),
           }}
         >
           {chapter_name}

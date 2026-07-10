@@ -13,6 +13,7 @@ import { bookDataBaseUrl } from '../config/apiClient';
 import { getBookstoreList, getAllAdminBookstores, getEffectiveRoleLevel, refreshRoleLevelCache } from '../config/userApiClient';
 import { canViewUnlisted } from '../config/roles';
 import { matchesCurrentStoryLang, translate, pickConfigByLang } from '../i18n/i18n';
+import { toColor } from '../config/normalizeStyle';
 import { useLanguage } from '../i18n/LanguageContext';
 import routes from '../navigations/routes';
 import { consumePendingProfileRedirect } from '../auth/firstLoginRedirect';
@@ -67,12 +68,17 @@ function HomeScreen() {
     );
   }, [storyInfo?.type, storyInfo?.storyList, lang]);
 
-  // 最新消息依語系顯示：後端 news API 回傳多語系多列，須用 pickConfigByLang 依當前語系挑列
-  //（非固定 data[0]）。語系切換時重新挑列。
-  const news = useMemo(
-    () => pickConfigByLang(storyInfo?.newsList)?.news_content ?? '',
-    [storyInfo?.newsList, lang]
-  );
+  // 最新消息依語系顯示：後端 news API 回傳多語系多列，同一語系可能有「多則」訊息。
+  // 這裡挑出「當前語系的全部訊息」組成陣列，交給跑馬燈逐則播放（播完一則接下一則、全部播完再循環）。
+  // 找不到相符語系時退回第一筆，避免最新消息整個消失（與 pickConfigByLang 的退回策略一致）。
+  const news = useMemo(() => {
+    const list = storyInfo?.newsList || [];
+    const matched = list.filter((row) => matchesCurrentStoryLang(row?.lang));
+    const rows = matched.length ? matched : list.slice(0, 1);
+    return rows
+      .map((row) => row?.news_content)
+      .filter((content) => typeof content === 'string' && content.trim().length > 0);
+  }, [storyInfo?.newsList, lang]);
 
   const renderItem = ({ item }) => (
     <Books
@@ -296,7 +302,7 @@ function HomeScreen() {
   }, [isFocus]);
 
   return (
-    <Screen style={{ backgroundColor: storyInfo.config?.view_color }}>
+    <Screen style={{ backgroundColor: toColor(storyInfo.config?.view_color, '') || undefined }}>
       <AppHeader
         news={news}
         config={storyInfo.config}

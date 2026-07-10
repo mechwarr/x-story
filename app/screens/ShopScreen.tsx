@@ -46,6 +46,34 @@ function extractProductName(title: string): string {
   return name;
 }
 
+// 這些幣別的最小單位即為整數（無小數），商店回傳的價格字串若帶 .00 應去除
+const zeroDecimalCurrencies = [
+  'TWD', 'JPY', 'KRW', 'VND', 'CLP', 'PYG',
+  'BIF', 'DJF', 'GNF', 'ISK', 'KMF', 'RWF',
+  'UGX', 'VUV', 'XAF', 'XOF', 'XPF',
+];
+
+// 針對零小數幣別，去掉價格字串尾端的 .00（例：NT$150.00 -> NT$150）
+function formatDisplayPrice(
+  formattedPrice: string | undefined,
+  currencyCode: string | undefined
+): string | undefined {
+  if (!formattedPrice) return formattedPrice;
+  if (currencyCode && zeroDecimalCurrencies.includes(currencyCode.toUpperCase())) {
+    return formattedPrice.replace(/\.00(?=\D*$)/, '');
+  }
+  return formattedPrice;
+}
+
+// 依同批「格式化後最長價格字串」決定共用字級：
+// 全部卡片用同一字級，避免大額（字串較長）被縮小、看起來像鼓勵買小額。
+function sharedPriceFontSize(maxLen: number): number {
+  if (maxLen <= 7) return 24;
+  if (maxLen <= 9) return 20;
+  if (maxLen <= 11) return 18;
+  return 16;
+}
+
 export default function ShopScreen() {
   const navigation = useNavigation();
   const {
@@ -189,6 +217,9 @@ export default function ShopScreen() {
         console.warn('[ShopScreen] 未匹配到後端金幣包 productId=', pid, '（請確認後端 APPLE 金幣包的 productId 與 App Store Connect 一致）');
       }
 
+      // 幣別由 IAP 商品取得；零小數幣別（如 TWD/JPY）去掉價格尾端 .00
+      const currencyCode = (product as any).currency as string | undefined;
+
       const pack = {
         id: `${pid}`,
         title: product.title, // 平台顯示名稱（多國語系）
@@ -196,7 +227,8 @@ export default function ShopScreen() {
         coins: coinPackData?.amount ?? 0,
         bonus: coinPackData?.bonusAmount ?? 0,
         priceUsd: price, // 使用 IAP 的價格（僅供數值用途）
-        displayPrice: product.displayPrice ?? undefined, // 商店原始價格字串，含正確幣別符號，直接顯示
+        displayPrice: formatDisplayPrice(product.displayPrice ?? undefined, currencyCode), // 商店原始價格字串（去零小數），直接顯示
+        currencyCode, // 幣別代碼，供後續格式化／判斷
         productId: pid as ProductId,
         isAvailable: true, // IAP 商品已載入，標記為可用
       } as PackItem & { productId?: ProductId; isAvailable?: boolean };
@@ -205,6 +237,15 @@ export default function ShopScreen() {
       return pack;
     });
   }, [products, coinPacks, platformCode]);
+
+  // 同批各卡共用價格字級：取格式化後最長價格字串長度換算
+  const priceFontSize = useMemo(() => {
+    const maxLen = packsWithPrice.reduce((max, p) => {
+      const s = p.displayPrice || String(p.priceUsd);
+      return Math.max(max, s.length);
+    }, 0);
+    return sharedPriceFontSize(maxLen);
+  }, [packsWithPrice]);
 
   // 無商品時顯示原因（iOS／Android 同一套文案結構）
   const emptyReason = useMemo(() => {
@@ -366,6 +407,7 @@ export default function ShopScreen() {
               onPress={() => handlePressPack(p)}
               rightColor={RIGHT_COLORS[i % RIGHT_COLORS.length]}
               disabled={isPurchasing || !p.isAvailable}
+              priceFontSize={priceFontSize}
             />
           ))}
         </ScrollView>

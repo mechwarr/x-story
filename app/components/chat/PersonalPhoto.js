@@ -4,7 +4,6 @@ import {
   StyleSheet,
   Image,
   Pressable,
-  Platform,
 } from 'react-native';
 import { showAlert } from "../CustomAlert";
 import apiclient  from '../../config/apiClient';
@@ -12,6 +11,7 @@ import apiclient  from '../../config/apiClient';
 import AppText from '../AppText';
 import { translate } from '../../i18n/i18n';
 import { toAlertTextStyle } from '../../config/foolproofStyle';
+import { toColor, toFontWeight } from '../../config/normalizeStyle';
 const domain = apiclient.currentBaseUrl() + 'images/update/';
 
 function PersonalPhoto(props) {
@@ -73,11 +73,9 @@ function PersonalPhoto(props) {
             style={[
               styles.nameText,
               {
-                color: roleConf?.role_name_color,
+                color: toColor(roleConf?.role_name_color, '') || undefined,
                 fontSize: roleConf?.role_name_size || 20,
-                ...(roleConf?.role_name_weight === '粗' && {
-                  fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-                }),
+                fontWeight: toFontWeight(roleConf?.role_name_weight),
               },
             ]}
           >
@@ -97,11 +95,9 @@ function PersonalPhoto(props) {
         style={[
           styles.nameText,
           {
-            color: roleConf?.role_name_color,
+            color: toColor(roleConf?.role_name_color, '') || undefined,
             fontSize: roleConf?.role_name_size || 20,
-            ...(roleConf?.role_name_weight === '粗' && {
-              fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-            }),
+            fontWeight: toFontWeight(roleConf?.role_name_weight),
           },
         ]}
       >

@@ -258,7 +258,7 @@ function RootLayoutContent() {
         <LanguageProvider>
         <SafeAreaWrapper style={{ flex: 1 }}>
         <LanguageGate>
-        {true /* TEMP-VERIFY: 強制進入導覽以驗證版本資訊排版，驗證後還原為 isLoggedIn */ ? (
+        {isLoggedIn ? (
           // ✅ 已登入：進入主導覽
           <AppNavigator />
         ) : isResetPassword && token ? (

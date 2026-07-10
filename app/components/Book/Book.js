@@ -5,7 +5,6 @@ import {
   Pressable,
   Image,
   Dimensions,
-  Platform,
 } from 'react-native';
 import { showAlert } from '../CustomAlert';
 import routes from '../../navigations/routes';
@@ -14,6 +13,7 @@ import colors from '../../config/colors';
 import apiclient  from '../../config/apiClient';
 import { isTabletWidth, getUiScale } from '../../config/responsive';
 import { translate } from '../../i18n/i18n';
+import { toColor, toFontWeight } from '../../config/normalizeStyle';
 import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins, getEffectiveRoleLevel } from '../../config/userApiClient';
 import { isAdmin } from '../../config/roles';
@@ -436,10 +436,8 @@ function Book(props) {
                 lineHeight,
                 includeFontPadding: false,
                 textAlignVertical: 'center',
-                color: main_menu_name_color || '#fff',
-                ...(main_menu_name_weight === '粗' && {
-                  fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-                }),
+                color: toColor(main_menu_name_color),
+                fontWeight: toFontWeight(main_menu_name_weight),
               },
             ]}
           >

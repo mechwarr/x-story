@@ -1,6 +1,7 @@
-import { View, Platform, Pressable } from 'react-native';
+import { View, Pressable } from 'react-native';
 import React, { useState } from 'react';
 import AppText from '../AppText';
+import { toColor, toFontWeight } from '../../config/normalizeStyle';
 
 const NarratorOption = (props) => {
   const { onPressOption, choseRef } = props;
@@ -33,17 +34,15 @@ const NarratorOption = (props) => {
               borderWidth: 0,
               borderRadius: 10,
               paddingHorizontal: 12,
-              backgroundColor: props?.[`choice${e}BaseColor`],
+              backgroundColor: toColor(props?.[`choice${e}BaseColor`], '') || undefined,
             }}
           >
             <AppText
               style={{
                 textAlign: 'center',
-                ...(props?.[`choice${e}Weight`] === '粗' && {
-                  fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-                }),
+                fontWeight: toFontWeight(props?.[`choice${e}Weight`]),
                 fontSize: +props?.[`choice${e}Size`] ?? 20,
-                color: props?.[`choice${e}Color`],
+                color: toColor(props?.[`choice${e}Color`], '') || undefined,
               }}
             >
               {props?.[`choice${e}Content`]}

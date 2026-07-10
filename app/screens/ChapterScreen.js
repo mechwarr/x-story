@@ -9,6 +9,7 @@ import apiclient from '../config/apiClient';
 import { useCoins } from '../store/coinContext';
 import { syncPurchasedStoryIds } from '../services/bookAccessService';
 import { pickConfigByLang } from '../i18n/i18n';
+import { toColor } from '../config/normalizeStyle';
 import { useLanguage } from '../i18n/LanguageContext';
 
 const ChapterScreen = () => {
@@ -116,7 +117,7 @@ const ChapterScreen = () => {
     <SafeAreaView
       style={{
         flex: 1,
-        backgroundColor: queryInfo?.config?.view_color ?? '#fff',
+        backgroundColor: toColor(queryInfo?.config?.view_color),
       }}
     >
       <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>

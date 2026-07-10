@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Image, Pressable, Text, Platform } from 'react-native';
+import { View, StyleSheet, Image, Pressable, Text } from 'react-native';
+import { toColor, toFontWeight } from '../config/normalizeStyle';
 import { useNavigation, DrawerActions } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import NewsMarquee from './NewsMarquee';
@@ -33,8 +34,8 @@ function AppHeader({ news, config, onNewsPress }) {
         />
       </Pressable>
 
-      {/* 中間新聞文字（跑馬燈：由右進、往左出、輪迴播放） */}
-      {news ? (
+      {/* 中間新聞文字（跑馬燈：多則訊息逐則由右進、往左出，全部播完再循環） */}
+      {news?.length ? (
         <Pressable
           style={styles.newsContainer}
           onPress={onNewsPress}
@@ -42,11 +43,9 @@ function AppHeader({ news, config, onNewsPress }) {
           <NewsMarquee
             text={news}
             textStyle={{
-              color: config?.news_color ?? '#fff',
+              color: toColor(config?.news_color),
               fontSize: config?.news_font_size ?? 20,
-              ...(config?.news_weight === '粗' && {
-                fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-              }),
+              fontWeight: toFontWeight(config?.news_weight),
             }}
           />
         </Pressable>

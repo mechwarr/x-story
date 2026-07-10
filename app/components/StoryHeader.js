@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, StyleSheet, Platform, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import AppText from './AppText';
 
 import colors from '../config/colors';
+import { toColor, toFontWeight } from '../config/normalizeStyle';
 
 function StoryHeader({ storyName, author, config, isAutoPlay, onToggleAutoPlay }) {
   const {
@@ -29,10 +30,8 @@ function StoryHeader({ storyName, author, config, isAutoPlay, onToggleAutoPlay }
               styles.text,
               {
                 fontSize: stroy_name_size ?? 20,
-                color: stroy_name_color?.trim() || '#fff',
-                ...(stroy_name_weight === '粗' && {
-                  fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-                }),
+                color: toColor(stroy_name_color),
+                fontWeight: toFontWeight(stroy_name_weight),
               },
             ]}
           >
@@ -62,10 +61,8 @@ function StoryHeader({ storyName, author, config, isAutoPlay, onToggleAutoPlay }
               styles.text,
               {
                 fontSize: author_size ?? 20,
-                color: author_color || '#fff',
-                ...(author_weight === '粗' && {
-                  fontWeight: Platform.OS === 'ios' ? 600 : 'bold',
-                }),
+                color: toColor(author_color),
+                fontWeight: toFontWeight(author_weight),
               },
             ]}
           >

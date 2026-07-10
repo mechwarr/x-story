@@ -60,12 +60,6 @@ export default function LoginScreen(props) {
     }
   };
 
-  const handleTestLoginSuccess = () => {
-    if (props.onLoginSuccess) {
-      props.onLoginSuccess();
-    }
-  };
-
   return (
     <View style={{ flex: 1, backgroundColor: "#39393B" }}>
       {/* 左上角 Logo */}
@@ -135,26 +129,6 @@ export default function LoginScreen(props) {
 
 
         <View style={{ height: 0 }} />
-
-        <TouchableOpacity
-          style={[styles.button, { width: buttonWidth }]}
-          onPress={handleTestLoginSuccess}
-          activeOpacity={0.7}
-        >
-          <View
-            style={[styles.buttonInner, { minWidth: resolvedInner, maxWidth: buttonWidth - 32 }]}
-            onLayout={(e) => handleInnerLayout(e.nativeEvent.layout.width)}
-          >
-            <View style={styles.iconWrap} />
-            <Text
-              style={[styles.buttonText, { color: "#0abab5", flexShrink: 1 }]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {translate("testLoginSuccess")}
-            </Text>
-          </View>
-        </TouchableOpacity>
 
         {/* 新增底部行 */}
         <View style={styles.bottomRow}>
