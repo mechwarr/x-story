@@ -55,6 +55,7 @@ const ChapterItem = (props) => {
     refreshCoins,
     isBookPurchased = false,
     onPurchaseSuccess,
+    isAdmin = false,
   } = props ?? {};
 
   const { isTablet } = useResponsive();
@@ -70,9 +71,10 @@ const ChapterItem = (props) => {
 
   // 後端「試閱場次範圍(尾)」(read_range_end) 為 0（或非正數）代表沒有設定試閱長度。
   // 只有「試閱章節且尚未購買」才依賴此範圍，購買後為完整內容、不受限。
+  // role >= 9（Admin）例外：試閱未設範圍時仍可直接進入觀看完整內容，不視為無效試閱而攔截。
   const trialRangeEnd = Number(read_range_end);
   const isTrialRangeInvalid =
-    isFreeOpen && !isBookPurchased && Number.isFinite(trialRangeEnd) && trialRangeEnd <= 0;
+    isFreeOpen && !isBookPurchased && !isAdmin && Number.isFinite(trialRangeEnd) && trialRangeEnd <= 0;
 
   const navigation = useGuardedNavigate();
   const imageUri = apiclient.currentBaseUrl() + `images/update/${chapter_img}`;

@@ -27,7 +27,7 @@ import _ from 'lodash';
 import apiclient from '../config/apiClient';
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins, recordBookRead, getEffectiveRoleLevel } from '../config/userApiClient';
-import { canSwitchScreening } from '../config/roles';
+import { canSwitchScreening, isAdmin } from '../config/roles';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
 import { useCoins } from '../store/coinContext';
 import { translate, matchesCurrentStoryLang, getCurrentLang, pickConfigByLang } from '../i18n/i18n';
@@ -155,11 +155,17 @@ function StoryScreen({ route }) {
   const { coins, refreshCoins } = useCoins();
   const priceCoins = storyData?.priceCoins ?? 0;
 
-  // 場次快速切換器：取得使用者權限級別（role >= 9 才顯示）
+  // 場次快速切換器：取得使用者權限級別（role >= 9 才顯示）。
+  // roleChecked：角色是否已解析完成。roleLevel 初值 0 與「一般用戶」同值、無法區分
+  // 「尚未載入」與「確為非 Admin」，故另立此旗標；供試閱安全網等待角色確認後再判斷，
+  // 避免 Admin 在角色載入前被誤判為一般用戶而遭安全網彈回。
   const [roleLevel, setRoleLevel] = useState(0);
+  const [roleChecked, setRoleChecked] = useState(false);
   useEffect(() => {
     let mounted = true;
-    getEffectiveRoleLevel().then((lv) => { if (mounted) setRoleLevel(lv); });
+    getEffectiveRoleLevel()
+      .then((lv) => { if (mounted) setRoleLevel(lv); })
+      .finally(() => { if (mounted) setRoleChecked(true); });
     return () => { mounted = false; };
   }, []);
 
@@ -642,8 +648,11 @@ function StoryScreen({ route }) {
   // 若後端「試閱場次範圍(尾)」(read_range_end) 為 0／非正數，代表沒有設定試閱長度 → 警告並返回。
   // 章節選單入口已在 ChapterItem 先攔截，購買後則為完整內容、不受此限。
   useEffect(() => {
-    if (!purchaseChecked) return;
+    if (!purchaseChecked || !roleChecked) return;
     if (free_open !== '開放' || isBookPurchased) return;
+    // role >= 9（Admin）：試閱未設範圍時仍可直接觀看完整內容（read_range_end ≤ 0 時
+    // 截斷條件本就為 false、不截斷），故不受此安全網攔截。
+    if (isAdmin(roleLevel)) return;
     const n = Number(read_range_end);
     if (!Number.isFinite(n) || n > 0) return;
     showAlert(translate('noticeTitle'), translate('trialRangeNotSet'), [
@@ -658,7 +667,7 @@ function StoryScreen({ route }) {
         },
       },
     ]);
-  }, [purchaseChecked, isBookPurchased, free_open, read_range_end]);
+  }, [purchaseChecked, roleChecked, roleLevel, isBookPurchased, free_open, read_range_end]);
 
   // 關閉購買覆蓋層：一併清掉「待購買後跳轉」目標，避免之後（如試閱播畢）再次購買時誤跳。
   const dismissPurchaseOverlay = useCallback(() => {
@@ -1033,7 +1042,9 @@ function StoryScreen({ route }) {
   useEffect(() => {
     // 等購買狀態確認(purchaseChecked)後再抓場次：否則會先以「未購買」截斷試閱長度，
     // 待購買狀態回來再重抓並重設索引，造成已購買者畫面閃動／被截斷。
-    if (!purchaseChecked) return;
+    // 等購買狀態與角色皆確認後再抓：角色未定時（roleLevel 初值 0 與一般用戶同值）先抓會依
+    // 「非 Admin」截斷試閱長度，待角色回來（Admin）再重抓並重設索引，造成 Admin 畫面閃動／被截斷。
+    if (!purchaseChecked || !roleChecked) return;
 
     const fetchData = async () => {
       try {
@@ -1048,9 +1059,11 @@ function StoryScreen({ route }) {
         const rawScreenings = Array.isArray(screenings?.data) ? screenings.data : [];
         // 僅「試閱中且未購買」才依 read_range_end（試閱場次範圍尾）截斷；
         // 已購買或非試閱書應看到完整場次。先確保是陣列再 slice，避免 undefined.slice() 例外。
-        // 註：isBookPurchased/free_open 刻意改由 closure 讀取、不列入 deps，避免使用者於覆蓋層
+        // role >= 9（Admin）亦視為完整內容、不截斷（供預覽／校對，看到全部場次）。
+        // 註：isBookPurchased/free_open/roleLevel 刻意改由 closure 讀取、不列入 deps，避免使用者於覆蓋層
         //     購買後 isBookPurchased 變動觸發本 effect 重抓、把閱讀索引重設回開頭。
-        const shouldTrim = read_range_end && free_open === '開放' && !isBookPurchased;
+        const shouldTrim =
+          read_range_end && free_open === '開放' && !isBookPurchased && !isAdmin(roleLevel);
         const screeningsList = shouldTrim
           ? rawScreenings.slice(0, +read_range_end)
           : rawScreenings;
@@ -1115,7 +1128,7 @@ function StoryScreen({ route }) {
     };
 
     fetchData();
-  }, [read_range_end, purchaseChecked]);
+  }, [read_range_end, purchaseChecked, roleChecked]);
 
   return (
     <ImageBackground

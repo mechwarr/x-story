@@ -8,6 +8,8 @@ import { useFocusEffect, useRoute } from '@react-navigation/native';
 import apiclient from '../config/apiClient';
 import { useCoins } from '../store/coinContext';
 import { syncPurchasedStoryIds } from '../services/bookAccessService';
+import { getEffectiveRoleLevel } from '../config/userApiClient';
+import { isAdmin } from '../config/roles';
 import { pickConfigByLang } from '../i18n/i18n';
 import { toColor } from '../config/normalizeStyle';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -18,6 +20,8 @@ const ChapterScreen = () => {
     toastConfig: {},
   });
   const [localPurchasedIds, setLocalPurchasedIds] = useState([]);
+  // role >= 9（Admin）：試閱未設範圍的章節也可直接進入觀看完整內容，不被「試閱未設定」攔截。
+  const [isAdminUser, setIsAdminUser] = useState(false);
   const route = useRoute();
 
   const url = apiclient.currentBaseUrl();
@@ -45,6 +49,14 @@ const ChapterScreen = () => {
     setLocalPurchasedIds(mergedIds);
   }, []);
 
+  // 解析目前使用者是否為 Admin（role >= 9）；於此統一取一次並下傳給各章節項，
+  // 避免每個 ChapterItem 各自查詢。
+  useEffect(() => {
+    let mounted = true;
+    getEffectiveRoleLevel().then((lv) => { if (mounted) setIsAdminUser(isAdmin(lv)); });
+    return () => { mounted = false; };
+  }, []);
+
   const renderItem = ({ item, index }) => (
     <ChapterItem
       {...item}
@@ -61,6 +73,7 @@ const ChapterScreen = () => {
       refreshCoins={refreshCoins}
       isBookPurchased={isLocallyPurchased}
       onPurchaseSuccess={onPurchaseSuccess}
+      isAdmin={isAdminUser}
     />
   );
 
