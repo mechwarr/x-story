@@ -15,7 +15,7 @@ import { View, BackHandler, Keyboard, KeyboardAvoidingView, TouchableWithoutFeed
 import { showAlert } from "../components/CustomAlert";
 import * as WebBrowser from 'expo-web-browser';
 import tokenStorage from './Storage';
-import { translate } from "../i18n/i18n";
+import { translate, getCurrentLang } from "../i18n/i18n";
 import {
   facebookLoginWithXStory,
   googleLoginWithXStory,
@@ -25,6 +25,7 @@ import {
 import { useCoins } from '../store/coinContext';
 import { getUserProfile } from '../config/userApiClient';
 import { setPendingProfileRedirect } from './firstLoginRedirect';
+import { setPendingSocialName, deriveGoogleDisplayName } from './pendingSocialName';
 
 export default function LoginContainer({ onLoginSuccess }) {
   const { refreshCoins } = useCoins();
@@ -73,7 +74,11 @@ export default function LoginContainer({ onLoginSuccess }) {
       // 生日 + 性別皆齊全才算完成；任一缺 → 首次登入導向 ProfileScreen
       setPendingProfileRedirect(!(hasBirthday && hasGender));
     } catch (e) {
-      setPendingProfileRedirect(false);
+      // 登入當下抓取 profile 失敗（常見於剛存 token 的瞬間 API/時機競態）：
+      // 不因單次失敗就取消跳轉，否則「註冊後首次登入導向資料頁」會被誤吞。
+      // 預設仍跳轉，交由 ProfileScreen 自行判斷是否已完成（旗標為一次性，之後不再跳）。
+      console.warn('[LoginContainer] 登入後取得 profile 失敗，預設仍導向資料頁:', e?.message ?? e);
+      setPendingProfileRedirect(true);
     }
     onLoginSuccess();
   }, [onLoginSuccess, refreshCoins]);
@@ -91,6 +96,8 @@ export default function LoginContainer({ onLoginSuccess }) {
         accessToken: tokenResult.accessToken,
         refreshToken: tokenResult.refreshToken,
       });
+      // Email 登入無社群暱稱可帶：清除，避免殘留上一次社群登入的暫存名稱
+      setPendingSocialName(null);
       handleLoginSuccess();
     }
   };
@@ -161,6 +168,8 @@ export default function LoginContainer({ onLoginSuccess }) {
         if (storedAccessToken) {
           console.log('[Facebook Login] ✅ 存入的 accessToken:', storedAccessToken);
         }
+        // Facebook 只回 accessToken，App 端無法取得名稱（需另打 FB Graph）→ 不預填
+        setPendingSocialName(null);
         handleLoginSuccess();
       } else {
         console.error('[Facebook Login] 後端返回的 accessToken 為空');
@@ -319,6 +328,11 @@ export default function LoginContainer({ onLoginSuccess }) {
           if (storedAccessToken) {
             console.log('[Google Login] ✅ 存入的 accessToken:', storedAccessToken);
           }
+          // App 端 best-effort 解出 Google 暱稱（name → givenName → email 前綴 → idToken → id），
+          // 暫存供 Profile 於後端 name 為空時預填（按「更新」才存回後端）
+          const googleName = deriveGoogleDisplayName(res);
+          console.log('[Google Login] best-effort 暱稱:', googleName);
+          setPendingSocialName(googleName);
           handleLoginSuccess();
         } else {
           console.error('[Google Login] 後端返回的 accessToken 為空');
@@ -384,6 +398,8 @@ export default function LoginContainer({ onLoginSuccess }) {
         if (storedAccessToken) {
           console.log('[Apple Login] ✅ 存入的 accessToken:', storedAccessToken);
         }
+        // Apple wrapper 目前只帶回 user 識別碼與 idToken，全名僅首次授權才有且未帶回 → 不預填
+        setPendingSocialName(null);
         handleLoginSuccess();
       } else {
         console.error('[Apple Login] ✅ 送往後端的 idToken:', appleAuthResult.idToken);
@@ -446,6 +462,8 @@ export default function LoginContainer({ onLoginSuccess }) {
               refreshToken: tokenResult.refreshToken,
             });
             console.log('[WeChat Login] ✅ Token 已保存，登入成功');
+            // 微信只回一次性 code，App 端拿不到暱稱 → 退為固定字「微信用戶」預填
+            setPendingSocialName(translate('wechatDefaultNickname'));
             handleLoginSuccess();
           } catch (saveError) {
             console.error('[WeChat Login] ❌ Token 保存失敗:', saveError);
@@ -523,7 +541,9 @@ export default function LoginContainer({ onLoginSuccess }) {
   // 開啟服務條款（在 App 內瀏覽器）
   const handleOpenTOS = async () => {
     try {
-      const termsUrl = 'https://xstoryline.com/terms.html';
+      const termsUrl = getCurrentLang() === 'en'
+        ? 'https://xstoryline.com/terms.html?lang=en'
+        : 'https://xstoryline.com/terms.html';
       await WebBrowser.openBrowserAsync(termsUrl, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
         controlsColor: '#0abab5', // 使用品牌色作為控制項顏色
@@ -538,7 +558,9 @@ export default function LoginContainer({ onLoginSuccess }) {
   // 開啟隱私政策（在 App 內瀏覽器）
   const handleOpenPP = async () => {
     try {
-      const privacyUrl = 'https://xstoryline.com/privacy.html';
+      const privacyUrl = getCurrentLang() === 'en'
+        ? 'https://xstoryline.com/privacy.html?lang=en'
+        : 'https://xstoryline.com/privacy.html';
       await WebBrowser.openBrowserAsync(privacyUrl, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
         controlsColor: '#0abab5', // 使用品牌色作為控制項顏色

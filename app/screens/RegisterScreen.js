@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { translate } from "../i18n/i18n";
+import { translate, getCurrentLang } from "../i18n/i18n";
 import RichText from "../components/RichText";
 import useResponsive from "../hook/useResponsive";
 import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
@@ -45,6 +45,7 @@ const loginOptions = [
 export default function RegisterScreen(props) {
   const [agreeChecked, setAgreeChecked] = useState(false);
   const { contentWidth, isTablet, maxContentWidth, ms } = useResponsive();
+  const isEn = getCurrentLang() === "en";
   const buttonWidth = Math.min(420, Math.max(260, Math.round(contentWidth * 0.82)));
   const headerIconSize = ms(HEADER_ICON_BASE_SIZE);
 
@@ -184,7 +185,7 @@ export default function RegisterScreen(props) {
           </View>
           <RichText
             text={translate("termsAgreement")}
-            baseStyle={[styles.legalText, styles.agreeText]}
+            baseStyle={[styles.legalText, styles.agreeText, isEn && { fontSize: 13, lineHeight: 18 }]}
             linkStyle={{ textDecorationLine: "underline" }}
             colorMap={{ tos: "#0abab5", pp: "#0abab5" }}
             onPressMap={{
@@ -196,11 +197,12 @@ export default function RegisterScreen(props) {
 
         {/* 底部登入文字 */}
         <View style={styles.bottomRow}>
-          <Text style={styles.bottomText}>{translate("alreadyHaveAccount")}</Text>
+          <Text style={[styles.bottomText, isEn && { fontSize: 18 }]}>{translate("alreadyHaveAccount")}</Text>
           <TouchableOpacity onPress={handleCancel} activeOpacity={0.7}>
             <Text
               style={[
                 styles.loginLink,
+                isEn && { fontSize: 18 },
               ]}
             >
               {translate("signIn")}

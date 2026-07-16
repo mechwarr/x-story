@@ -28,8 +28,9 @@ import {
   type GenderCode,
 } from '../config/userApiClient';
 import useResponsive from '../hook/useResponsive';
-import { translate } from '../i18n/i18n';
+import { translate, getCurrentLang } from '../i18n/i18n';
 import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
+import { peekPendingSocialName, clearPendingSocialName } from '../auth/pendingSocialName';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
@@ -110,6 +111,11 @@ export default function ProfileScreen() {
   // 頭像維持 1:1 圓形比例，寬度 RWD：手機為螢幕寬 30%、平板為 25%。
   const avatarSize = Math.round(windowWidth * (isTablet ? 0.25 : 0.3));
   const iconSize = ms(HEADER_ICON_BASE_SIZE);
+  // 頂欄眼睛比照 AppHeader（首頁工具列）：同尺寸、同列高、垂直置中
+  const headerHeight = Math.max(50, ms(50));
+  const isEn = getCurrentLang() === 'en';
+  // 英文詞較長（Refill / Coin History），加值與紀錄鈕字級放大一點
+  const walletFontSize = ms(isEn ? 18 : 17);
 
   // ---- 載入用戶資料（換帳號後每次進入此畫面都重新拉取，避免顯示上一帳號名稱/生日/性別）----
   const loadUserProfile = useCallback(async () => {
@@ -124,7 +130,13 @@ export default function ProfileScreen() {
       const userData = await getUserProfile();
 
       if (userData) {
-        if (userData.name) setName(userData.name);
+        if (userData.name && String(userData.name).trim()) {
+          setName(userData.name);
+        } else {
+          // 後端暱稱為空 → 以社群登入 best-effort 暱稱預填（僅顯示於輸入框，按「更新」才存回後端）
+          const socialName = peekPendingSocialName();
+          if (socialName) setName(socialName);
+        }
         // 後端欄位名為 birthDate（非 birthday）
         if (userData.birthDate) {
           const birthdayDate = parseBirthdayString(userData.birthDate);
@@ -219,6 +231,8 @@ export default function ProfileScreen() {
       });
 
       if (result.success !== false) {
+        // 已存回後端 → 清除社群暱稱暫存，避免下次載入殘留
+        clearPendingSocialName();
         showAlert(translate('profileUpdatedSuccessTitle'), translate('profileUpdatedSuccessMessage'), [
           { text: translate('ok'), onPress: () => {} },
         ]);
@@ -256,6 +270,8 @@ export default function ProfileScreen() {
         showAlert(translate('passwordUpdateErrorTitle'), result.message || translate('passwordUpdateErrorMessage'));
         return;
       }
+      // 已存回後端 → 清除社群暱稱暫存，避免下次載入殘留
+      clearPendingSocialName();
 
       try {
         const claimResult = await claimActivityReward({ activityName: 'PROFILE_COMPLETED' });
@@ -330,7 +346,7 @@ export default function ProfileScreen() {
   if (isLoading) {
     return (
       <View style={styles.safe}>
-        <View style={[styles.topBar, { paddingTop: 8, paddingHorizontal: horizontalPadding }]}>
+        <View style={[styles.topBar, { height: headerHeight, paddingHorizontal: horizontalPadding }]}>
           <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
             <Image style={[styles.profileIconTop, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]} source={require('../../assets/blueeye.png')} />
           </Pressable>
@@ -347,7 +363,7 @@ export default function ProfileScreen() {
   if (loadFailed) {
     return (
       <View style={styles.safe}>
-        <View style={[styles.topBar, { paddingTop: 8, paddingHorizontal: horizontalPadding }]}>
+        <View style={[styles.topBar, { height: headerHeight, paddingHorizontal: horizontalPadding }]}>
           <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
             <Image style={[styles.profileIconTop, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]} source={require('../../assets/blueeye.png')} />
           </Pressable>
@@ -387,7 +403,7 @@ export default function ProfileScreen() {
           {...(Platform.OS === 'ios' ? { contentInsetAdjustmentBehavior: 'automatic' as const } : {})}
           contentContainerStyle={styles.scrollContent}
         >
-          <View style={[styles.topBar, { paddingTop: 8, paddingHorizontal: horizontalPadding }]}>
+          <View style={[styles.topBar, { height: headerHeight, paddingHorizontal: horizontalPadding }]}>
             <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
               <Image
                 style={[styles.profileIconTop, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]}
@@ -420,20 +436,20 @@ export default function ProfileScreen() {
                 <View style={[styles.walletRow, styles.walletRowRight]}>
                   <Pressable style={styles.chargeBtn} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
                     <Text
-                      style={[styles.chargeText, { fontSize: bodyFontSize }]}
+                      style={[styles.chargeText, { fontSize: walletFontSize }]}
                       numberOfLines={1}
                       adjustsFontSizeToFit
-                      minimumFontScale={0.7}
+                      minimumFontScale={0.85}
                     >
                       {translate('profileTopUp')}
                     </Text>
                   </Pressable>
                   <Pressable style={styles.recordsBtn} onPress={() => navigation.navigate(routes.HISTORY as never)}>
                     <Text
-                      style={[styles.linkText, { fontSize: bodyFontSize }]}
+                      style={[styles.linkText, { fontSize: walletFontSize }]}
                       numberOfLines={1}
                       adjustsFontSizeToFit
-                      minimumFontScale={0.7}
+                      minimumFontScale={0.85}
                     >
                       {translate('profileViewRecords')}
                     </Text>
@@ -706,7 +722,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     flexDirection: 'row',
     justifyContent: 'flex-start',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   profileIconTop: {},
   title: { color: '#e7eef6', fontWeight: '700', marginBottom: 6, textAlign: 'center' },
@@ -754,9 +770,9 @@ const styles = StyleSheet.create({
   },
   chargeBtn: {
     backgroundColor: '#ff3344',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 10,
     flexShrink: 1, // 寬度不足時可收縮，配合 adjustsFontSizeToFit 縮小文字
   },
   recordsBtn: {
@@ -772,7 +788,7 @@ const styles = StyleSheet.create({
   // ---- 表單 ----
   inputRow: {
     backgroundColor: '#2c2f34',
-    borderRadius: 10,
+    borderRadius: 25,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 14,
@@ -781,16 +797,16 @@ const styles = StyleSheet.create({
   input: {
     color: '#e7eef6',
     backgroundColor: '#1f2226',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderRadius: 25,
+    paddingHorizontal: 16,
     paddingVertical: Platform.OS === 'ios' ? 12 : 8,
   },
 
   // ---- 生日盒 ----
   valueBox: {
     backgroundColor: '#1f2226',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderRadius: 25,
+    paddingHorizontal: 16,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -801,7 +817,7 @@ const styles = StyleSheet.create({
   valueTextPlaceholder: { color: '#9aa3ad' },
 
   // ---- 性別選單 ----
-  pickerBox: { backgroundColor: '#1f2226', borderRadius: 8 },
+  pickerBox: { backgroundColor: '#1f2226', borderRadius: 25 },
   picker: { color: '#e7eef6', minHeight: 44, paddingVertical: 0 },
 
   // ---- CTA ----
@@ -829,8 +845,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
+    flexWrap: 'nowrap',
+    gap: 4,
     maxWidth: '100%',
   },
   submitText: {
@@ -845,7 +861,7 @@ const styles = StyleSheet.create({
   coinIcon: {
     width: 18,
     height: 18,
-    marginLeft: 6,
+    marginLeft: 0,
     resizeMode: 'contain',
   },
 
