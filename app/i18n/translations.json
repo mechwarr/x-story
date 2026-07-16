@@ -54,9 +54,24 @@
         "zh-CN": "请输入您的 Email",
         "en": "Enter your Email"
     },
+    "registerEmailPlaceholder": {
+        "zh-TW": "請輸入您的 Email",
+        "zh-CN": "请输入邮箱",
+        "en": "Add your email"
+    },
+    "resendEmailPlaceholder": {
+        "zh-TW": "請輸入您的 Email",
+        "zh-CN": "请输入邮箱",
+        "en": "Enter your email"
+    },
+    "resendSubmit": {
+        "zh-TW": "發送",
+        "zh-CN": "发送",
+        "en": "Resend"
+    },
     "sendVerification": {
         "zh-TW": "發送驗證信",
-        "zh-CN": "发送验证信",
+        "zh-CN": "发送验证邮件",
         "en": "Send Verification Email"
     },
     "sendResetEmail": {
@@ -70,39 +85,39 @@
         "en": "Submit"
     },
     "verificationSent": {
-        "zh-TW": "驗證信已寄出，請至信箱收信完成驗證。",
-        "zh-CN": "验证信已寄出，请至信箱收信完成验证。",
-        "en": "A verification email has been sent. Please check your inbox to complete verification."
+        "zh-TW": "我們已將驗證郵件發送至您的信箱，\n請點擊郵件中的連結完成信箱驗證",
+        "zh-CN": "我们已将验证邮件发送至您的邮箱，\n请点击邮件中的链接完成邮箱验证",
+        "en": "We've sent a verification email.\nPlease click the link in the email to verify your account."
     },
     "invalidEmailMessage": {
-        "zh-TW": "Email 格式不正確，請重新輸入。",
-        "zh-CN": "电子邮件格式不正确，请重新输入。",
-        "en": "Invalid email format. Please try again."
+        "zh-TW": "Email 格式不正確",
+        "zh-CN": "邮箱格式不正确",
+        "en": "Invalid email format."
     },
     "emailRequired": {
         "zh-TW": "請輸入 Email",
-        "zh-CN": "请输入 Email",
-        "en": "Please enter your email"
+        "zh-CN": "请输入邮箱",
+        "en": "Please enter your email."
     },
     "passwordRequired": {
         "zh-TW": "請輸入密碼",
         "zh-CN": "请输入密码",
-        "en": "Please enter your password"
+        "en": "Please enter your password."
     },
     "confirmPasswordRequired": {
         "zh-TW": "請再次輸入密碼",
         "zh-CN": "请再次输入密码",
-        "en": "Please confirm your password"
+        "en": "Please confirm your password."
     },
     "passwordPolicyMessage": {
-        "zh-TW": "密碼需 8-20 字元，且包含至少一個大寫字母、一個小寫字母及一個數字。",
-        "zh-CN": "密码需 8-20 字符，且包含至少一个大写字母、一个小写字母及一个数字。",
-        "en": "Password must be 8-20 characters and include at least one uppercase letter, one lowercase letter, and one number."
+        "zh-TW": "密碼須 8-20 字元，\n且包含至少一個大寫字母、一個小寫字母及一個數字",
+        "zh-CN": "密码须 8-20 字符，\n且包含至少一个大写字母、一个小写字母及一个数字",
+        "en": "8–20 characters, at least 1 uppercase, 1 lowercase, and 1 number."
     },
     "passwordPolicyHint": {
         "zh-TW": "密碼須 8-20 字元，且包含至少一個大寫字母、一個小寫字母及一個數字",
         "zh-CN": "密码须 8-20 字符，且包含至少一个大写字母、一个小写字母及一个数字",
-        "en": "Password must be 8-20 characters and include at least one uppercase letter, one lowercase letter, and one number"
+        "en": "8–20 characters, at least 1 uppercase, 1 lowercase, and 1 number."
     },
     "passwordRuleUpdateHint": {
         "zh-TW": "須符合密碼規則才能更新",
@@ -111,7 +126,7 @@
     },
     "resendVerification": {
         "zh-TW": "重發驗證信",
-        "zh-CN": "重发验证信",
+        "zh-CN": "重发验证邮件",
         "en": "Resend Verification Email"
     },
     "resendFailed": {
@@ -124,15 +139,30 @@
         "zh-CN": "注册失败，请稍后再试",
         "en": "Registration failed. Please try again later."
     },
+    "emailAlreadyRegistered": {
+        "zh-TW": "此信箱已註冊",
+        "zh-CN": "邮箱已注册",
+        "en": "This email is already registered."
+    },
+    "resendMailSuccessTitle": {
+        "zh-TW": "驗證信已重新發送",
+        "zh-CN": "验证邮件已重新发送",
+        "en": "Verification Email Resent"
+    },
     "resendMailSuccessMessage": {
-        "zh-TW": "驗證信已重新寄出",
-        "zh-CN": "验证信已重新寄出",
-        "en": "Verification email has been resent."
+        "zh-TW": "驗證信已重新發送，\n請前往信箱查看",
+        "zh-CN": "验证邮件已重新发送，\n请前往邮箱查收",
+        "en": "We've resent the verification email.\nPlease check your inbox."
     },
     "resendMailFailedMessage": {
         "zh-TW": "重發驗證信失敗，請稍後再試",
         "zh-CN": "重发验证信失败，请稍后再试",
         "en": "Failed to resend verification email. Please try again later."
+    },
+    "resendMailNotFoundOrVerified": {
+        "zh-TW": "找不到該 email 使用者或信箱已驗證",
+        "zh-CN": "找不到该 email 用户或邮箱已验证",
+        "en": "This email isn't registered, or the account is already verified."
     },
     "forgotPasswordFailedMessage": {
         "zh-TW": "重設密碼寄信失敗，請稍後再試",
@@ -168,6 +198,16 @@
         "zh-TW": "我們已將註冊連結寄到您的信箱，請點擊信中的連結進行註冊認證",
         "zh-CN": "我们已将注册连接寄到您的信箱，请点击信中的连接进行注册认证",
         "en": "We’ve sent you a link to complete your registration. Click the link in the email to verify your account."
+    },
+    "emailVerifiedTitle": {
+        "zh-TW": "驗證成功",
+        "zh-CN": "验证成功",
+        "en": "Email Verified"
+    },
+    "emailVerifiedMessage": {
+        "zh-TW": "您的 Email 已完成驗證，\n請重新登入",
+        "zh-CN": "您的邮箱已完成验证，\n请重新登录",
+        "en": "Your email has been verified.\nPlease sign in again."
     },
     "ok": {
         "zh-TW": "OK",
@@ -297,7 +337,7 @@
     "purchaseSuccessMessage": {
         "zh-TW": "您已成功購買「{name}」！\n\n花費 {coins} 金幣",
         "zh-CN": "您已成功购买「{name}」！\n\n花费 {coins} 金币",
-        "en": "You’ve successfully purchased “{name}”!\n\nSpent {coins} coins"
+        "en": "You’ve successfully purchased “{name}”!\n\nSpent {coins} coins."
     },
     "purchaseFailedTitle": {
         "zh-TW": "購買失敗",
@@ -317,7 +357,7 @@
     "iapPurchaseSuccessMessage": {
         "zh-TW": "您已成功購買 {product}！\n\n獲得 {coins} 金幣",
         "zh-CN": "您已成功购买 {product}！\n\n获得 {coins} 金币",
-        "en": "You’ve successfully purchased {product}!\n\nReceived {coins} coins"
+        "en": "You’ve successfully purchased {product}!\n\nReceived {coins} coins."
     },
     "restorePurchaseTitle": {
         "zh-TW": "恢復購買",
@@ -327,12 +367,12 @@
     "restorePurchaseNone": {
         "zh-TW": "沒有找到可恢復的購買記錄",
         "zh-CN": "没有找到可恢复的购买记录",
-        "en": "No purchases available to restore"
+        "en": "No purchases available to restore."
     },
     "restorePurchaseSuccessMessage": {
         "zh-TW": "已恢復 {count} 筆購買記錄",
         "zh-CN": "已恢复 {count} 笔购买记录",
-        "en": "Restored {count} purchase(s)"
+        "en": "Restored {count} purchase(s)."
     },
     "restorePurchaseFailedTitle": {
         "zh-TW": "恢復購買失敗",
@@ -352,7 +392,7 @@
     "confirmPassword": {
         "zh-TW": "請再次輸入密碼",
         "zh-CN": "请再次输入密码",
-        "en": "Confirm Password"
+        "en": "Confirm password"
     },
     "updatePassword": {
         "zh-TW": "密碼更新",
@@ -480,9 +520,9 @@
         "en": "Create a Password\n(at least 8 characters)"
     },
     "enterPassword": {
-        "zh-TW": "請輸入密碼",
-        "zh-CN": "请输入密码",
-        "en": "Enter password"
+        "zh-TW": "設定密碼",
+        "zh-CN": "设置密码",
+        "en": "Create a password"
     },
     "confirmSignUpPassword": {
         "zh-TW": "請再次輸入密碼",
@@ -509,15 +549,10 @@
         "zh-CN": "重设连接已失效，请重新获取。",
         "en": "The reset link has expired or is invalid. Please request a new one."
     },
-    "passwordMismatchTitle": {
-        "zh-TW": "密碼不一致",
-        "zh-CN": "密码不一致",
-        "en": "Passwords Do Not Match"
-    },
     "passwordMismatchMessage": {
-        "zh-TW": "兩次輸入的密碼不一致，請重新輸入。",
-        "zh-CN": "两次输入的密码不一致，请重新输入。",
-        "en": "The passwords you entered do not match. Please re-enter."
+        "zh-TW": "兩次輸入的密碼不一致",
+        "zh-CN": "两次输入的密码不一致",
+        "en": "Passwords do not match."
     },
     "passwordTooShortTitle": {
         "zh-TW": "密碼過短",
@@ -562,7 +597,7 @@
     "registerAccount": {
         "zh-TW": "註冊帳號",
         "zh-CN": "注册账号",
-        "en": "Register Account"
+        "en": "Sign Up"
     },
     "unlock": {
         "zh-TW": "解鎖",
@@ -592,7 +627,7 @@
     "profileUpdatePersonalInfo": {
         "zh-TW": "更新個人資訊",
         "zh-CN": "更新个人信息",
-        "en": "Update profile"
+        "en": "Update Profile"
     },
     "profileUpdatedSuccessTitle": {
         "zh-TW": "成功",
@@ -600,9 +635,9 @@
         "en": "Success"
     },
     "profileSubmittedSuccessTitle": {
-        "zh-TW": "資料提交成功",
-        "zh-CN": "资料提交成功",
-        "en": "Profile submitted successfully"
+        "zh-TW": "資料提交成功！",
+        "zh-CN": "资料提交成功！",
+        "en": "Profile Completed!"
     },
     "profileUpdatedSuccessMessage": {
         "zh-TW": "個人資料已更新！",
@@ -610,9 +645,9 @@
         "en": "Your profile has been updated."
     },
     "profileCompletedRewardSuccessMessage": {
-        "zh-TW": "感謝您完成基本資料，代幣將於 24 小時內發送至您的帳戶。",
-        "zh-CN": "感谢您完成基本资料，代币将于 24 小时内发送至您的账户。",
-        "en": "Thank you for completing your profile. Coins will be credited to your account within 24 hours."
+        "zh-TW": "感謝您完成基本資料，\n代幣將於 24 小時內發送至您的帳戶",
+        "zh-CN": "感谢您完成个人信息，\n代币将于 24 小时内发送至您的账户",
+        "en": "Thanks for completing your profile. Coins will be added within 24 hours."
     },
     "profileRewardClaimFailedTitle": {
         "zh-TW": "領取獎勵失敗",
@@ -827,7 +862,7 @@
     "productIdNotFoundMessage": {
         "zh-TW": "找不到對應的商品 ID",
         "zh-CN": "找不到对应的商品 ID",
-        "en": "Could not find the matching product ID"
+        "en": "Could not find the matching product ID."
     },
     "cannotPurchaseTitle": {
         "zh-TW": "無法購買",
@@ -837,7 +872,7 @@
     "productNotLoadedMessage": {
         "zh-TW": "商品尚未載入或不可用",
         "zh-CN": "商品尚未加载或不可用",
-        "en": "The product is not loaded or unavailable"
+        "en": "The product is not loaded or unavailable."
     },
     "iapHintSimulatorIOS": {
         "zh-TW": "請在真實設備上測試 App Store 內購功能",
@@ -912,6 +947,6 @@
     "resetDoneMessage": {
         "zh-TW": "資料已清除",
         "zh-CN": "资料已清除",
-        "en": "Data cleared"
+        "en": "Data cleared."
     }
 }

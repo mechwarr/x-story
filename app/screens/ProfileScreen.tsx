@@ -824,7 +824,7 @@ const styles = StyleSheet.create({
   submitBtn: {
     marginTop: 8,
     backgroundColor: '#00a99d',
-    borderRadius: 12,
+    borderRadius: 25,
     paddingVertical: 12,
     paddingHorizontal: 14,
     alignItems: 'center',
@@ -879,7 +879,7 @@ const styles = StyleSheet.create({
   retryBtn: {
     marginTop: 16,
     backgroundColor: '#00a99d',
-    borderRadius: 12,
+    borderRadius: 25,
     paddingVertical: 12,
     paddingHorizontal: 28,
     alignItems: 'center',

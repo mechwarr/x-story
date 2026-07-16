@@ -3,6 +3,7 @@ import { RestfulApi } from "./api";
 import tokenStorage from '../auth/Storage';
 import { portURL } from "./apiClient";
 import { translate } from "../i18n/i18n";
+import { showAlert } from "../components/CustomAlert";
 
 /**
  * 登入／註冊／refresh／logout 與 iapService 使用的 `api/me/iap-receipts` 等，實際都部署在
@@ -91,11 +92,18 @@ export async function registerWithXStory(
       return true;
     } else {
       console.warn("註冊失敗:", res.message);
-      alert(res?.message || translate("registerFailedMessage"));
+      // 標題統一「錯誤」；內文暫維持後端 message，待「已註冊」辨識邏輯確定後再改用 emailAlreadyRegistered
+      showAlert(translate("genericErrorTitle"), res?.message || translate("registerFailedMessage"));
       return false;
     }
   } catch (error) {
-    alert(extractErrorMessage(error));
+    // 後端「Email 已註冊」回 HTTP 401（見 Swagger）；此情境改用 i18n 內文，
+    // 讓簡中／英文正確顯示翻譯，其餘錯誤維持後端／原始訊息。
+    const message =
+      extractStatusCode(error) === 401
+        ? translate("emailAlreadyRegistered")
+        : extractErrorMessage(error);
+    showAlert(translate("genericErrorTitle"), message);
     console.error("註冊發生錯誤:", error);
     return false;
   }
@@ -126,21 +134,29 @@ export async function resentRegisterMail(
 ): Promise<boolean> {
   try {
     const res = await authApi.post<ResentRegisterMailResponse>(
-      "api/auth/resent-register-mail",
+      "api/auth/resend-verification",
       payload
     );
 
     if (res && res.success) {
-      alert(translate("resendMailSuccessMessage"));
+      // 重發流程：顯示帶標題的成功彈窗（與一般註冊流程的畫面提示 verificationSent 區隔）
+      showAlert(translate("resendMailSuccessTitle"), translate("resendMailSuccessMessage"));
       return true;
     } else {
-      console.warn("重發驗證信失敗:", res.message);
-      alert(res?.message || translate("resendMailFailedMessage"));
+      // 只記錄後端原始訊息供除錯，對使用者一律顯示內建翻譯，避免後端回傳亂碼字串
+      console.warn("重發驗證信失敗:", res?.message);
+      alert(translate("resendMailFailedMessage"));
       return false;
     }
   } catch (error) {
-    alert(extractErrorMessage(error));
+    // 記錄原始錯誤，對使用者一律顯示內建翻譯，避免亂碼
     console.error("重發驗證信時發生錯誤:", error);
+    // 後端無法細分，401 統一代表「找不到該 email 使用者或信箱已驗證」；其餘走通用失敗
+    const message =
+      extractStatusCode(error) === 401
+        ? translate("resendMailNotFoundOrVerified")
+        : translate("resendMailFailedMessage");
+    alert(message);
     return false;
   }
 }
@@ -250,7 +266,7 @@ export async function VerifyMail(payload: XStoryVerifyRequest): Promise<boolean>
     );
 
     if (res && res.success) {
-      alert("驗證成功，請重新登入");
+      // 成功後的提示與導向交由 deep link 處理端（_layout）以套用 i18n 標題／內文並跳轉登入頁
       return true;
     } else {
       alert(res?.message || "驗證失敗，請稍後再試");
@@ -343,6 +359,19 @@ export async function resetXStoryPassword(
     console.error("密碼重設時發生錯誤:", error);
     return false;
   }
+}
+
+/**
+ * 從 RestfulApi 丟出的 Error 取出 HTTP 狀態碼。
+ * api.ts 失敗時會 throw `HTTP <status>: <body>`，故以此格式解析。
+ * @returns 狀態碼數字，無法解析時回傳 null
+ */
+function extractStatusCode(err: unknown): number | null {
+  if (err instanceof Error) {
+    const m = err.message.match(/HTTP (\d+)/);
+    if (m) return parseInt(m[1], 10);
+  }
+  return null;
 }
 
 function extractErrorMessage(err: unknown): string {

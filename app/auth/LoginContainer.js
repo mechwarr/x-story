@@ -26,6 +26,7 @@ import { useCoins } from '../store/coinContext';
 import { getUserProfile } from '../config/userApiClient';
 import { setPendingProfileRedirect } from './firstLoginRedirect';
 import { setPendingSocialName, deriveGoogleDisplayName } from './pendingSocialName';
+import { subscribeVerifyRedirect } from './verifyRedirect';
 
 export default function LoginContainer({ onLoginSuccess }) {
   const { refreshCoins } = useCoins();
@@ -33,6 +34,17 @@ export default function LoginContainer({ onLoginSuccess }) {
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [showRegisterView, setshowRegisterView] = useState(true);
   const [historyStack, setHistoryStack] = useState([]);
+
+  // 信箱驗證成功（deep link 於 _layout 處理）後，切換到「會員登入頁」讓使用者重新登入。
+  useEffect(() => {
+    const unsubscribe = subscribeVerifyRedirect(() => {
+      setShowEmailVerification(false);
+      setshowRegisterView(false);
+      setShowEmailLogin(false);
+      setHistoryStack([]);
+    });
+    return unsubscribe;
+  }, []);
 
   // 小工具：判斷是否為「使用者取消」的錯誤，不要跳出 alert
   // （盡量涵蓋常見的 code / message 關鍵字，若第三方 SDK 實際回傳不同，可再擴充）

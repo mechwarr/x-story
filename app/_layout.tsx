@@ -11,6 +11,7 @@ import * as Linking from "expo-linking";
 import { VerifyMail, tokenRefreshService, logoutWithXStory } from './config/authApiClient';
 import tokenStorage from './auth/Storage';
 import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
+import { emitVerifyRedirect } from './auth/verifyRedirect';
 import { AuthProvider } from "./auth/AuthContext";
 import { CoinProvider } from './store/coinContext';
 import { clearAllUserData } from './services/clearUserDataService';
@@ -202,10 +203,18 @@ function RootLayoutContent() {
           }
           console.log("🔗 處理驗證連結，token:", token);
 
-          await VerifyMail({
+          const verified = await VerifyMail({
             email: email || "",
             token: token,
           });
+          if (verified) {
+            // 驗證成功：顯示 i18n 標題／內文，按 OK 後跳回會員 Email 登入頁
+            showAlert(
+              translate("emailVerifiedTitle"),
+              translate("emailVerifiedMessage"),
+              [{ text: translate("ok"), onPress: () => emitVerifyRedirect() }]
+            );
+          }
           break;
         }
 

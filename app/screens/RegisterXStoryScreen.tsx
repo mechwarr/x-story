@@ -50,7 +50,7 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
     if (!EMAIL_REGEX.test(normalizedEmail)) { showAlert(translate("genericErrorTitle"), translate("invalidEmailMessage")); return; }
     if (!password) { showAlert(translate("genericErrorTitle"), translate("passwordRequired")); return; }
     if (!confirmPassword) { showAlert(translate("genericErrorTitle"), translate("confirmPasswordRequired")); return; }
-    if (password !== confirmPassword) { showAlert(translate("passwordMismatchTitle"), translate("passwordMismatchMessage")); return; }
+    if (password !== confirmPassword) { showAlert(translate("genericErrorTitle"), translate("passwordMismatchMessage")); return; }
     if (!PASSWORD_REGEX.test(password)) { showAlert(translate("genericErrorTitle"), translate("passwordPolicyMessage")); return; }
 
     setIsSending(true);
@@ -107,7 +107,7 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
         <>
           <TextInput
             style={styles.input}
-            placeholder={translate("enterEmail")}
+            placeholder={translate("registerEmailPlaceholder")}
             placeholderTextColor="#7F7F7F"
             selectionColor="#009688"
             value={email}
@@ -221,7 +221,7 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
 
             <TextInput
               style={styles.input}
-              placeholder={translate("enterEmail")}
+              placeholder={translate("resendEmailPlaceholder")}
               placeholderTextColor="#7F7F7F"
               selectionColor="#009688"
               value={resendEmail}
@@ -241,7 +241,7 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
               <ActivityIndicator size="large" color="#0ABAB5" style={{ marginVertical: 20 }} />
             ) : (
               <TouchableOpacity style={styles.sendButton} onPress={onResendSubmit}>
-                <Text style={styles.sendButtonText}>{translate("submit")}</Text>
+                <Text style={styles.sendButtonText}>{translate("resendSubmit")}</Text>
               </TouchableOpacity>
             )}
 
@@ -315,6 +315,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0ABAB5",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 20,
     marginBottom: 20,
   },
   sendButtonText: {
@@ -324,7 +325,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     width: "100%",
-    height: 45,
+    height: 50,
     borderRadius: 25,
     backgroundColor: "#555555",
     justifyContent: "center",
@@ -364,7 +365,7 @@ const styles = StyleSheet.create({
   },
   resendLinkWrap: {
     width: "100%",
-    marginTop: 10,
+    marginTop: 24,
     alignItems: "flex-start",
   },
 
