@@ -3,6 +3,7 @@ export default Object.freeze({
   HOME: "故事選擇",
   CONTINUE: "繼續觀看",
   REVIEW: "再次回味",
+  MY_BOOKS: "我的書籍",
   OTHERS: "其他頁面",
   LANGUAGE: "語系設定",
   VERSION: "版本資訊",

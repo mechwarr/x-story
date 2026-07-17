@@ -6,6 +6,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showAlert } from '../CustomAlert';
 import routes from '../../navigations/routes';
 import AppText from '../AppText';
@@ -16,7 +17,8 @@ import { translate } from '../../i18n/i18n';
 import { toColor, toFontWeight } from '../../config/normalizeStyle';
 import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins, getEffectiveRoleLevel } from '../../config/userApiClient';
-import { isAdmin } from '../../config/roles';
+import { canPreviewAll } from '../../config/roles';
+import { getAuthoritativeOwnedStoryIds } from '../../services/bookAccessService';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../../config/idempotencyKeyCache';
 import { useCoins } from '../../store/coinContext';
 import storage from '../../storage/storage';
@@ -132,6 +134,49 @@ function Book(props) {
         free_open: props.free_open ?? chapter?.free_open,
       },
     });
+  };
+
+  // 繼續觀看／再次回味的守門（需求 4、10）：
+  //  4. 書籍下架／刪除 → 一律不能再看（堵住一般用戶用本地存檔繞過閘門續看的漏洞）。
+  // 10. 付費書但已被移除書單（伺服器撤銷授權）→ 需重新購買，不能靠存檔續看；導回一般入口走購買閘門。
+  // role >= 5（小編／管理員）預覽者不受限，一律放行。
+  // 回傳 true 表示可續看／回味；false 表示已擋下（本函式已負責提示或改導向）。
+  const canContinueOwned = async () => {
+    const roleLevel = await getEffectiveRoleLevel();
+    if (canPreviewAll(roleLevel)) return true; // 預覽者不受限
+
+    const bookId = props.storyId ?? id;
+
+    // 首頁快取的書店快照（含 isActive / priceCoins）：判斷是否仍在架。
+    let snapshot = [];
+    try {
+      const raw = await AsyncStorage.getItem('bookstoreList');
+      snapshot = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      snapshot = [];
+    }
+    // 快照為空＝狀態未知（尚未載入首頁）→ 不誤擋，放行。
+    if (!Array.isArray(snapshot) || snapshot.length === 0) return true;
+
+    const entry = snapshot.find((b) => Number(b?.storyListId) === Number(bookId));
+    const onShelf = !!entry && entry.isActive !== false;
+    if (!onShelf) {
+      // 下架／刪除：不能再看
+      showAlert(translate('noticeTitle'), translate('bookUnavailable'));
+      return false;
+    }
+
+    // 付費書：以伺服器 entitlements 權威判斷持有；被移除書單者需重新購買。
+    const isPaid = Number(entry.priceCoins) > 0;
+    if (isPaid) {
+      const ownedIds = await getAuthoritativeOwnedStoryIds();
+      const owned = ownedIds.map(Number).includes(Number(bookId));
+      if (!owned) {
+        goToStart(); // 導回一般入口，套用購買閘門（有章節→章節列表；無章節→故事頁）
+        return false;
+      }
+    }
+    return true;
   };
 
   // 從頭開始（重新閱讀）：有章節進章節列表，否則進故事頁
@@ -276,12 +321,12 @@ function Book(props) {
         onPress={async () => {
           // 未公開（鎖頭）：僅「一般入口」受限。「繼續觀看 / 再次回味」是已在書櫃中的書，
           // 永遠可進入、不受此閘門限制。
-          //  - role >= 9（Admin）：可點擊預覽，有章節進章節列表、無章節進故事頁。
-          //  - 其餘角色：跳出多語系 alert「敬請期待」，不進入。
+          //  - role >= 5（小編／管理員）：可點擊預覽，有章節進章節列表、無章節進故事頁。
+          //  - 其餘角色：跳出多語系 alert「即將上架／敬請期待！」，不進入。
           if (!isOpen && !showIcon && !showReviewIcon) {
             const roleLevel = await getEffectiveRoleLevel();
-            if (!isAdmin(roleLevel)) {
-              showAlert(translate('noticeTitle'), translate('comingSoon'));
+            if (!canPreviewAll(roleLevel)) {
+              showAlert(translate('comingSoonTitle'), translate('comingSoon'));
               return;
             }
             if (hasChapter) {
@@ -305,25 +350,29 @@ function Book(props) {
           }
 
           if (showIcon) {
-            // 繼續觀看：回到最後存檔的章節/場次/對話順序
-            goToContinue();
+            // 繼續觀看：先驗證仍在架＋（付費書）仍持有，再回到最後存檔的章節/場次/對話順序
+            if (await canContinueOwned()) {
+              goToContinue();
+            }
           } else if (showReviewIcon) {
-            // 再次回味
-            if (hasChapter) {
-              navigation.navigate(routes.HOME, {
-                screen: routes.CHAPTER,
-                params: {
-                  name: main_menu_name,
-                  author,
-                  storyId: id,
-                  storyData,
-                },
-              });
-            } else {
-              navigation.navigate(routes.HOME, {
-                screen: routes.STORY,
-                params: storyPayload,
-              });
+            // 再次回味：同樣先驗證仍在架＋仍持有
+            if (await canContinueOwned()) {
+              if (hasChapter) {
+                navigation.navigate(routes.HOME, {
+                  screen: routes.CHAPTER,
+                  params: {
+                    name: main_menu_name,
+                    author,
+                    storyId: id,
+                    storyData,
+                  },
+                });
+              } else {
+                navigation.navigate(routes.HOME, {
+                  screen: routes.STORY,
+                  params: storyPayload,
+                });
+              }
             }
           } else {
             // 一般選項：每次點擊都跳出簡介彈窗，讓使用者選擇。

@@ -1,4 +1,4 @@
-import { FlatList, SafeAreaView, View, StyleSheet } from 'react-native';
+import { FlatList, SafeAreaView, View, StyleSheet, AppState } from 'react-native';
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import ChapterItem from '../components/ChapterItem';
@@ -7,9 +7,9 @@ import StoryHeader from '../components/StoryHeader';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import apiclient from '../config/apiClient';
 import { useCoins } from '../store/coinContext';
-import { syncPurchasedStoryIds } from '../services/bookAccessService';
+import { getAuthoritativeOwnedStoryIds } from '../services/bookAccessService';
 import { getEffectiveRoleLevel } from '../config/userApiClient';
-import { isAdmin } from '../config/roles';
+import { canPreviewAll } from '../config/roles';
 import { pickConfigByLang } from '../i18n/i18n';
 import { toColor } from '../config/normalizeStyle';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -20,7 +20,7 @@ const ChapterScreen = () => {
     toastConfig: {},
   });
   const [localPurchasedIds, setLocalPurchasedIds] = useState([]);
-  // role >= 9（Admin）：試閱未設範圍的章節也可直接進入觀看完整內容，不被「試閱未設定」攔截。
+  // role >= 5（小編／管理員）：可完整預覽、不需購買、不受試閱設定限制（需求 5/6）。
   const [isAdminUser, setIsAdminUser] = useState(false);
   const route = useRoute();
 
@@ -45,15 +45,21 @@ const ChapterScreen = () => {
   }, [storyId]);
 
   const refreshPurchasedIds = useCallback(async () => {
-    const mergedIds = await syncPurchasedStoryIds();
-    setLocalPurchasedIds(mergedIds);
-  }, []);
+    // 以伺服器 entitlements 為權威來源：被移除書單（撤銷授權）的付費書會回到鎖定、需重新購買（需求 10）。
+    // 線上失敗時退回本地快取，避免誤擋合法持有者。
+    const ownedIds = await getAuthoritativeOwnedStoryIds();
+    // 診斷用：isAdminUser=true（role>=5）代表預覽者、章節刻意不上鎖；owned=true 代表後端仍回傳此書。
+    console.log('[ChapterScreen] 持有權確認 →', {
+      storyId: Number(storyId), owned: ownedIds.includes(Number(storyId)), isAdminUser, ownedIds,
+    });
+    setLocalPurchasedIds(ownedIds);
+  }, [storyId, isAdminUser]);
 
-  // 解析目前使用者是否為 Admin（role >= 9）；於此統一取一次並下傳給各章節項，
+  // 解析目前使用者是否可完整預覽（role >= 5，小編／管理員）；於此統一取一次並下傳給各章節項，
   // 避免每個 ChapterItem 各自查詢。
   useEffect(() => {
     let mounted = true;
-    getEffectiveRoleLevel().then((lv) => { if (mounted) setIsAdminUser(isAdmin(lv)); });
+    getEffectiveRoleLevel().then((lv) => { if (mounted) setIsAdminUser(canPreviewAll(lv)); });
     return () => { mounted = false; };
   }, []);
 
@@ -123,6 +129,15 @@ const ChapterScreen = () => {
       refreshPurchasedIds();
     }, [refreshPurchasedIds])
   );
+
+  // App 由背景回前景時，重新以權威來源確認持有：期間被移除書單的付費書會回到鎖定、
+  // 點該章即跳購買（需求 10 / 外部回來聚焦刷新）。
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') refreshPurchasedIds();
+    });
+    return () => sub.remove();
+  }, [refreshPurchasedIds]);
 
   const { isTablet, maxContentWidth } = useResponsive();
 

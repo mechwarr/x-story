@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import StoryNavigator from "./StoryNavigator";
 import ContinueScreen from "../screens/ContinueScreen";
 import ReviewScreen from "../screens/ReviewScreen";
+import MyBooksScreen from "../screens/MyBooksScreen";
 
 import StoryContext from "../components/story/context";
 
@@ -113,6 +114,11 @@ export default function AppNavigator() {
           name={routes.REVIEW}
           component={ReviewScreen}
           options={{ drawerLabel: renderDrawerLabel(translate("menuReviewAgain")) }}
+        />
+        <Drawer.Screen
+          name={routes.MY_BOOKS}
+          component={MyBooksScreen}
+          options={{ drawerLabel: renderDrawerLabel(translate("menuMyBooks")) }}
         />
         <Drawer.Screen
           name={routes.VERSION}

@@ -115,6 +115,8 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
           {translate("resetEmailSentMessage") || "重設信已發送，請到信箱確認。"}
         </Text>
       )}
+      {/* 補齊與登入頁的表單高度差，讓垂直置中後標題與登入頁同高 */}
+      <View style={styles.bottomSpacer} />
       </View>
     </KeyboardAvoidingView>
   );
@@ -162,7 +164,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 20,
-    marginTop: 20,
+    marginTop: 35, // 與登入頁「忘記密碼→登入鈕」相同的 45px 間距（輸入框 marginBottom 10 + 35）
   },
   sendButtonText: {
     color: "white",
@@ -171,7 +173,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     width: "100%",
-    height: 45,
+    height: 50,
     borderRadius: 25,
     backgroundColor: "#555555",
     justifyContent: "center",
@@ -195,5 +197,9 @@ const styles = StyleSheet.create({
     top: 20,
     left: 20,
     zIndex: 10,
+  },
+  // 忘記密碼頁表單比登入頁少了密碼欄與忘記密碼連結，補上高度差讓標題置中後對齊登入頁
+  bottomSpacer: {
+    height: 100,
   },
 });

@@ -27,11 +27,11 @@ import _ from 'lodash';
 import apiclient from '../config/apiClient';
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins, recordBookRead, getEffectiveRoleLevel } from '../config/userApiClient';
-import { canSwitchScreening, isAdmin } from '../config/roles';
+import { canSwitchScreening, canPreviewAll } from '../config/roles';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
 import { useCoins } from '../store/coinContext';
 import { translate, matchesCurrentStoryLang, getCurrentLang, pickConfigByLang } from '../i18n/i18n';
-import { syncPurchasedStoryIds, canAccessChapter } from '../services/bookAccessService';
+import { syncPurchasedStoryIds, getAuthoritativeOwnedStoryIds, canAccessChapter } from '../services/bookAccessService';
 import mediaPlayer from '../services/mediaPlayer';
 import useResponsive from '../hook/useResponsive';
 
@@ -168,6 +168,9 @@ function StoryScreen({ route }) {
       .finally(() => { if (mounted) setRoleChecked(true); });
     return () => { mounted = false; };
   }, []);
+  // role >= 5（小編／管理員）：可完整預覽、不需購買、不受試閱設定限制（需求 5/6）。
+  // 用於各閱讀閘門的繞過判斷。
+  const canPreview = canPreviewAll(roleLevel);
 
   const screeningList = Array.isArray(queryInfo.screenings) ? queryInfo.screenings : [];
 
@@ -473,8 +476,8 @@ function StoryScreen({ route }) {
           if (__DEV__) showAlert('提示', `找不到章節 order：${chapterPart}`);
           return;
         }
-        // 目標章節不可閱讀（試閱外且未購買）→ 暫存跳轉目標、跳購買提示；購買成功後再續。
-        if (!canAccessChapter({ freeOpen: target.free_open, isBookPurchased })) {
+        // 目標章節不可閱讀（試閱外且未購買，且非預覽者）→ 暫存跳轉目標、跳購買提示；購買成功後再續。
+        if (!canAccessChapter({ freeOpen: target.free_open, isBookPurchased, canPreview })) {
           pendingJumpRef.current = {
             chapterId: target.id,
             screeningId: screeningPart,
@@ -507,7 +510,8 @@ function StoryScreen({ route }) {
       if (targetScreen < 0) {
         // 試閱未購買時，找不到多半是該場次被 read_range_end 截斷在試閱範圍外
         // → 暫存跳轉目標、跳購買提示；購買成功後重掛取得完整場次再續。
-        if (free_open === '開放' && !isBookPurchased) {
+        // 預覽者（role>=5）內容未截斷、不走此購買分支。
+        if (free_open === '開放' && !isBookPurchased && !canPreview) {
           pendingJumpRef.current = {
             chapterId,
             screeningId: screeningPart,
@@ -589,7 +593,7 @@ function StoryScreen({ route }) {
 
           // 1) 試閱播畢：未持有本書、為試閱（開放）章節，且後面確實還有被鎖內容 →
           //    代表已到「試閱的最後內容」，跳出購買提示（優先於自動續章）。
-          if (free_open === '開放' && !isBookPurchased && hasMoreToUnlock) {
+          if (free_open === '開放' && !isBookPurchased && !canPreview && hasMoreToUnlock) {
             storyLockedRef.current = true; // 鎖住推進：之後只能滑動回看，不能再播剩餘劇情
             setShowPurchaseOverlay(true);
             return;
@@ -600,6 +604,7 @@ function StoryScreen({ route }) {
             const nextAccessible = canAccessChapter({
               freeOpen: nextChapter.free_open,
               isBookPurchased,
+              canPreview,
             });
             if (nextAccessible) {
               // 換章前清掉本章的「繼續觀看」快取，避免下次回來停在舊章節尾端。
@@ -631,18 +636,49 @@ function StoryScreen({ route }) {
     };
 
     if (Array.isArray(queryInfo.screenings)) fetchStories();
-  }, [index.screen, queryInfo.screenings, free_open, isBookPurchased, finishToHome, autoRetryTick]);
+  }, [index.screen, queryInfo.screenings, free_open, isBookPurchased, canPreview, finishToHome, autoRetryTick]);
 
+  // 以伺服器 entitlements 為權威判斷持有：被移除書單（撤銷授權）的付費書會回到未購買狀態、
+  // 觸發試閱截斷與購買閘門（需求 10）。線上失敗時退回本地快取，避免誤擋合法持有者。
+  // wasOwnedRef：記錄前一次的持有結果，用來只在「先前持有、現在被撤銷」時主動跳購買提示，
+  // 避免一開始就未持有（正在試閱）者被誤跳。
+  const wasOwnedRef = useRef(false);
+  const verifyOwnership = useCallback(async () => {
+    const ids = await getAuthoritativeOwnedStoryIds();
+    const owned = ids.includes(Number(storyId));
+    // 診斷用：確認「重新取得持有權」是否生效、以及為何未攔截。
+    // canPreview=true（role>=5）代表預覽者、刻意繞過持有判斷；owned=true 代表後端 entitlements 仍回傳此書。
+    console.log('[StoryScreen] 持有權確認 →', {
+      storyId: Number(storyId), owned, canPreview, roleLevel, priceCoins: Number(priceCoins), ownedIds: ids,
+    });
+    setIsBookPurchased(owned);
+    setPurchaseChecked(true);
+    if (wasOwnedRef.current && !owned && !canPreview && Number(priceCoins) > 0) {
+      // 閱讀途中被移除書單：鎖住推進並跳出購買提示（沿用現有購買覆蓋層）。
+      storyLockedRef.current = true;
+      setShowPurchaseOverlay(true);
+    }
+    wasOwnedRef.current = owned;
+  }, [storyId, canPreview, priceCoins]);
+
+  // 進入本書時先確認一次持有（wasOwnedRef 初值 false，不會主動跳提示）。
   useEffect(() => {
     let mounted = true;
-    syncPurchasedStoryIds().then((ids) => {
-      if (mounted) {
-        setIsBookPurchased(ids.includes(Number(storyId)));
-        setPurchaseChecked(true);
-      }
-    });
+    (async () => { if (mounted) await verifyOwnership(); })();
     return () => { mounted = false; };
-  }, [storyId]);
+  }, [verifyOwnership]);
+
+  // 重新聚焦本畫面、或 App 由背景回前景時，重新確認持有；期間被移除書單 → 跳購買提示（需求 10 / 外部回來聚焦刷新）。
+  useEffect(() => {
+    const unsubFocus = rawNavigation.addListener('focus', () => { verifyOwnership(); });
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') verifyOwnership();
+    });
+    return () => {
+      unsubFocus();
+      sub.remove();
+    };
+  }, [rawNavigation, verifyOwnership]);
 
   // 安全網：非章節選單入口（如「繼續觀看」）進入試閱章節時，
   // 若後端「試閱場次範圍(尾)」(read_range_end) 為 0／非正數，代表沒有設定試閱長度 → 警告並返回。
@@ -650,9 +686,9 @@ function StoryScreen({ route }) {
   useEffect(() => {
     if (!purchaseChecked || !roleChecked) return;
     if (free_open !== '開放' || isBookPurchased) return;
-    // role >= 9（Admin）：試閱未設範圍時仍可直接觀看完整內容（read_range_end ≤ 0 時
+    // role >= 5（小編／管理員）：試閱未設範圍時仍可直接觀看完整內容（read_range_end ≤ 0 時
     // 截斷條件本就為 false、不截斷），故不受此安全網攔截。
-    if (isAdmin(roleLevel)) return;
+    if (canPreview) return;
     const n = Number(read_range_end);
     if (!Number.isFinite(n) || n > 0) return;
     showAlert(translate('noticeTitle'), translate('trialRangeNotSet'), [
@@ -1063,7 +1099,7 @@ function StoryScreen({ route }) {
         // 註：isBookPurchased/free_open/roleLevel 刻意改由 closure 讀取、不列入 deps，避免使用者於覆蓋層
         //     購買後 isBookPurchased 變動觸發本 effect 重抓、把閱讀索引重設回開頭。
         const shouldTrim =
-          read_range_end && free_open === '開放' && !isBookPurchased && !isAdmin(roleLevel);
+          read_range_end && free_open === '開放' && !isBookPurchased && !canPreview;
         const screeningsList = shouldTrim
           ? rawScreenings.slice(0, +read_range_end)
           : rawScreenings;

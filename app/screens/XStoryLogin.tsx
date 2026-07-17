@@ -95,7 +95,7 @@ export function XStoryLogin({ onLoginSuccess, onCancel }: Props) {
             </View>
 
             <TouchableOpacity style={styles.linkButton} onPress={() => setShowForgetPassword(true)}>
-                <Text style={styles.linkButtonText}>{translate("forgotPasswordLink")}</Text>
+                <Text style={styles.linkButtonText}>{translate("forgot")}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     },
     cancelButton: {
         width: "100%",
-        height: 45,
+        height: 50,
         borderRadius: 25,
         backgroundColor: "#555555",
         justifyContent: "center",
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     },
     linkButtonText: {
         color: "#f0ad57",
-        fontSize: 18,
+        fontSize: 15,
         textDecorationLine: "underline",
     },
     imgIcon: {

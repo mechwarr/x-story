@@ -15,17 +15,22 @@ export const ROLE = {
 } as const;
 
 /**
- * 可檢視「未上架書籍」並改打後台書店清單 API（GET api/admin/bookstores）的最低權限級別。
- * 需求：role >= 9（僅 Admin）。GET api/admin/bookstores 為管理員專用 API，
- * 故只有 Admin 才改打後台清單；role 6（含其他 < 9 角色）一律視為一般用戶、
- * 走公開的 GET api/bookstorelist，避免對後台端點發出會被 401/403 拒絕的請求。
+ * 可檢視「未上架 / 未開放書籍」並改打後台書店清單 API（GET api/admin/bookstores）的最低權限級別。
+ * 需求：role >= 5（小編以上）。小編／管理員皆可預覽即將上架、下架的書籍版面。
+ * 注意：GET api/admin/bookstores 需後端同步開放給 role >= 5，否則 role 5~8 呼叫會被 401/403，
+ * HomeScreen 會靜默退回公開清單（僅上架書籍），未上架書即看不到——此為後端相依項。
  */
-export const UNLISTED_VISIBILITY_MIN_LEVEL = 9;
+export const UNLISTED_VISIBILITY_MIN_LEVEL = ROLE.EDITOR;
+
+/**
+ * 可「不需購買、不受試閱設定限制，完整預覽任何書籍的場次／章節」的最低權限級別。
+ * 需求：role >= 5（小編以上）。用於未開放書籍開書、章節閱讀閘門、試閱截斷等的繞過判斷。
+ */
+export const PREVIEW_ALL_MIN_LEVEL = ROLE.EDITOR;
 
 /**
  * 可使用「場次快速切換器」（播放頭部把手切換場次）的最低權限級別。
- * 需求：role >= 9（僅 Admin）。與 UNLISTED_VISIBILITY_MIN_LEVEL 同值但語意不同，
- * 各自獨立以免日後其中一項門檻調整時互相牽連。
+ * 需求：role >= 9（僅 Admin）。此為編務用工具，與預覽權限刻意分離、各自獨立。
  */
 export const SCREENING_SWITCH_MIN_LEVEL = 9;
 
@@ -37,6 +42,14 @@ export function isAdmin(roleLevel: number | null | undefined): boolean {
 }
 
 /**
+ * 是否可完整預覽所有書籍的場次／章節（roleLevel >= 5，小編以上）：
+ * 不需購買、不受試閱（free_open）設定限制。null / undefined / 非數值一律視為無權限。
+ */
+export function canPreviewAll(roleLevel: number | null | undefined): boolean {
+  return Number(roleLevel) >= PREVIEW_ALL_MIN_LEVEL;
+}
+
+/**
  * 是否可使用場次快速切換器（roleLevel >= 9，僅 Admin）。
  * null / undefined / 非數值一律視為無權限。
  */
@@ -45,7 +58,7 @@ export function canSwitchScreening(roleLevel: number | null | undefined): boolea
 }
 
 /**
- * 是否可檢視未上架書籍 / 使用後台書店清單（roleLevel >= 6）。
+ * 是否可檢視未上架 / 未開放書籍 / 使用後台書店清單（roleLevel >= 5，小編以上）。
  * null / undefined / 非數值一律視為無權限。
  */
 export function canViewUnlisted(roleLevel: number | null | undefined): boolean {

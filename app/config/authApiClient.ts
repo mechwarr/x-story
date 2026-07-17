@@ -162,6 +162,22 @@ export async function resentRegisterMail(
 }
 
 /**
+ * 將後端登入錯誤訊息對應到 App 端 i18n 內文。
+ * 後端三種登入失敗情況皆回 HTTP 401，僅能以 message 內容區分（見 /api/docs）：
+ *   「帳號不存在」          → accountNotFoundMessage
+ *   「請先完成 Email 驗證」  → emailNotVerifiedMessage（先驗證信箱才會檢查密碼）
+ *   「密碼錯誤」            → incorrectPasswordMessage
+ * 以關鍵字比對，避免後端微幅調整字串就失效；其餘（含網路／逾時錯誤）走通用失敗訊息。
+ */
+function resolveLoginErrorMessage(raw: string | undefined | null): string {
+  const msg = raw ?? "";
+  if (msg.includes("驗證")) return translate("emailNotVerifiedMessage");
+  if (msg.includes("密碼")) return translate("incorrectPasswordMessage");
+  if (msg.includes("不存在")) return translate("accountNotFoundMessage");
+  return translate("loginFailedMessage");
+}
+
+/**
  * 使用 xStory 登入帳號
  * @returns 成功時回傳 LoginTokenResult（包含 accessToken 和 refreshToken），失敗時回傳 null
  */
@@ -183,13 +199,15 @@ export async function loginWithXStory(
         refreshToken: res.refreshToken,
       };
     } else {
-      alert(res?.message || "登入失敗，請稍後再試");
+      // 標題統一「錯誤」，內文依語系翻譯（HTTP 200 但 success:false 的保險路徑）
       console.warn("登入失敗:", res?.message);
+      showAlert(translate("genericErrorTitle"), resolveLoginErrorMessage(res?.message));
       return null;
     }
   } catch (error) {
-    alert(extractErrorMessage(error));
+    // 登入失敗多為 HTTP 401（走此 catch），依後端 message 對應到 i18n 內文
     console.error("登入發生錯誤:", error);
+    showAlert(translate("genericErrorTitle"), resolveLoginErrorMessage(extractErrorMessage(error)));
     return null;
   }
 }

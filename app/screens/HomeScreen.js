@@ -10,16 +10,13 @@ import AppHeader from '../components/AppHeader';
 import Books from '../components/Book/Books';
 import storage from '../storage/storage';
 import { bookDataBaseUrl } from '../config/apiClient';
-import { getBookstoreList, getAllAdminBookstores, getEffectiveRoleLevel, refreshRoleLevelCache } from '../config/userApiClient';
+import { getBookstoreList, getEffectiveRoleLevel } from '../config/userApiClient';
 import { canViewUnlisted } from '../config/roles';
-import { matchesCurrentStoryLang, translate, pickConfigByLang } from '../i18n/i18n';
+import { matchesCurrentStoryLang, pickConfigByLang } from '../i18n/i18n';
 import { toColor } from '../config/normalizeStyle';
 import { useLanguage } from '../i18n/LanguageContext';
 import routes from '../navigations/routes';
 import { consumePendingProfileRedirect } from '../auth/firstLoginRedirect';
-import { tokenRefreshService } from '../config/authApiClient';
-import { useAuth } from '../auth/AuthContext';
-import { showAlert } from '../components/CustomAlert';
 
 // 書籍資料端點（menu / news / story-type / nochapter / story-list）統一使用 bookDataBaseUrl，
 // 固定走正式站、不隨 __DEV__ 切換（原因與來源詳見 config/apiClient.ts 的 bookDataBaseUrl 註解）。
@@ -28,7 +25,6 @@ const url = bookDataBaseUrl;
 function HomeScreen() {
   const isFocus = useIsFocused();
   const navigation = useNavigation();
-  const { logout } = useAuth(); // 後台權限驗證失敗、強制刷新仍失敗時用於登出
 
   // 首次登入且個人資料未完成 → 進入主畫面後自動導向 ProfileScreen（僅觸發一次）
   useEffect(() => {
@@ -111,69 +107,23 @@ function HomeScreen() {
           url + `api/v1/admin/nochapter`
         );
 
-        // 判斷可見性權限：roleLevel >= 9（Admin）可檢視未上架書籍並改打後台 API（門檻定義於 config/roles.ts）。
+        // 可見性門檻：roleLevel >= 5（小編以上）可看見未上架/未開放書籍（門檻定義於 config/roles.ts）。
         // getEffectiveRoleLevel 會優先讀本地快取，避免每次聚焦都打 api/users/me。
-        // 需在抓書店清單前確定身分，才能決定要打哪一支 API。
         const roleLevel = await getEffectiveRoleLevel();
-        let canSeeUnlisted = canViewUnlisted(roleLevel);
+        const canSeeUnlisted = canViewUnlisted(roleLevel);
 
-        // story-list 先啟動，與下方書店清單並行抓取（不阻塞權限分流）。
+        // story-list（公開 API）本就回傳「全部書籍」（含未開放/未上架），先啟動並與書店清單並行抓取。
         const storyListPromise = axios
           .get(url + `api/v1/admin/story-list`)
           .catch(() => ({ data: [] }));
 
-        // 取得書店清單：
-        // - Admin（role >= 9）：打 GET api/admin/bookstores（含所有狀態，需 Bearer token）
-        // - 其餘角色（含 role 6）：一般用戶，走公開的 GET api/bookstorelist（僅上架書籍）
-        let bookstoreList = [];
-        if (canSeeUnlisted) {
-          let adminResult = await getAllAdminBookstores();
-          if (adminResult.authError) {
-            // 後台被拒（401/403）：可能只是 access token 暫時過期（refreshToken 仍有效，常見於
-            // 久未使用回到 App），也可能是 refreshToken 真的失效（登入過期）或角色被降級。
-            // 先「強制刷新 token」再判斷，避免把暫時性失敗誤判為降級/登出：
-            //  - 刷新成功 → 用新 token 重試後台清單；仍被拒才視為角色真被降級 → 退回公開清單。
-            //  - 刷新失敗（權限過期 / 超過 30 天）→ promptLogout 提示後登出。
-            //  - 純網路異常 → 不登出，本次靜默退回公開清單，下次聚焦再試。
-            console.warn('[HomeScreen] 後台書店權限驗證失敗，先強制刷新 token 再判斷');
-            let networkIssue = false;
-            const promptLogout = () => {
-              showAlert(
-                '帳戶權限過期',
-                '您的登入權限已過期，請重新登入。',
-                [{ text: translate('ok'), onPress: () => { logout(); } }],
-                { cancelable: false }
-              );
-            };
-            const refreshed = await tokenRefreshService.refreshToken(
-              undefined,                      // onProgress
-              promptLogout,                   // onRefreshFailed（權限過期）
-              promptLogout,                   // onLoginExpired（超過 30 天）
-              () => { networkIssue = true; }, // onNetworkError（不登出）
-              true                            // forceRefresh：忽略 1 小時間隔限制
-            );
-
-            if (refreshed) {
-              adminResult = await getAllAdminBookstores(); // 用新 token 重試一次
-            }
-
-            if (refreshed && !adminResult.authError) {
-              // 刷新後成功 → 維持 Admin 視圖
-              bookstoreList = adminResult.items;
-            } else {
-              // 刷新後仍被拒（角色真被降級）、或刷新失敗 / 網路異常 → 退回公開清單。
-              // 僅在刷新成功（token 有效）時才更新角色快取，取得後端真實角色；
-              // 刷新失敗時不動快取（refreshRoleLevelCache 本就不會誤寫 0，但此處連呼叫都省去）。
-              if (refreshed) await refreshRoleLevelCache();
-              canSeeUnlisted = false;
-              bookstoreList = await getBookstoreList();
-            }
-          } else {
-            bookstoreList = adminResult.items;
-          }
-        } else {
-          bookstoreList = await getBookstoreList();
-        }
+        // 書店清單一律走公開的 GET api/bookstorelist（僅上架書籍 + 價格資訊）：
+        //  - 供價格/購買資訊合併到 story-list。
+        //  - 供 role < 5 篩選為「只顯示上架書」。
+        // role >= 5 的未上架可見性改由 story-list 直接提供（它本就含全部書籍），
+        // 不再打管理員專用端點 GET api/admin/bookstores，故不需 Bearer token、
+        // 也不會發生 401/403（原 admin API 分流與強制刷新退場邏輯已整段移除）。
+        const bookstoreList = await getBookstoreList();
 
         const originalStoryList = await storyListPromise;
         
@@ -202,7 +152,7 @@ function HomeScreen() {
 
         // 合併兩個 API 的資料：以 story-list 為主，補充 bookstorelist 的購買資訊。
         // 同時標記 inBookstore：該書是否存在於 GET /api/bookstorelist
-        //（用來決定一般用戶能否看到；可見未上架者 role >= 6 不受此限）。
+        //（用來決定一般用戶能否看到；可見未上架者 role >= 5 不受此限）。
         const fullStoryList = (originalStoryList?.data || []).map((storyItem) => {
           const bookstoreItem = bookstoreMap.get(storyItem.id);
 
@@ -231,8 +181,8 @@ function HomeScreen() {
         }
 
         // 決定實際顯示的書籍：
-        // - 可見未上架者（role >= 6）：全部顯示（含未上架書籍）
-        // - 一般用戶：僅顯示存在於 GET /api/bookstorelist 的書籍
+        // - 可見未上架者（role >= 5）：全部顯示（含未上架/未開放書籍，資料來自 story-list）
+        // - 一般用戶（role < 5）：僅顯示存在於 GET /api/bookstorelist 的書籍（上架書）
         const displayStoryList = canSeeUnlisted
           ? fullStoryList
           : fullStoryList.filter((item) => item.inBookstore);
@@ -306,7 +256,6 @@ function HomeScreen() {
       <AppHeader
         news={news}
         config={storyInfo.config}
-        onNewsPress={() => storage.deleteAllStorage()}
       />
       <Content>
         <FlatList

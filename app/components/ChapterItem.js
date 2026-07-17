@@ -66,12 +66,14 @@ const ChapterItem = (props) => {
     : LOCK_ICON_BASE_SIZE;
 
   const isFreeOpen = free_open === '開放';
-  const canView = canAccessChapter({ freeOpen: free_open, isBookPurchased });
+  // isAdmin 由 ChapterScreen 以 canPreviewAll(role>=5) 解析後下傳：小編／管理員可完整預覽、
+  // 不需購買、不受試閱設定限制（需求 5/6）。故 canPreview 直接沿用此旗標。
+  const canView = canAccessChapter({ freeOpen: free_open, isBookPurchased, canPreview: isAdmin });
   const showLock = !canView;
 
   // 後端「試閱場次範圍(尾)」(read_range_end) 為 0（或非正數）代表沒有設定試閱長度。
   // 只有「試閱章節且尚未購買」才依賴此範圍，購買後為完整內容、不受限。
-  // role >= 9（Admin）例外：試閱未設範圍時仍可直接進入觀看完整內容，不視為無效試閱而攔截。
+  // role >= 5（小編／管理員）例外：試閱未設範圍時仍可直接進入觀看完整內容，不視為無效試閱而攔截。
   const trialRangeEnd = Number(read_range_end);
   const isTrialRangeInvalid =
     isFreeOpen && !isBookPurchased && !isAdmin && Number.isFinite(trialRangeEnd) && trialRangeEnd <= 0;
