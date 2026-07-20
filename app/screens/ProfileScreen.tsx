@@ -28,8 +28,8 @@ import {
   type GenderCode,
 } from '../config/userApiClient';
 import useResponsive from '../hook/useResponsive';
+import ScreenTopBar from '../components/ScreenTopBar';
 import { translate, getCurrentLang } from '../i18n/i18n';
-import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
 import { peekPendingSocialName, clearPendingSocialName } from '../auth/pendingSocialName';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -110,12 +110,13 @@ export default function ProfileScreen() {
   const submitFontSize = ms(16);
   // 頭像維持 1:1 圓形比例，寬度 RWD：手機為螢幕寬 30%、平板為 25%。
   const avatarSize = Math.round(windowWidth * (isTablet ? 0.25 : 0.3));
-  const iconSize = ms(HEADER_ICON_BASE_SIZE);
-  // 頂欄眼睛比照 AppHeader（首頁工具列）：同尺寸、同列高、垂直置中
-  const headerHeight = Math.max(50, ms(50));
   const isEn = getCurrentLang() === 'en';
   // 英文詞較長（Refill / Coin History），加值與紀錄鈕字級放大一點
   const walletFontSize = ms(isEn ? 18 : 17);
+  // 「更新個人資訊 / Update Profile」按鈕：英文再放大一點（此字串短，不影響領取 CTA 的長字）
+  const updateFontSize = ms(isEn ? 20 : 16);
+  // 日期選擇器（iOS）依當前語言在地化年月日/週幾顯示；Android 原生跟隨裝置語言
+  const pickerLocale = getCurrentLang() === 'zh-CN' ? 'zh-Hans' : getCurrentLang() === 'zh-TW' ? 'zh-Hant' : 'en';
 
   // ---- 載入用戶資料（換帳號後每次進入此畫面都重新拉取，避免顯示上一帳號名稱/生日/性別）----
   const loadUserProfile = useCallback(async () => {
@@ -346,11 +347,7 @@ export default function ProfileScreen() {
   if (isLoading) {
     return (
       <View style={styles.safe}>
-        <View style={[styles.topBar, { height: headerHeight, paddingHorizontal: horizontalPadding }]}>
-          <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
-            <Image style={[styles.profileIconTop, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]} source={require('../../assets/blueeye.png')} />
-          </Pressable>
-        </View>
+        <ScreenTopBar onEyePress={() => navigation.navigate(routes.MAIN as never)} />
         <View style={[styles.container, styles.loadingContainer, { paddingHorizontal: horizontalPadding }]}>
           <ActivityIndicator size="large" color="#00a99d" />
           <Text style={[styles.loadingText, { fontSize: bodyFontSize }]}>{translate('profileLoading')}</Text>
@@ -363,11 +360,7 @@ export default function ProfileScreen() {
   if (loadFailed) {
     return (
       <View style={styles.safe}>
-        <View style={[styles.topBar, { height: headerHeight, paddingHorizontal: horizontalPadding }]}>
-          <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
-            <Image style={[styles.profileIconTop, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]} source={require('../../assets/blueeye.png')} />
-          </Pressable>
-        </View>
+        <ScreenTopBar onEyePress={() => navigation.navigate(routes.MAIN as never)} />
         <View style={[styles.container, styles.loadingContainer, { paddingHorizontal: horizontalPadding }]}>
           <Text style={[styles.loadingText, { fontSize: bodyFontSize, textAlign: 'center', marginTop: 0 }]}>
             {translate('profileLoadFailedMessage')}
@@ -403,14 +396,7 @@ export default function ProfileScreen() {
           {...(Platform.OS === 'ios' ? { contentInsetAdjustmentBehavior: 'automatic' as const } : {})}
           contentContainerStyle={styles.scrollContent}
         >
-          <View style={[styles.topBar, { height: headerHeight, paddingHorizontal: horizontalPadding }]}>
-            <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
-              <Image
-                style={[styles.profileIconTop, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]}
-                source={require('../../assets/blueeye.png')}
-              />
-            </Pressable>
-          </View>
+          <ScreenTopBar onEyePress={() => navigation.navigate(routes.MAIN as never)} />
 
           <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
             <View style={[styles.container, { paddingHorizontal: horizontalPadding }]}>
@@ -484,7 +470,7 @@ export default function ProfileScreen() {
                   >
                     {birthdayText}
                   </Text>
-                  <Text style={[styles.arrow, { fontSize: bodyFontSize }]}>{'>'}</Text>
+                  <Text style={[styles.arrow, { fontSize: bodyFontSize }]}>{'▾'}</Text>
                 </View>
               </Pressable>
 
@@ -503,7 +489,7 @@ export default function ProfileScreen() {
                     >
                       {genderDisplayLabel(gender)}
                     </Text>
-                    <Text style={[styles.arrow, { fontSize: bodyFontSize }]}>{'>'}</Text>
+                    <Text style={[styles.arrow, { fontSize: bodyFontSize }]}>{'▾'}</Text>
                   </View>
                 </Pressable>
               ) : (
@@ -517,7 +503,8 @@ export default function ProfileScreen() {
                       style={styles.picker}
                       itemStyle={{ color: '#e7eef6', fontSize: bodyFontSize }}
                     >
-                      <Picker.Item label={translate('genderPleaseSelect')} value={0} />
+                      {/* 已選過性別（1/2）後不再提供「請選擇」→ 無法改回 0，避免重複出現領取 CTA 與統計失準 */}
+                      {gender === 0 && <Picker.Item label={translate('genderPleaseSelect')} value={0} />}
                       <Picker.Item label={translate('genderMale')} value={1} />
                       <Picker.Item label={translate('genderFemale')} value={2} />
                     </Picker>
@@ -558,7 +545,7 @@ export default function ProfileScreen() {
                       </>
                     ) : (
                       <Text
-                        style={[styles.submitText, { fontSize: submitFontSize }]}
+                        style={[styles.submitText, { fontSize: updateFontSize }]}
                         numberOfLines={2}
                         adjustsFontSizeToFit={Platform.OS === 'ios'}
                         minimumFontScale={0.85}
@@ -569,10 +556,11 @@ export default function ProfileScreen() {
                   </View>
                 </Pressable>
 
-                {/* 刪除帳號（防誤觸：需輸入 DELETE 確認） */}
+                {/* 刪除帳號按鈕已依需求隱藏（保留 Modal 與邏輯以便日後恢復）
                 <Pressable style={styles.deleteAccountRow} onPress={openDeleteModal} disabled={isDeleting}>
                   <Text style={[styles.deleteAccountText, { fontSize: labelFontSize }]}>{translate('deleteAccountLink')}</Text>
                 </Pressable>
+                */}
               </View>
             </View>
           </View>
@@ -633,6 +621,7 @@ export default function ProfileScreen() {
           display="default"
           onChange={onChangeBirthday}
           maximumDate={new Date()}
+          locale={pickerLocale}
         />
       )}
 
@@ -658,6 +647,7 @@ export default function ProfileScreen() {
                 maximumDate={new Date()}
                 themeVariant="dark"
                 accentColor="#009688"
+                locale={pickerLocale}
               />
             </Pressable>
           </Pressable>
@@ -694,7 +684,8 @@ export default function ProfileScreen() {
                   itemStyle={{ color: '#e7eef6', fontSize: bodyFontSize }}
                   style={styles.genderPickerIOS}
                 >
-                  <Picker.Item label={translate('genderPleaseSelect')} value={0} />
+                  {/* 已選過性別（1/2）後不再提供「請選擇」→ 無法改回 0 */}
+                  {gender === 0 && <Picker.Item label={translate('genderPleaseSelect')} value={0} />}
                   <Picker.Item label={translate('genderMale')} value={1} />
                   <Picker.Item label={translate('genderFemale')} value={2} />
                 </Picker>
@@ -717,14 +708,6 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
   },
 
-  topBar: {
-    width: '100%',
-    marginBottom: 6,
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-  },
-  profileIconTop: {},
   title: { color: '#e7eef6', fontWeight: '700', marginBottom: 6, textAlign: 'center' },
 
   contentWrap: {

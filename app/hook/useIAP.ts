@@ -12,6 +12,7 @@ import { useCoins } from '../store/coinContext';
 import type { Product, Purchase, PurchaseError } from 'react-native-iap';
 import { logKeyValue, logSection, logStringList } from '../utils/iapDebugLogger';
 import { buildAppStoreSkuListFromBackendProductIds } from '../utils/iosIapSkuMapping';
+import { extractProductName } from '../utils/productName';
 import { translate } from '../i18n/i18n';
 
 function normalizePlatformValue(value: unknown): 'GOOGLE' | 'APPLE' | 'UNKNOWN' {
@@ -246,8 +247,8 @@ export function useIAP(): UseIAPReturn {
           p.id === productId
         );
 
-        // 優先使用平台產品名稱（支援多國語系），否則使用 productId
-        const productName = purchasedProduct?.title || purchase.productId || productId;
+        // 優先使用平台產品名稱（清理括號／描述後綴，與商城卡片一致），否則使用 productId
+        const productName = extractProductName(purchasedProduct?.title ?? '') || purchase.productId || productId;
 
         // 從驗證結果取得金幣額度（此時必為後端核發值）
         const coinsAdded = verificationResult.coinsAdded ?? 0;

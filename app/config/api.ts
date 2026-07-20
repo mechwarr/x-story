@@ -1,3 +1,5 @@
+import { attemptReauth } from "./sessionAuth";
+
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 interface ApiConfig {
@@ -5,6 +7,10 @@ interface ApiConfig {
     prodBaseUrl: string;
     isDev: boolean; // 是否為開發環境
 }
+
+// 帶上這個 header（值為 "1"）的請求，收到 401 時「不會」自動刷新+重試。
+// 用於本來就在處理登入狀態、重試沒有意義的呼叫（例如登出）。request() 會在送出前移除此 header。
+export const SKIP_REAUTH_HEADER = "X-Skip-Reauth";
 
 // 單次請求逾時（ms）。原本用裸 fetch 不設逾時，iOS/NSURLSession 預設要等 ~60s 才失敗，
 // 造成金幣等請求在網路未就緒時卡住約一分鐘（期間 coinContext 的 isLoadingRef 鎖住無法重試）。
@@ -36,16 +42,26 @@ export class RestfulApi {
         method: HttpMethod,
         endpoint: string,
         body?: any,
-        headers?: Record<string, string>
+        headers?: Record<string, string>,
+        // 內部旗標：此次是否為「刷新 token 後的重試」。true 時即使再收到 401 也不再刷新，避免無限迴圈。
+        isRetry: boolean = false
     ): Promise<T> {
         const url = this.baseUrl + endpoint;
 
+        // 組出實際要送出的 header；若帶有 SKIP_REAUTH_HEADER 則記錄下來並在送出前移除（不外送）。
+        const outgoingHeaders: Record<string, string> = {
+            "Content-Type": "application/json",
+            ...(headers || {}),
+        };
+        const skipReauth = outgoingHeaders[SKIP_REAUTH_HEADER] === "1";
+        if (SKIP_REAUTH_HEADER in outgoingHeaders) {
+            delete outgoingHeaders[SKIP_REAUTH_HEADER];
+        }
+        const hasAuthHeader = !!outgoingHeaders["Authorization"];
+
         const fetchOptions: RequestInit = {
             method,
-            headers: {
-                "Content-Type": "application/json",
-                ...(headers || {}),
-            },
+            headers: outgoingHeaders,
         };
 
         if (body) {
@@ -62,6 +78,45 @@ export class RestfulApi {
             const response = await fetch(url, fetchOptions);
 
             if (!response.ok) {
+                // 被動式 Token 刷新：帶授權的請求收到 401（token 過期）時，
+                // 嘗試刷新一次 token 再重送原請求一次。條件：
+                //   - 狀態為 401（403 屬「權限不足」，刷新也沒用，交給上層處理）
+                //   - 有帶 Authorization（未授權的公開 API 不處理）
+                //   - 非重試（避免無限迴圈）
+                //   - 未指定略過（例如登出）
+                //   - 非刷新端點本身（雙保險；刷新請求本來就不帶 Authorization）
+                if (
+                    response.status === 401 &&
+                    hasAuthHeader &&
+                    !isRetry &&
+                    !skipReauth &&
+                    !endpoint.includes("auth/refresh")
+                ) {
+                    // 401 的 body 這裡不需要，但要讀掉以釋放連線資源。
+                    await response.text().catch(() => undefined);
+                    console.warn(`[RestfulApi] 收到 401，嘗試刷新 token 後重試一次: ${method} ${url}`);
+
+                    // attemptReauth 內部為單飛：多支同時 401 的請求只會觸發一次真正的刷新。
+                    const outcome = await attemptReauth();
+
+                    if (outcome.ok) {
+                        console.log(`[RestfulApi] ✅ 刷新成功，以新 token 重試: ${method} ${url}`);
+                        const retryHeaders: Record<string, string> = {
+                            ...outgoingHeaders,
+                            Authorization: `Bearer ${outcome.accessToken}`,
+                        };
+                        // 重送一次；isRetry=true 確保這次即使又 401 也不再刷新。
+                        return await this.request<T>(method, endpoint, body, retryHeaders, true);
+                    }
+
+                    // 刷新失敗：token_invalid（權限過期，attemptReauth 已觸發登出 UI）或 network_error（不登出）。
+                    // 兩者都照原本流程往上拋 401，讓各 caller 維持既有的容錯（回 null／空陣列／退回公開清單）。
+                    console.warn(
+                        `[RestfulApi] 刷新未成功（reason=${outcome.reason}），維持 401 拋出: ${method} ${url}`
+                    );
+                    throw new Error(`HTTP 401: Unauthorized (token refresh ${outcome.reason})`);
+                }
+
                 // 依需求可自訂錯誤格式
                 const errorText = await response.text();
                 console.error(`[RestfulApi] HTTP ${response.status} 錯誤:`, errorText);

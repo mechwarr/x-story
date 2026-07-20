@@ -18,6 +18,7 @@ import { clearAllUserData } from './services/clearUserDataService';
 import { translate } from './i18n/i18n';
 import { CustomAlertHost, showAlert } from './components/CustomAlert';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
+import { registerSessionExpiredHandler } from './config/sessionAuth';
 
 // 以目前語系為 key 包住主畫面：手動切換語系時整個子樹重新掛載，
 // 讓所有畫面重新讀取 translate() 並套用新語系（translate 本身不會觸發重繪）。
@@ -77,6 +78,13 @@ function RootLayoutContent() {
       tokenStorage.setStoreToken(token);
     }
   }, [token]);
+
+  // 註冊「被動式權限過期」處理：任一支帶授權的 API 收到 401 且刷新失敗（token_invalid）時，
+  // 由底層透過 sessionAuth 觸發這裡，走與喚醒刷新失敗相同的登出流程（顯示 alert、清資料、回登入頁）。
+  // sessionAuth 內部已對同一波併發 401 去重，這裡不會被重複觸發。
+  useEffect(() => {
+    registerSessionExpiredHandler(handleTokenRefreshFailed);
+  }, [handleTokenRefreshFailed]);
 
 
   useEffect(() => {

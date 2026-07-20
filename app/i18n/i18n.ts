@@ -84,6 +84,15 @@ export const pickConfigByLang = <T extends { lang?: string | null }>(
   return rows.find((row) => matchesCurrentStoryLang(row?.lang)) ?? rows[0];
 };
 
+// 金幣數量標籤：英文需依單複數輸出 "1 coin" / "5 coins"，中文則為 "5 金幣 / 5 金币"（無單複數變化）。
+// 金幣不足彈窗的內文用此組出「N 金幣 / N coin(s)」片段，集中處理英文單複數，避免出現 "1 coins"。
+export const coinCountLabel = (amount: number, lang?: string): string => {
+  const langToUse = normalizeLang(lang || currentLang);
+  if (langToUse === 'zh-TW') return `${amount} 金幣`;
+  if (langToUse === 'zh-CN') return `${amount} 金币`;
+  return `${amount} ${amount === 1 ? 'coin' : 'coins'}`;
+};
+
 // 取得翻譯字串
 // 支援 {placeholder} 內插：translate('key', { price: 100, name: '書名' })
 // 向後相容：第二參數若為字串，仍視為語言碼（translate('key', 'zh-TW')）

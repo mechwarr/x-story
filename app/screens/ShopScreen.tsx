@@ -9,11 +9,12 @@ import routes from '../navigations/routes';
 import PackCard, { PackItem } from '../components/Purchase/PackCard';
 import { useIAP } from '../hook/useIAP';
 import useResponsive from '../hook/useResponsive';
-import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
+import ScreenTopBar from '../components/ScreenTopBar';
 import { type ProductId } from '../services/iapService';
 import { useCoins } from '../store/coinContext';
 import { getCoinPacks, type CoinPack } from '../config/shopApiClient';
 import { appStoreSkuMatchesBackendProductId } from '../utils/iosIapSkuMapping';
+import { extractProductName } from '../utils/productName';
 import { translate } from '../i18n/i18n';
 
 const RIGHT_COLORS = ['#F2D4AE', '#F4B86F', '#F3A55D', '#F18F52', '#EF7D47', '#EA6A3E'];
@@ -27,23 +28,6 @@ function normalizePlatformValue(value: unknown): 'GOOGLE' | 'APPLE' | 'UNKNOWN' 
 
 function findCoinPackForStoreProductId(coinPacks: CoinPack[], storeProductId: string): CoinPack | undefined {
   return coinPacks.find((pack) => appStoreSkuMatchesBackendProductId(storeProductId, pack.productId));
-}
-
-// 從 title 中提取純名稱（去掉括號和描述）
-function extractProductName(title: string): string {
-  if (!title) return '';
-  // 去掉所有括號及其內容（包括中文括號和英文括號）
-  // 例如 "尊爵贊助包 (Premium Support Pack)" -> "尊爵贊助包"
-  // 例如 "尊爵贊助包（Premium Support Pack）" -> "尊爵贊助包"
-  let name = title
-    .replace(/\([^)]*\)/g, '')  // 去掉英文括號及其內容
-    .replace(/（[^）]*）/g, '')  // 去掉中文括號及其內容
-    .replace(/[()（）]/g, '')   // 去掉所有殘留的括號字符
-    .trim();
-  // 去掉可能的其他描述文字（如果還有其他格式）
-  // 例如 "尊爵贊助包 - Description" -> "尊爵贊助包"
-  name = name.split(' - ')[0].split(' – ')[0].split(' — ')[0].trim();
-  return name;
 }
 
 // 這些幣別的最小單位即為整數（無小數），商店回傳的價格字串若帶 .00 應去除
@@ -60,7 +44,9 @@ function formatDisplayPrice(
 ): string | undefined {
   if (!formattedPrice) return formattedPrice;
   if (currencyCode && zeroDecimalCurrencies.includes(currencyCode.toUpperCase())) {
-    return formattedPrice.replace(/\.00(?=\D*$)/, '');
+    // 僅去除「整數 .00 / ,00」尾綴（含歐式逗號小數）；若小數非全為 0（如 .50）則保留。
+    // 後綴需為非數字到字串結尾，避免誤刪千分位（如 "1,000" 不受影響）。
+    return formattedPrice.replace(/[.,]00(?=\D*$)/, '');
   }
   return formattedPrice;
 }
@@ -302,38 +288,17 @@ export default function ShopScreen() {
     }
   };
 
-  const { isTablet, maxContentWidth, horizontalPadding, ms } = useResponsive();
-  const iconSize = ms(HEADER_ICON_BASE_SIZE);
-  const TITLE_TOP_PADDING = 56;
+  const { isTablet, maxContentWidth, horizontalPadding } = useResponsive();
 
   return (
     <SafeAreaView style={styles.safe}>
-      <Pressable
-        onPress={() => navigation.navigate(routes.MAIN as never)}
-        hitSlop={8}
-        style={[styles.leftIcon, { top: 8, left: horizontalPadding }]}
-      >
-        <Image
-          source={require('../../assets/blueeye.png')}
-          style={[styles.leftIconImage, { width: iconSize, height: iconSize }]}
-          resizeMode="contain"
-        />
-      </Pressable>
-
-      <Pressable
-        onPress={() => navigation.navigate(routes.PROFILE as never)}
-        hitSlop={8}
-        style={[styles.profileBtn, { top: 8, right: horizontalPadding }]}
-      >
-        <Image
-          source={require('../../assets/profile.png')}
-          style={[styles.profileIcon, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]}
-          resizeMode="contain"
-        />
-      </Pressable>
+      <ScreenTopBar
+        onEyePress={() => navigation.navigate(routes.MAIN as never)}
+        onProfilePress={() => navigation.navigate(routes.PROFILE as never)}
+      />
 
       <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%', paddingHorizontal: horizontalPadding }]}>
-      <View style={[styles.headerRow, { paddingTop: TITLE_TOP_PADDING, paddingBottom: 18 }]}>
+      <View style={[styles.headerRow, { paddingTop: 12, paddingBottom: 32 }]}>
         <Text style={styles.title}>{translate('shopTitle')}</Text>
         <View style={styles.balanceBox}>
           <Image style={styles.coin} source={require('../../assets/coin.png')} />
@@ -419,18 +384,6 @@ export default function ShopScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#2b2f33' },
-
-  leftIcon: {
-    position: 'absolute',
-    zIndex: 10,
-  },
-  leftIconImage: {},
-
-  profileBtn: {
-    position: 'absolute',
-    zIndex: 10,
-  },
-  profileIcon: {},
 
   contentWrap: {
     flex: 1,

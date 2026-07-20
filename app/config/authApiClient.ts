@@ -1,9 +1,10 @@
 // apiClient.ts
-import { RestfulApi } from "./api";
+import { RestfulApi, SKIP_REAUTH_HEADER } from "./api";
 import tokenStorage from '../auth/Storage';
 import { portURL } from "./apiClient";
 import { translate } from "../i18n/i18n";
 import { showAlert } from "../components/CustomAlert";
+import { registerReauthenticator, ReauthOutcome } from "./sessionAuth";
 
 /**
  * 登入／註冊／refresh／logout 與 iapService 使用的 `api/me/iap-receipts` 等，實際都部署在
@@ -321,7 +322,8 @@ export async function logoutWithXStory(): Promise<boolean> {
       accessToken: accessToken ?? "",
     };
 
-    const headers: Record<string, string> = {};
+    // 登出本來就在結束登入狀態，token 若過期也無需刷新+重試（避免誤觸「權限過期」登出 UI）。
+    const headers: Record<string, string> = { [SKIP_REAUTH_HEADER]: "1" };
     if (accessToken) {
       headers["Authorization"] = `Bearer ${accessToken}`;
     }
@@ -844,7 +846,10 @@ export async function refreshXStoryToken(
  * 用於在應用喚醒或重啟時刷新 token
  */
 class TokenRefreshService {
-  private isRefreshing = false;
+  // 單飛（single-flight）：同一時間只允許一個實際的刷新在飛。
+  // 併發的呼叫者（例如切頁面時同時打的多支 API 都收到 401）會共享這一個 Promise，
+  // 只觸發一次刷新、拿到同一個新 token，避免重複刷新導致 refreshToken 輪換互相洗掉而誤登出。
+  private inFlight: Promise<ReauthOutcome> | null = null;
 
   /**
    * 檢查登入是否過期（超過 30 天）
@@ -855,13 +860,71 @@ class TokenRefreshService {
   }
 
   /**
-   * 刷新 Token
-   * @param onProgress - 可選的回調函數，用於通知進度狀態變化
-   * @param onRefreshFailed - 可選的回調函數，當「權限過期」時調用（用於清除資料和登出）
-   * @param onLoginExpired - 可選的回調函數，當登入已過期時調用（超過 30 天需要重新登入）
-   * @param onNetworkError - 可選的回調函數，當「網路異常」時調用（不登出，可提示用戶稍後再試）
+   * 實際執行一次刷新（無節流、無 30 天檢查、無 callback）。
+   * 讀取 refreshToken + accessToken → 呼叫刷新 API → 成功則寫回新 token 並記錄刷新時間。
+   * 回傳 ReauthOutcome：ok / token_invalid / network_error。
+   * 僅由 refreshNowSingleFlight 呼叫（已保證同時只有一個在飛）。
+   */
+  private async performRefreshCore(): Promise<ReauthOutcome> {
+    try {
+      const refreshToken = await tokenStorage.getRefreshToken();
+      const accessToken = await tokenStorage.getToken();
+
+      // 缺 refreshToken 或 accessToken 都無法刷新，視為需要重新登入。
+      if (!refreshToken || !accessToken) {
+        console.log('[TokenRefreshService] ⚠️ 缺少 refreshToken 或 accessToken，無法刷新');
+        return { ok: false, reason: 'token_invalid' };
+      }
+
+      console.log('[TokenRefreshService] ✓ 開始刷新，refreshToken 長度:', refreshToken.length);
+
+      const result = await refreshXStoryToken({ refreshToken, accessToken });
+
+      if (result.ok) {
+        await tokenStorage.setStoreToken(result.accessToken);
+        // 後端若輪換 refreshToken（refreshed: true）會回傳新值，必須儲存否則下次刷新會授權失敗。
+        if (result.refreshToken) {
+          await tokenStorage.setRefreshToken(result.refreshToken);
+          console.log('[TokenRefreshService] ✅ 已儲存後端回傳的新 refreshToken');
+        }
+        await tokenStorage.setLastRefreshTime();
+        console.log('[TokenRefreshService] ✅ Token 刷新完成並已保存');
+        return { ok: true, accessToken: result.accessToken };
+      }
+
+      // 區分權限過期與網路錯誤：僅前者應登出。
+      return { ok: false, reason: result.reason };
+    } catch (error) {
+      console.error('[TokenRefreshService] ❌ 刷新過程發生非預期錯誤:', error);
+      // 保守起見，非預期錯誤視為權限問題（與原本 catch 分支一致），交由上層決定是否登出。
+      return { ok: false, reason: 'token_invalid' };
+    }
+  }
+
+  /**
+   * 單飛入口：若已有刷新在飛就回傳同一個 Promise，否則啟動一次。
+   * 被動式（401 觸發）與主動式（喚醒/冷啟動）都經過這裡，確保全 App 同一時間只刷新一次。
+   */
+  refreshNowSingleFlight(): Promise<ReauthOutcome> {
+    if (this.inFlight) {
+      console.log('[TokenRefreshService] ⏳ 已有刷新在進行中，共用同一個結果');
+      return this.inFlight;
+    }
+    this.inFlight = this.performRefreshCore().finally(() => {
+      this.inFlight = null;
+    });
+    return this.inFlight;
+  }
+
+  /**
+   * 主動式刷新（喚醒 / 冷啟動 / 強制）。保留原本的 30 天檢查、1 小時節流與 callback 介面，
+   * 但實際的網路刷新改走 refreshNowSingleFlight()，與被動式 401 刷新共用單飛。
+   * @param onProgress - 進度狀態變化回調
+   * @param onRefreshFailed - 「權限過期」時調用（清資料、登出）
+   * @param onLoginExpired - 登入已過期（超過 30 天）時調用
+   * @param onNetworkError - 「網路異常」時調用（不登出，提示稍後再試）
    * @param forceRefresh - 是否強制刷新（忽略 1 小時間隔限制），預設 false
-   * @returns Promise<boolean> 表示是否成功
+   * @returns Promise<boolean> 表示是否成功（不需刷新亦視為成功）
    */
   async refreshToken(
     onProgress?: (isProgress: boolean) => void,
@@ -870,139 +933,59 @@ class TokenRefreshService {
     onNetworkError?: () => void,
     forceRefresh: boolean = false
   ): Promise<boolean> {
-    // 防止重複刷新
-    if (this.isRefreshing) {
-      console.log('[TokenRefreshService] ⚠️ Token 刷新已進行中，跳過此次請求');
+    console.log('[TokenRefreshService] 🔄 開始檢查 Token 刷新...');
+
+    // 1. 檢查登入時間是否已過期（超過 30 天）
+    const isExpired = await tokenStorage.isLoginExpired(30);
+    if (isExpired) {
+      console.log('[TokenRefreshService] ⚠️ 登入已超過 30 天，需要重新登入');
+      onLoginExpired?.();
       return false;
     }
 
-    this.isRefreshing = true;
-
-    try {
-      console.log('[TokenRefreshService] 🔄 開始檢查 Token 刷新...');
-
-      // 1. 檢查登入時間是否已過期（超過 30 天）
-      const isExpired = await tokenStorage.isLoginExpired(30);
-      if (isExpired) {
-        console.log('[TokenRefreshService] ⚠️ 登入已超過 30 天，需要重新登入');
-        this.isRefreshing = false;
-        
-        // 調用登入過期回調
-        if (onLoginExpired) {
-          onLoginExpired();
-        }
-        
-        return false;
+    // 2. 檢查是否需要刷新（距離上次刷新是否超過 1 小時）
+    if (!forceRefresh) {
+      const shouldRefresh = await tokenStorage.shouldRefreshToken(1); // 1 小時
+      if (!shouldRefresh) {
+        console.log('[TokenRefreshService] ⏰ 距離上次刷新未超過 1 小時，跳過刷新');
+        return true; // 不需要刷新，視為成功
       }
+    } else {
+      console.log('[TokenRefreshService] 🔄 強制刷新模式，忽略時間間隔限制');
+    }
 
-      // 2. 檢查是否需要刷新（距離上次刷新是否超過 1 小時）
-      if (!forceRefresh) {
-        const shouldRefresh = await tokenStorage.shouldRefreshToken(1); // 1 小時
-        if (!shouldRefresh) {
-          console.log('[TokenRefreshService] ⏰ 距離上次刷新未超過 1 小時，跳過刷新');
-          this.isRefreshing = false;
-          return true; // 不需要刷新，視為成功
-        }
-      } else {
-        console.log('[TokenRefreshService] 🔄 強制刷新模式，忽略時間間隔限制');
-      }
-      
-      // 進入 progress state
-      onProgress?.(true);
+    // 3. 進入 progress state 並執行（單飛）刷新
+    onProgress?.(true);
+    const outcome = await this.refreshNowSingleFlight();
+    onProgress?.(false);
 
-      // 3. 獲取 refreshToken 與目前的 accessToken（後端 API 要求兩者都傳）
-      const refreshToken = await tokenStorage.getRefreshToken();
-      const accessToken = await tokenStorage.getToken();
+    if (outcome.ok) {
+      return true;
+    }
 
-      if (!refreshToken) {
-        console.log('[TokenRefreshService] ⚠️ 沒有找到 refreshToken，跳過刷新');
-        onProgress?.(false);
-        this.isRefreshing = false;
-        
-        // 沒有 refreshToken 視為需要重新登入
-        if (onRefreshFailed) {
-          onRefreshFailed();
-        }
-        
-        return false;
-      }
-
-      if (!accessToken) {
-        console.log('[TokenRefreshService] ⚠️ 沒有找到 accessToken，跳過刷新');
-        onProgress?.(false);
-        this.isRefreshing = false;
-        if (onRefreshFailed) {
-          onRefreshFailed();
-        }
-        return false;
-      }
-
-      console.log('[TokenRefreshService] ✓ 找到 refreshToken，長度:', refreshToken.length);
-      console.log('[TokenRefreshService] 📝 RefreshToken 前 20 字元:', refreshToken.substring(0, 20) + '...');
-
-      // 4. 調用刷新 API（後端要求傳 refreshToken + accessToken）
-      const result = await refreshXStoryToken({
-        refreshToken,
-        accessToken,
-      });
-
-      if (result.ok) {
-        // 保存新的 accessToken
-        await tokenStorage.setStoreToken(result.accessToken);
-        // 若後端實作 Refresh Token 輪換（refreshed: true），會回傳新 refreshToken，必須儲存否則下次刷新會授權失敗
-        if (result.refreshToken) {
-          await tokenStorage.setRefreshToken(result.refreshToken);
-          console.log('[TokenRefreshService] ✅ 已儲存後端回傳的新 refreshToken');
-        }
-
-        // 記錄本次刷新時間
-        await tokenStorage.setLastRefreshTime();
-
-        console.log('[TokenRefreshService] ✅ Token 刷新完成並已保存');
-        
-        // 離開 progress state
-        onProgress?.(false);
-        this.isRefreshing = false;
-        return true;
-      }
-
-      // 區分「權限過期」與「網路錯誤」：僅權限過期時登出，網路錯誤不登出
-      onProgress?.(false);
-      this.isRefreshing = false;
-
-      if (result.reason === 'network_error') {
-        console.warn('[TokenRefreshService] ⚠️ 刷新因網路異常失敗，不登出，可稍後再試');
-        if (onNetworkError) {
-          onNetworkError();
-        }
-        return false;
-      }
-
-      // token_invalid：權限過期或 refreshToken 無效
-      console.error('[TokenRefreshService] ❌ Token 刷新失敗（權限過期），未獲得新的 token');
-      if (onRefreshFailed) {
-        onRefreshFailed();
-      }
-      return false;
-    } catch (error) {
-      console.error('[TokenRefreshService] ❌ Token 刷新失敗:', error);
-      onProgress?.(false);
-      this.isRefreshing = false;
-      // 捕獲到的異常（如非 API 回傳的錯誤）保守視為權限問題，仍觸發登出
-      if (onRefreshFailed) {
-        onRefreshFailed();
-      }
+    // 區分「網路錯誤」與「權限過期」：僅權限過期時登出，網路錯誤不登出。
+    if (outcome.reason === 'network_error') {
+      console.warn('[TokenRefreshService] ⚠️ 刷新因網路異常失敗，不登出，可稍後再試');
+      onNetworkError?.();
       return false;
     }
+
+    console.error('[TokenRefreshService] ❌ Token 刷新失敗（權限過期），未獲得新的 token');
+    onRefreshFailed?.();
+    return false;
   }
 
   /**
    * 檢查是否正在刷新
    */
   getIsRefreshing(): boolean {
-    return this.isRefreshing;
+    return this.inFlight !== null;
   }
 }
 
 // 導出單例
 export const tokenRefreshService = new TokenRefreshService();
+
+// 把「被動式 401 → 刷新 token」的實作註冊給 sessionAuth，讓底層 RestfulApi 收到 401 時可呼叫。
+// 使用單飛入口，確保併發 401 只觸發一次刷新。
+registerReauthenticator(() => tokenRefreshService.refreshNowSingleFlight());

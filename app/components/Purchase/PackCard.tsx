@@ -145,67 +145,67 @@ const styles = StyleSheet.create({
   // 左半
   left: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,              // 略縮左右內距，換取放大後的水平空間
     paddingVertical: 14,
     justifyContent: 'center',
   },
   contentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   // 商品名稱 - 固定寬度
   titleContainer: {
-    width: 90,                          // 固定寬度，統一排版
+    width: 96,                          // 固定寬度，統一排版
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
   title: {
     color: '#171717',
-    fontSize: 16,                       // 統一文本大小
+    fontSize: 19,                       // 放大商品名稱
     fontWeight: '800',
     letterSpacing: 0.3,
   },
-  titleCoin: { 
-    width: 20,                          // 統一圖標大小
-    height: 20, 
+  titleCoin: {
+    width: 24,                          // 放大金幣圖標
+    height: 24,
   },
   // 金幣數量 - 固定寬度
   coinsContainer: {
-    width: 60,                          // 固定寬度，統一排版
+    width: 64,                          // 固定寬度，統一排版
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
   coins: {
     color: '#222',
-    fontSize: 16,                       // 統一文本大小，與標題一致
+    fontSize: 19,                       // 放大金幣數量，與標題一致
     fontWeight: '800',
   },
   // BONUS 組件 - 固定寬度，上下排版
   bonusContainer: {
-    width: 50,                          // 固定寬度，統一排版
+    width: 56,                          // 固定寬度，統一排版
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,                             // 上下間距
   },
   bonusPlus: {
     color: '#E5413B',
-    fontSize: 14,                       // 稍微縮小以適應固定寬度
+    fontSize: 16,                       // 放大 +bonus 數字
     fontWeight: '900',
     textAlign: 'center',
   },
   bonusPill: {
     backgroundColor: '#E53935',
     borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',                      // 填滿容器寬度
   },
   bonusPillText: {
     color: '#fff',
-    fontSize: 10,                       // 稍微縮小以適應固定寬度
+    fontSize: 12,                       // 放大 Bonus 標籤
     fontWeight: '900',
     letterSpacing: 0.5,
   },

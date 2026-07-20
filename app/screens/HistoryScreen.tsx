@@ -14,27 +14,22 @@ import CoinHistoryScreen from './CoinHistoryScreen';
 import PurchaseHistoryScreen from './PurchaseHistoryScreen';
 import routes from '../navigations/routes';
 import useResponsive from '../hook/useResponsive';
+import ScreenTopBar from '../components/ScreenTopBar';
 import { translate } from '../i18n/i18n';
-import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
 
 type TabKey = 'coin' | 'purchase';
 
 export default function HistoryScreen() {
   const [tab, setTab] = useState<TabKey>('coin');
   const navigation = useNavigation();
-  const { isTablet, maxContentWidth, horizontalPadding, ms } = useResponsive();
-  const iconSize = ms(HEADER_ICON_BASE_SIZE);
+  const { isTablet, maxContentWidth, horizontalPadding } = useResponsive();
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={[styles.topBar, { paddingTop: 8, paddingHorizontal: horizontalPadding }]}>
-        <Pressable onPress={() => navigation.navigate(routes.MAIN as never)} hitSlop={8}>
-          <Image style={[styles.eyeIcon, { width: iconSize, height: iconSize }]} source={require('../../assets/blueeye.png')} />
-        </Pressable>
-        <Pressable onPress={() => navigation.navigate(routes.PROFILE as never)} hitSlop={8}>
-          <Image style={[styles.profileIcon, { width: iconSize * 0.9, height: iconSize * 0.9, borderRadius: (iconSize * 0.9) / 2 }]} source={require('../../assets/profile.png')} />
-        </Pressable>
-      </View>
+      <ScreenTopBar
+        onEyePress={() => navigation.navigate(routes.MAIN as never)}
+        onProfilePress={() => navigation.navigate(routes.PROFILE as never)}
+      />
 
 
       <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%', paddingHorizontal: horizontalPadding }]}>
@@ -100,16 +95,6 @@ function SegmentButton({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#2b2f33' },
-
-  topBar: {
-    width: '100%',
-    marginBottom: 6,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  eyeIcon: {},
-  profileIcon: {},
 
   contentWrap: {
     flex: 1,

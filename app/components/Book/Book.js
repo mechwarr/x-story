@@ -13,7 +13,7 @@ import AppText from '../AppText';
 import colors from '../../config/colors';
 import apiclient  from '../../config/apiClient';
 import { isTabletWidth, getUiScale } from '../../config/responsive';
-import { translate } from '../../i18n/i18n';
+import { translate, coinCountLabel } from '../../i18n/i18n';
 import { toColor, toFontWeight } from '../../config/normalizeStyle';
 import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins, getEffectiveRoleLevel } from '../../config/userApiClient';
@@ -216,15 +216,16 @@ function Book(props) {
     if (coins < priceCoins) {
       showAlert(
         translate('coinsInsufficientTitle'),
-        translate('coinsInsufficientMessage', { price: priceCoins, coins }),
+        translate('coinsInsufficientMessage', {
+          priceLabel: coinCountLabel(priceCoins),
+          coinsLabel: coinCountLabel(coins),
+        }),
         [
           { text: translate('cancel'), style: 'cancel' },
           {
             text: translate('goToShop'),
             onPress: () => {
-              navigation.navigate(routes.HOME, {
-                screen: routes.SHOP,
-              });
+              navigation.navigate(routes.PURCHASE);
             },
           },
         ]
@@ -239,7 +240,7 @@ function Book(props) {
       [
         { text: translate('cancel'), style: 'cancel' },
         {
-          text: translate('confirmPurchase'),
+          text: translate('confirmUnlockButton'),
           onPress: async () => {
             try {
               // 獲取或創建 idempotencyKey（如果緩存中存在，使用緩存的；否則創建新的）
@@ -269,11 +270,11 @@ function Book(props) {
                 await refreshCoins(true);
                 
                 showAlert(
-                  translate('purchaseSuccessTitle'),
+                  translate('unlockSuccessTitle'),
                   translate('purchaseSuccessMessage', { name: main_menu_name, coins: result.coinsSpent || priceCoins }),
                   [
                     {
-                      text: translate('ok'),
+                      text: translate('startReading'),
                       onPress: () => {
                         // 購買成功後，導航到故事頁面
                         if (hasChapter) {

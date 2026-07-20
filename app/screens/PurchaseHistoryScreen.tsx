@@ -1,14 +1,14 @@
 // app/screens/PurchaseHistoryScreen.tsx
 import React, { useState } from 'react';
 import {
-  SafeAreaView, View, Text, StyleSheet, ScrollView, Image, Pressable, Platform, ActivityIndicator,
+  SafeAreaView, View, Text, StyleSheet, ScrollView, Pressable, Platform, ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import routes from '../navigations/routes';
 import { iapService, PRODUCT_IDS, PRODUCT_NAMES } from '../services/iapService';
 import type { IapReceipt } from '../config/shopApiClient';
 import useResponsive from '../hook/useResponsive';
+import ScreenTopBar from '../components/ScreenTopBar';
 import { translate } from '../i18n/i18n';
 
 type Purchase = {
@@ -70,7 +70,6 @@ function convertReceiptToPurchase(receipt: IapReceipt): Purchase {
 export default function PurchaseHistoryScreen({ embedded = false }: { embedded?: boolean }) {
   const Wrapper: any = embedded ? View : SafeAreaView;
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
   const { isTablet, maxContentWidth, ms } = useResponsive();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -121,11 +120,7 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
     <Wrapper style={styles.safe}>
       {/* 右上角 Profile（取代 AppHeader；embedded 時不顯示） */}
       {!embedded && (
-        <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-          <Pressable onPress={() => navigation.navigate(routes.PROFILE as never)} hitSlop={8}>
-            <Image style={[styles.profileIcon, { width: ms(32), height: ms(32), borderRadius: ms(16) }]} source={require('../../assets/profile.png')} />
-          </Pressable>
-        </View>
+        <ScreenTopBar onProfilePress={() => navigation.navigate(routes.PROFILE as never)} />
       )}
 
       <View style={styles.header}>
@@ -187,17 +182,6 @@ function Row({ label, value, strong, mono, fit }: { label: string; value: string
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#2b2f33' },
-
-  // 右上角 Profile 容器
-  topBar: {
-    width: '100%',
-    paddingHorizontal: 10,
-    marginBottom: 6,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'flex-start',
-  },
-  profileIcon: { width: 32, height: 32, borderRadius: 16 },
 
   header: { alignItems: 'center', paddingTop: 8, paddingBottom: 6 },
   title: { color: '#e7eef6', fontWeight: '700', fontSize: 18 },

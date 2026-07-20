@@ -19,7 +19,7 @@ import apiclient from '../config/apiClient';
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins } from '../config/userApiClient';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
-import { translate, matchesCurrentStoryLang } from '../i18n/i18n';
+import { translate, matchesCurrentStoryLang, coinCountLabel } from '../i18n/i18n';
 import colors from '../config/colors';
 import storage from '../storage/storage';
 import { canAccessChapter } from '../services/bookAccessService';
@@ -107,12 +107,15 @@ const ChapterItem = (props) => {
     if (coins < priceCoins) {
       showAlert(
         translate('coinsInsufficientTitle'),
-        translate('coinsInsufficientMessage', { price: priceCoins, coins }),
+        translate('coinsInsufficientMessage', {
+          priceLabel: coinCountLabel(priceCoins),
+          coinsLabel: coinCountLabel(coins),
+        }),
         [
           { text: translate('cancel'), style: 'cancel' },
           {
             text: translate('goToShop'),
-            onPress: () => navigation.navigate(routes.HOME, { screen: routes.SHOP }),
+            onPress: () => navigation.navigate(routes.PURCHASE),
           },
         ]
       );
@@ -120,11 +123,11 @@ const ChapterItem = (props) => {
     }
     showAlert(
       translate('confirmPurchase'),
-      translate('confirmPurchaseMessage', { price: priceCoins, name: storyName }),
+      translate('confirmPurchaseMessage', { price: priceCoins, name: storyData?.main_menu_name ?? storyName }),
       [
         { text: translate('cancel'), style: 'cancel' },
         {
-          text: translate('confirmPurchase'),
+          text: translate('confirmUnlockButton'),
           onPress: async () => {
             try {
               const idempotencyKey = await getOrCreateIdempotencyKey(storyId);
@@ -139,9 +142,9 @@ const ChapterItem = (props) => {
                 onPurchaseSuccess?.();
                 setShowPurchaseModal(false);
                 showAlert(
-                  translate('purchaseSuccessTitle'),
-                  translate('purchaseSuccessMessage', { name: storyName, coins: result.coinsSpent || priceCoins }),
-                  [{ text: translate('ok') }]
+                  translate('unlockSuccessTitle'),
+                  translate('purchaseSuccessMessage', { name: storyData?.main_menu_name ?? storyName, coins: result.coinsSpent || priceCoins }),
+                  [{ text: translate('startReading') }]
                 );
               } else {
                 showAlert(translate('purchaseFailedTitle'), translate('purchaseFailedRetry'));
@@ -154,7 +157,50 @@ const ChapterItem = (props) => {
         },
       ]
     );
-  }, [storyId, priceCoins, coins, storyName, navigation, refreshCoins, onPurchaseSuccess]);
+  }, [storyId, priceCoins, coins, storyName, storyData, navigation, refreshCoins, onPurchaseSuccess]);
+
+  // (分)章節-防呆視窗（章節介紹彈窗）：標題/內文/兩顆按鈕的字級與顏色，來自 setup-chapter-foolproof
+  // 參數表（toastConfig，已於 ChapterScreen 依語系挑列）。未設定的欄位會自動略過、沿用預設。
+  // onConfirm 為使用者按右鍵「確認」後要執行的動作（進入章節或跳出解鎖列）。
+  const showChapterIntro = useCallback((onConfirm) => {
+    showAlert(
+      window_title,
+      chapter_infor,
+      [
+        {
+          text: window_btn_left,
+          cancelable: true,
+          textStyle: toAlertTextStyle(
+            toastConfig?.chapter_foolproof_stroy_item1_size,
+            toastConfig?.chapter_foolproof_stroy_item1_weight,
+            toastConfig?.chapter_foolproof_stroy_item1_color
+          ),
+        },
+        {
+          text: translate('ok'),
+          onPress: onConfirm,
+          textStyle: toAlertTextStyle(
+            toastConfig?.chapter_foolproof_stroy_item2_size,
+            toastConfig?.chapter_foolproof_stroy_item2_weight,
+            toastConfig?.chapter_foolproof_stroy_item2_color
+          ),
+        },
+      ],
+      { cancelable: true },
+      {
+        titleStyle: toAlertTextStyle(
+          toastConfig?.chapter_foolproof_story_name_size,
+          toastConfig?.chapter_foolproof_story_name_weight,
+          toastConfig?.chapter_foolproof_story_name_color
+        ),
+        messageStyle: toAlertTextStyle(
+          toastConfig?.chapter_foolproof_stroy_information_size,
+          toastConfig?.chapter_foolproof_stroy_information_weight,
+          toastConfig?.chapter_foolproof_stroy_information_color
+        ),
+      }
+    );
+  }, [window_title, chapter_infor, window_btn_left, toastConfig]);
 
   const onPress = () => {
     if (canView) {
@@ -164,50 +210,14 @@ const ChapterItem = (props) => {
         return;
       }
       if (isFreeOpen) {
-        // (分)章節-防呆視窗：標題/內文/兩顆按鈕的字級與顏色，來自 setup-chapter-foolproof
-        // 參數表（toastConfig，已於 ChapterScreen 依語系挑列）。未設定的欄位會自動略過、沿用預設。
-        showAlert(
-          window_title,
-          chapter_infor,
-          [
-            {
-              text: window_btn_left,
-              cancelable: true,
-              textStyle: toAlertTextStyle(
-                toastConfig?.chapter_foolproof_stroy_item1_size,
-                toastConfig?.chapter_foolproof_stroy_item1_weight,
-                toastConfig?.chapter_foolproof_stroy_item1_color
-              ),
-            },
-            {
-              text: translate('ok'),
-              onPress: navigateToStory,
-              textStyle: toAlertTextStyle(
-                toastConfig?.chapter_foolproof_stroy_item2_size,
-                toastConfig?.chapter_foolproof_stroy_item2_weight,
-                toastConfig?.chapter_foolproof_stroy_item2_color
-              ),
-            },
-          ],
-          { cancelable: true },
-          {
-            titleStyle: toAlertTextStyle(
-              toastConfig?.chapter_foolproof_story_name_size,
-              toastConfig?.chapter_foolproof_story_name_weight,
-              toastConfig?.chapter_foolproof_story_name_color
-            ),
-            messageStyle: toAlertTextStyle(
-              toastConfig?.chapter_foolproof_stroy_information_size,
-              toastConfig?.chapter_foolproof_stroy_information_weight,
-              toastConfig?.chapter_foolproof_stroy_information_color
-            ),
-          }
-        );
+        // 可讀的試閱章節：先出章節介紹彈窗，確認無誤後才進入章節
+        showChapterIntro(navigateToStory);
       } else {
         navigateToStory();
       }
     } else {
-      setShowPurchaseModal(true);
+      // 付費且未購買的章節：一樣先出章節介紹彈窗，使用者按確認後才跳出解鎖列（不再直接彈解鎖）
+      showChapterIntro(() => setShowPurchaseModal(true));
     }
   };
 

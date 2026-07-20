@@ -30,7 +30,7 @@ import { purchaseStoryWithCoins, recordBookRead, getEffectiveRoleLevel } from '.
 import { canSwitchScreening, canPreviewAll } from '../config/roles';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
 import { useCoins } from '../store/coinContext';
-import { translate, matchesCurrentStoryLang, getCurrentLang, pickConfigByLang } from '../i18n/i18n';
+import { translate, matchesCurrentStoryLang, getCurrentLang, pickConfigByLang, coinCountLabel } from '../i18n/i18n';
 import { syncPurchasedStoryIds, getAuthoritativeOwnedStoryIds, canAccessChapter } from '../services/bookAccessService';
 import mediaPlayer from '../services/mediaPlayer';
 import useResponsive from '../hook/useResponsive';
@@ -723,12 +723,15 @@ function StoryScreen({ route }) {
     if (coins < priceCoins) {
       showAlert(
         translate('coinsInsufficientTitle'),
-        translate('coinsInsufficientMessage', { price: priceCoins, coins }),
+        translate('coinsInsufficientMessage', {
+          priceLabel: coinCountLabel(priceCoins),
+          coinsLabel: coinCountLabel(coins),
+        }),
         [
           { text: translate('cancel'), style: 'cancel' },
           {
             text: translate('goToShop'),
-            onPress: () => navigation.navigate(routes.HOME, { screen: routes.SHOP }),
+            onPress: () => navigation.navigate(routes.PURCHASE),
           },
         ]
       );
@@ -736,11 +739,11 @@ function StoryScreen({ route }) {
     }
     showAlert(
       translate('confirmPurchase'),
-      translate('confirmPurchaseMessage', { price: priceCoins, name }),
+      translate('confirmPurchaseMessage', { price: priceCoins, name: storyData?.main_menu_name ?? name }),
       [
         { text: translate('cancel'), style: 'cancel' },
         {
-          text: translate('confirmPurchase'),
+          text: translate('confirmUnlockButton'),
           onPress: async () => {
             try {
               const idempotencyKey = await getOrCreateIdempotencyKey(storyId);
@@ -756,11 +759,11 @@ function StoryScreen({ route }) {
                 setIsBookPurchased(true);
                 setShowPurchaseOverlay(false);
                 showAlert(
-                  translate('purchaseSuccessTitle'),
-                  translate('purchaseSuccessMessage', { name, coins: result.coinsSpent || priceCoins }),
+                  translate('unlockSuccessTitle'),
+                  translate('purchaseSuccessMessage', { name: storyData?.main_menu_name ?? name, coins: result.coinsSpent || priceCoins }),
                   [
                     {
-                      text: translate('ok'),
+                      text: translate('startReading'),
                       onPress: () => {
                         // 若購買是由選項跳轉被擋下觸發的 → 接續到原本要去的章節/場次/對話。
                         if (pendingJumpRef.current) {

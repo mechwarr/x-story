@@ -1,8 +1,8 @@
 {
     "languageSettings": {
         "zh-TW": "閱讀設定",
-        "zh-CN": "阅读设定",
-        "en": "Reading Settings"
+        "zh-CN": "阅读设置",
+        "en": "Settings"
     },
     "selectLanguage": {
         "zh-TW": "選擇語言",
@@ -22,12 +22,12 @@
     "menuContinueWatching": {
         "zh-TW": "繼續觀看",
         "zh-CN": "继续观看",
-        "en": "Continue Watching"
+        "en": "Back to Story"
     },
     "menuMyBooks": {
-        "zh-TW": "我的書籍",
-        "zh-CN": "我的书籍",
-        "en": "My Books"
+        "zh-TW": "我的收藏",
+        "zh-CN": "我的收藏",
+        "en": "My Library"
     },
     "noMyBooks": {
         "zh-TW": "尚未擁有任何書籍",
@@ -37,17 +37,17 @@
     "menuReviewAgain": {
         "zh-TW": "再次回味",
         "zh-CN": "再次回味",
-        "en": "Watch Again"
+        "en": "Replay"
     },
     "menuVersionInfo": {
         "zh-TW": "版本資訊",
         "zh-CN": "版本信息",
-        "en": "Version Info"
+        "en": "About"
     },
     "menuTokenShop": {
         "zh-TW": "代幣商城",
         "zh-CN": "代币商城",
-        "en": "Token Shop"
+        "en": "Coin Store"
     },
     "menuResetApp": {
         "zh-TW": "重設應用程序",
@@ -237,12 +237,12 @@
     "deleteAccountMessageBefore": {
         "zh-TW": "請輸入 ",
         "zh-CN": "请输入 ",
-        "en": "Please enter "
+        "en": "Enter "
     },
     "deleteAccountMessageAfter": {
-        "zh-TW": " 以確認刪除帳號，此操作無法復原。",
-        "zh-CN": " 以确认删除帐号，此操作无法复原。",
-        "en": " to confirm account deletion. This action cannot be undone."
+        "zh-TW": " 以確認刪除帳號，\n此操作無法復原",
+        "zh-CN": " 以确认删除账号，\n此操作无法恢复",
+        "en": " to confirm account deletion."
     },
     "deleteAccountInputPlaceholder": {
         "zh-TW": "輸入 DELETE",
@@ -250,14 +250,14 @@
         "en": "Enter DELETE"
     },
     "deleteAccountInputErrorTitle": {
-        "zh-TW": "輸入錯誤",
-        "zh-CN": "输入错误",
-        "en": "Input Error"
+        "zh-TW": "錯誤",
+        "zh-CN": "错误",
+        "en": "Error"
     },
     "deleteAccountInputErrorMessage": {
-        "zh-TW": "請輸入 'DELETE' 以確認刪除帳號。",
-        "zh-CN": "请输入 'DELETE' 以确认删除帐号。",
-        "en": "Please enter 'DELETE' to confirm account deletion."
+        "zh-TW": "請輸入 'DELETE' 以確認刪除帳號",
+        "zh-CN": "请输入 'DELETE' 以确认删除账号",
+        "en": "Enter DELETE to confirm account deletion."
     },
     "deleteAccountFailedTitle": {
         "zh-TW": "刪除失敗",
@@ -280,14 +280,19 @@
         "en": "An error occurred while deleting your account."
     },
     "confirmPurchase": {
-        "zh-TW": "確認購買",
-        "zh-CN": "确认购买",
-        "en": "Confirm Purchase"
+        "zh-TW": "確認解鎖",
+        "zh-CN": "确认解锁",
+        "en": "Confirm Unlock"
+    },
+    "confirmUnlockButton": {
+        "zh-TW": "確認",
+        "zh-CN": "确认",
+        "en": "Unlock"
     },
     "confirmPurchaseMessage": {
-        "zh-TW": "確定要使用 {price} 金幣購買「{name}」嗎？",
-        "zh-CN": "确定要使用 {price} 金币购买「{name}」吗？",
-        "en": "Use {price} coins to purchase “{name}”?"
+        "zh-TW": "使用 {price} 金幣解鎖《{name}》嗎？",
+        "zh-CN": "使用 {price} 金币解锁《{name}》吗？",
+        "en": "Use {price} coins to unlock “{name}”?"
     },
     "genericErrorTitle": {
         "zh-TW": "錯誤",
@@ -357,27 +362,37 @@
     "coinsInsufficientTitle": {
         "zh-TW": "金幣不足",
         "zh-CN": "金币不足",
-        "en": "Insufficient Coins"
+        "en": "Not Enough Coins"
     },
     "coinsInsufficientMessage": {
-        "zh-TW": "此故事需要 {price} 金幣，您目前有 {coins} 金幣。\n請前往商城購買更多金幣。",
-        "zh-CN": "此故事需要 {price} 金币，您目前有 {coins} 金币。\n请前往商城购买更多金币。",
-        "en": "This story costs {price} coins, but you have {coins}.\nPlease visit the shop to get more coins."
+        "zh-TW": "解鎖此故事需要 {priceLabel}，\n您目前有 {coinsLabel}。\n請前往商城購買更多金幣",
+        "zh-CN": "解锁此故事需要 {priceLabel}，\n您目前有 {coinsLabel}。\n请前往商城购买更多金币",
+        "en": "This story requires {priceLabel} to unlock. You currently have {coinsLabel}. Please visit the Coin Store to get more coins."
     },
     "goToShop": {
         "zh-TW": "前往商城",
         "zh-CN": "前往商城",
-        "en": "Go to Shop"
+        "en": "Go to Store"
     },
     "purchaseSuccessTitle": {
         "zh-TW": "購買成功",
         "zh-CN": "购买成功",
         "en": "Purchase Successful"
     },
+    "unlockSuccessTitle": {
+        "zh-TW": "解鎖成功",
+        "zh-CN": "解锁成功",
+        "en": "Story Unlocked"
+    },
     "purchaseSuccessMessage": {
-        "zh-TW": "您已成功購買「{name}」！\n\n花費 {coins} 金幣",
-        "zh-CN": "您已成功购买「{name}」！\n\n花费 {coins} 金币",
-        "en": "You’ve successfully purchased “{name}”!\n\nSpent {coins} coins."
+        "zh-TW": "您已解鎖《{name}》！\n已使用 {coins} 金幣",
+        "zh-CN": "您已解锁《{name}》！\n已使用 {coins} 金币",
+        "en": "You've unlocked \"{name}\"!\nSpent {coins} coins."
+    },
+    "startReading": {
+        "zh-TW": "開始閱讀",
+        "zh-CN": "开始阅读",
+        "en": "Start Reading"
     },
     "purchaseFailedTitle": {
         "zh-TW": "購買失敗",
@@ -395,9 +410,9 @@
         "en": "Something went wrong. Please try again later."
     },
     "iapPurchaseSuccessMessage": {
-        "zh-TW": "您已成功購買 {product}！\n\n獲得 {coins} 金幣",
-        "zh-CN": "您已成功购买 {product}！\n\n获得 {coins} 金币",
-        "en": "You’ve successfully purchased {product}!\n\nReceived {coins} coins."
+        "zh-TW": "您已購買 {product}！獲得 {coins} 金幣！",
+        "zh-CN": "您已购买 {product}！获得 {coins} 金币！",
+        "en": "You've successfully purchased the {product}! Received {coins} coins!"
     },
     "restorePurchaseTitle": {
         "zh-TW": "恢復購買",
@@ -670,9 +685,9 @@
         "en": "Update Profile"
     },
     "profileUpdatedSuccessTitle": {
-        "zh-TW": "成功",
-        "zh-CN": "成功",
-        "en": "Success"
+        "zh-TW": "更新成功",
+        "zh-CN": "更新成功",
+        "en": "Profile Updated"
     },
     "profileSubmittedSuccessTitle": {
         "zh-TW": "資料提交成功！",
@@ -681,7 +696,7 @@
     },
     "profileUpdatedSuccessMessage": {
         "zh-TW": "個人資料已更新！",
-        "zh-CN": "个人资料已更新！",
+        "zh-CN": "个人信息已更新！",
         "en": "Your profile has been updated."
     },
     "profileCompletedRewardSuccessMessage": {
@@ -710,9 +725,9 @@
         "en": "Alert"
     },
     "profileLoadFailedMessage": {
-        "zh-TW": "無法取得個人資料，請稍後再試。",
-        "zh-CN": "无法获取个人资料，请稍后再试。",
-        "en": "Couldn't load your profile. Please try again."
+        "zh-TW": "無法取得個人資料，請稍後再試",
+        "zh-CN": "无法获取个人信息，请稍后重试",
+        "en": "We couldn't load your profile. Please try again."
     },
     "retry": {
         "zh-TW": "重試",
@@ -765,13 +780,13 @@
         "en": "Select"
     },
     "genderMale": {
-        "zh-TW": "男性",
-        "zh-CN": "男性",
+        "zh-TW": "男",
+        "zh-CN": "男",
         "en": "Male"
     },
     "genderFemale": {
-        "zh-TW": "女性",
-        "zh-CN": "女性",
+        "zh-TW": "女",
+        "zh-CN": "女",
         "en": "Female"
     },
     "deleteAccountLink": {
