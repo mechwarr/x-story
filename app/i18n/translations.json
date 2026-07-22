@@ -319,6 +319,16 @@
         "zh-CN": "登录失败，请稍后再试",
         "en": "Login failed. Please try again later."
     },
+    "accountSuspendedTitle": {
+        "zh-TW": "帳號已停權",
+        "zh-CN": "账号已停权",
+        "en": "Account Suspended"
+    },
+    "accountSuspendedMessage": {
+        "zh-TW": "您的帳號已被停權，無法登入使用。如有疑問請聯繫客服。",
+        "zh-CN": "您的账号已被停权，无法登录使用。如有疑问请联系客服。",
+        "en": "Your account has been suspended and cannot be used to log in. Please contact support if you have any questions."
+    },
     "storyOrderParseErrorMessage": {
         "zh-TW": "劇情資料有誤（順序無法解析），將返回首頁。",
         "zh-CN": "剧情数据有误（顺序无法解析），将返回首页。",
@@ -345,9 +355,9 @@
         "en": "This book is no longer available."
     },
     "trialRangeNotSet": {
-        "zh-TW": "尚未設定試閱範圍，試閱長度需大於 0",
-        "zh-CN": "尚未设置试阅范围，试阅长度需大于 0",
-        "en": "Trial preview range is not set; the trial length must be greater than 0"
+        "zh-TW": "尚未設定試閱範圍，\n試閱長度須大於 0",
+        "zh-CN": "尚未设置试读范围，\n试读长度须大于 0",
+        "en": "Preview length is not set.\nPreview length must be greater than 0."
     },
     "storyIdNotFound": {
         "zh-TW": "找不到故事 ID",
@@ -960,14 +970,14 @@
         "en": "Please check the console logs for detailed error info"
     },
     "noBooksViewed": {
-        "zh-TW": "尚未閱覽任何書籍",
-        "zh-CN": "尚未阅览任何书籍",
-        "en": "No books read yet"
+        "zh-TW": "尚未閱讀任何故事",
+        "zh-CN": "尚未阅读任何故事",
+        "en": "You haven't read any stories yet."
     },
     "noBooksFinished": {
-        "zh-TW": "尚未看完任何書籍",
-        "zh-CN": "尚未看完任何书籍",
-        "en": "No finished books yet"
+        "zh-TW": "尚未看完任何故事",
+        "zh-CN": "尚未看完任何故事",
+        "en": "You haven't finished any stories yet."
     },
     "screening": {
         "zh-TW": "場次",

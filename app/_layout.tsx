@@ -15,6 +15,7 @@ import { emitVerifyRedirect } from './auth/verifyRedirect';
 import { AuthProvider } from "./auth/AuthContext";
 import { CoinProvider } from './store/coinContext';
 import { clearAllUserData } from './services/clearUserDataService';
+import { checkAccountSuspended } from './config/userApiClient';
 import { translate } from './i18n/i18n';
 import { CustomAlertHost, showAlert } from './components/CustomAlert';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
@@ -78,6 +79,26 @@ function RootLayoutContent() {
       tokenStorage.setStoreToken(token);
     }
   }, [token]);
+
+  // 停權即時攔截（登入後才被停權）：喚醒刷新 token 後重查 roleLevel，若已被停權（<0）→ 提示並登出。
+  const handleAccountSuspended = useCallback(() => {
+    showAlert(
+      translate('accountSuspendedTitle'),
+      translate('accountSuspendedMessage'),
+      [
+        {
+          text: translate('ok'),
+          onPress: async () => {
+            coinResetRef.current?.(); // 換帳號後不殘留上一用戶金幣
+            await clearAllUserData();
+            setIsLoggedIn(false);
+            console.log('[RootLayout] ✅ 帳號已停權，已登出並返回登入頁面');
+          },
+        },
+      ],
+      { cancelable: false }
+    );
+  }, [setIsLoggedIn]);
 
   // 註冊「被動式權限過期」處理：任一支帶授權的 API 收到 401 且刷新失敗（token_invalid）時，
   // 由底層透過 sessionAuth 觸發這裡，走與喚醒刷新失敗相同的登出流程（顯示 alert、清資料、回登入頁）。
@@ -168,6 +189,10 @@ function RootLayoutContent() {
           // 喚醒刷新成功後，用（可能是新的）token 立即重抓金幣，避免回到前景時卡著舊餘額（修法 3）。
           if (refreshed) {
             coinRefreshRef.current?.();
+            // 停權即時攔截：刷新後重查 roleLevel，若已被停權（<0）→ 提示並登出。
+            checkAccountSuspended()
+              .then((suspended) => { if (suspended) handleAccountSuspended(); })
+              .catch((e) => console.warn('[RootLayout] 停權檢查例外（忽略）:', (e as any)?.message));
           }
         } else {
           console.log('[RootLayout] ⚠️ 未登入或無 token，跳過刷新');
@@ -183,7 +208,7 @@ function RootLayoutContent() {
     return () => {
       subscription.remove();
     };
-  }, [isLoggedIn, showLoading, hideLoading, handleTokenRefreshFailed, setIsLoggedIn]);
+  }, [isLoggedIn, showLoading, hideLoading, handleTokenRefreshFailed, handleAccountSuspended, setIsLoggedIn]);
 
   const handleDeepLink = async (url: string) => {
     try {

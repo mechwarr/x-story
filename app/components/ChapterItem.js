@@ -206,7 +206,7 @@ const ChapterItem = (props) => {
     if (canView) {
       // 試閱章節但後端未設定試閱範圍（試閱場次範圍尾為 0）：警告且不進入，避免進場後空白／彈回
       if (isTrialRangeInvalid) {
-        showAlert(translate('noticeTitle'), translate('trialRangeNotSet'));
+        showAlert(translate('genericErrorTitle'), translate('trialRangeNotSet'));
         return;
       }
       if (isFreeOpen) {

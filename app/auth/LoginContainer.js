@@ -79,6 +79,20 @@ export default function LoginContainer({ onLoginSuccess }) {
     refreshCoins(true);
     try {
       const userData = await getUserProfile();
+      // 停權會員：後端以「roleLevel 為負數」標記停權。停權者不得進入 App——
+      // 清掉剛存的登入資料（token/refreshToken）、跳停權提示、且不呼叫 onLoginSuccess()（不進主畫面），
+      // 達成「不允許取得 token、不允許各種 App 內活動」。
+      // 註：正常角色為 1/5/9、未知為 0，皆 >= 0 不受此攔截；profile 取不到時走下方 catch（沿用原本
+      //     「不因單次失敗就取消跳轉」邏輯，避免暫時性錯誤誤擋合法會員）。
+      if (Number(userData?.roleLevel) < 0) {
+        await tokenStorage.clearLoginData();
+        showAlert(
+          translate('accountSuspendedTitle'),
+          translate('accountSuspendedMessage'),
+          [{ text: translate('ok') }]
+        );
+        return;
+      }
       // 快取權限級別（roleLevel，9 = Admin），供首頁判斷是否顯示未上架書籍
       await tokenStorage.setUserRoleLevel(Number(userData?.roleLevel) || 0);
       const hasBirthday = !!(userData?.birthDate && String(userData.birthDate).trim());

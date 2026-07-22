@@ -13,24 +13,18 @@ import colors from '../config/colors';
 import storage from '../storage/storage';
 import { bookDataBaseUrl } from '../config/apiClient';
 import { getAuthoritativeOwnedStoryIds } from '../services/bookAccessService';
-import {
-  translate,
-  matchesCurrentStoryLang,
-  pickConfigByLang,
-} from '../i18n/i18n';
-import { useLanguage } from '../i18n/LanguageContext';
+import { translate, pickConfigByLang } from '../i18n/i18n';
 
 // 書籍資料端點統一走 bookDataBaseUrl（與 HomeScreen 同源），固定走正式站、不隨 __DEV__ 切換。
 const url = bookDataBaseUrl;
 
 // 「我的書籍」：以伺服器 entitlements（getAuthoritativeOwnedStoryIds）為權威來源，
 // 取出使用者實際持有的書，並與 story-list（含完整 storyData）交集後呈現。
+// 呈現「所有購買過的書」，不依語系過濾——各語言版本皆會顯示，方便用戶查找。
 // 排版與「繼續觀看」一致（2 欄 Book 網格）；點擊沿用 Book 一般變體邏輯，
 // 開啟與大廳相同的簡介彈窗（樣式來自 menu-foolproof、字樣依語系挑列）。
 function MyBooksScreen() {
   const isFocus = useIsFocused();
-  // 目前語系：切換時重新過濾書單，只顯示與 App 語系相符的書（與大廳／繼續觀看一致）。
-  const { lang } = useLanguage();
 
   const [ownedIds, setOwnedIds] = useState([]);
   const [storyList, setStoryList] = useState([]);
@@ -77,13 +71,12 @@ function MyBooksScreen() {
     getStories();
   }, [isFocus]);
 
-  // 持有 ∩ 書單，並依目前語系過濾（避免同書多語版本重複顯示）。
+  // 持有 ∩ 書單。書櫃需呈現「所有購買過的書」（含各語言版本），不依語系過濾，
+  // 方便用戶查找所有購買過的語言版本（各語言版本為各自獨立的 story，非重複資料）。
   const myBooks = useMemo(() => {
     const ownedSet = new Set((ownedIds || []).map(Number));
-    return (storyList || []).filter(
-      (b) => ownedSet.has(Number(b?.id)) && matchesCurrentStoryLang(b?.lang)
-    );
-  }, [ownedIds, storyList, lang]);
+    return (storyList || []).filter((b) => ownedSet.has(Number(b?.id)));
+  }, [ownedIds, storyList]);
 
   return (
     <Screen>

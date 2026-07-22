@@ -95,6 +95,8 @@ function StoryScreen({ route }) {
     // 待新章節/場次內容載入後，於 fetchData / 內容 effect 中定位。
     targetScreeningId = null,
     targetDialogId = null,
+    // 自動接續下一章（replace 重掛）時帶入的自動播放狀態：讓自動播放跨章節維持不中斷。
+    autoPlay: initialAutoPlay = false,
   } = router.params ?? {};
 
   // 如果 cachedIndex.story 是 null，初始改成0，避免 FlatList 空白
@@ -139,7 +141,14 @@ function StoryScreen({ route }) {
   const [showPurchaseOverlay, setShowPurchaseOverlay] = useState(false);
   const [isBookPurchased, setIsBookPurchased] = useState(false);
   const [purchaseChecked, setPurchaseChecked] = useState(false);
-  const [isAutoPlay, setIsAutoPlay] = useState(false);
+  // 初值取自 route params：自動接續下一章（replace 重掛）會帶入上一章的自動播放狀態，
+  // 讓「章節→下一章」時自動播放維持不中斷（同章換場次留在同元件、狀態本就保留）。
+  const [isAutoPlay, setIsAutoPlay] = useState(initialAutoPlay === true);
+  // isAutoPlay 的鏡像 ref：供「自動接續下一章 / 選項跨章」的 replace 讀取最新值。
+  // 這些 replace 位於 deps 不含 isAutoPlay 的 effect / useCallback 內，直接讀 state 會有
+  // 過時閉包風險；用 ref 取最新值，且不必把 isAutoPlay 列入 deps（避免切換開關就重抓內容）。
+  const isAutoPlayRef = useRef(isAutoPlay);
+  isAutoPlayRef.current = isAutoPlay;
   // 自動播放每段間隔秒數，可於「設定」頁調整（最低 1 秒），進入劇情時載入
   const [autoPlaySeconds, setAutoPlaySeconds] = useState(DEFAULT_AUTO_PLAY_SECONDS);
   useEffect(() => {
@@ -244,6 +253,8 @@ function StoryScreen({ route }) {
         free_open: targetCh?.free_open ?? free_open,
         targetScreeningId: screeningId,
         targetDialogId: dialogId,
+        // 以選項跨章時亦帶入自動播放狀態，維持與自動接續一致的行為。
+        autoPlay: isAutoPlayRef.current,
       });
     },
     [storyId, name, author, storyData, nochapter, read_range_end, free_open, rawNavigation]
@@ -578,22 +589,32 @@ function StoryScreen({ route }) {
           // 場次清單已載入且確實播完（screen 超過尾端）才返回；
           // 空清單（length === 0，可能是設定問題）不在此彈回，避免一進章節就被踢出
 
-          // 本章播畢後先判斷「是否真的還有被鎖住的內容可解鎖」，避免在全書真正的結尾誤跳購買：
+          // 本章播畢後先判斷「是否真的還有被鎖住（需購買）的內容」，避免在全書真正的結尾、
+          // 或「下一章本身也開放試閱／可讀」時誤跳購買：
           //   - previewTruncated：本章試閱被 read_range_end 截斷（截斷後場次數 < 原始場次數）
-          //     → 後面還有本章剩餘劇情被鎖住。
-          //   - nextChapter：仍有下一章 → 後面還有內容。
-          // 兩者皆無 → 這就是整本書的真結尾（無下一章、也無被截斷的剩餘場次），不該跳購買
-          //           （無論身份／是否購買），交由下方分支 3 收尾回章節選單/首頁。
+          //     → 本章還有剩餘劇情被鎖住（需購買）。
+          //   - nextChapter 存在但「不可讀」（非開放、未購買、非預覽者）→ 下一章被鎖住（需購買）。
+          // 若下一章本身可讀（開放全試閱／已購／預覽者），不算被鎖 → 不跳購買，交由分支 2 直接接續。
           const nextChapter =
             storyData?.chapter_type === '章節' ? getNextChapter() : null;
+          const nextAccessible = nextChapter
+            ? canAccessChapter({
+                freeOpen: nextChapter.free_open,
+                isBookPurchased,
+                canPreview,
+              })
+            : false;
           const previewTruncated =
             typeof queryInfo.screeningsTotal === 'number' &&
             screenings.length < queryInfo.screeningsTotal;
-          const hasMoreToUnlock = previewTruncated || nextChapter != null;
+          // 「後面還有被鎖（需購買）的內容」＝本章被截斷，或下一章存在但不可讀。
+          const hasLockedAhead =
+            previewTruncated || (nextChapter != null && !nextAccessible);
 
-          // 1) 試閱播畢：未持有本書、為試閱（開放）章節，且後面確實還有被鎖內容 →
+          // 1) 試閱播畢：未持有本書、為試閱（開放）章節，且後面確實還有被鎖（需購買）內容 →
           //    代表已到「試閱的最後內容」，跳出購買提示（優先於自動續章）。
-          if (free_open === '開放' && !isBookPurchased && !canPreview && hasMoreToUnlock) {
+          //    下一章本身可讀時 hasLockedAhead 為 false → 不在此攔截，落到分支 2 接續。
+          if (free_open === '開放' && !isBookPurchased && !canPreview && hasLockedAhead) {
             storyLockedRef.current = true; // 鎖住推進：之後只能滑動回看，不能再播剩餘劇情
             setShowPurchaseOverlay(true);
             return;
@@ -601,11 +622,6 @@ function StoryScreen({ route }) {
 
           // 2) 章節型書籍：本章播畢後若仍有「可閱讀」的下一章，原地接續到下一章第一場次。
           if (nextChapter) {
-            const nextAccessible = canAccessChapter({
-              freeOpen: nextChapter.free_open,
-              isBookPurchased,
-              canPreview,
-            });
             if (nextAccessible) {
               // 換章前清掉本章的「繼續觀看」快取，避免下次回來停在舊章節尾端。
               skipPersistRef.current = true; // 抑制離開保底存檔，避免把剛刪掉的進度又寫回
@@ -621,6 +637,8 @@ function StoryScreen({ route }) {
                 nochapter,
                 read_range_end: nextChapter.read_range_end,
                 free_open: nextChapter.free_open,
+                // 帶入目前自動播放狀態：重掛新章後由 useState 初值接手，維持自動播放不中斷。
+                autoPlay: isAutoPlayRef.current,
               });
               return;
             }
@@ -691,7 +709,7 @@ function StoryScreen({ route }) {
     if (canPreview) return;
     const n = Number(read_range_end);
     if (!Number.isFinite(n) || n > 0) return;
-    showAlert(translate('noticeTitle'), translate('trialRangeNotSet'), [
+    showAlert(translate('genericErrorTitle'), translate('trialRangeNotSet'), [
       {
         text: translate('ok'),
         onPress: () => {
@@ -959,29 +977,36 @@ function StoryScreen({ route }) {
   }, [story]);
 
   // 捲動控制：
-  //  - 還原階段（pendingScrollOffset != null）：定位到離開當下的捲動位置（offset 為 0 則捲到最後一段）
+  //  - 還原階段（pendingScrollOffset != null）：一律定位到「最後一段（上次閱讀的最後一行）」。
+  //    story 已依造訪路徑重建、其最後一段即離開前讀到的那一句，故用 scrollToIndex(最後一段) 定位；
+  //    這比沿用存檔的像素 offset(scrollToOffset) 可靠——內容含圖片/影片，還原當下多半尚未載入完成，
+  //    此時整體高度小於存檔時，scrollToOffset 會被夾到較小的最大值而「停在上方」，使用者得再手動下捲
+  //    才會看到上次位置（即本次修復的症狀）。scrollToIndex 會按索引重新量測，配合 onScrollToIndexFailed
+  //    重試，圖片/影片載入後也能穩定落在最後一段；再補一次延遲捲動吸收晚到媒體造成的版面位移。
   //  - 一般新增段落：自動捲到最新一段
   useEffect(() => {
     if (pendingScrollOffset != null) {
-      const offset = pendingScrollOffset;
       prevStoryLength.current = story.length; // 先對齊，避免還原後誤判為「新增段落」又捲一次
-      const t = setTimeout(() => {
+      const scrollToLast = () => {
         if (flatlistRef.current && story.length > 0) {
-          if (offset > 0) {
-            flatlistRef.current.scrollToOffset({ offset, animated: false });
-          } else {
-            flatlistRef.current.scrollToIndex({
-              index: story.length - 1,
-              animated: false,
-              viewPosition: 0.5,
-            });
-          }
-          scrollOffsetRef.current = offset;
-          console.log('還原捲動位置 offset:', offset);
+          flatlistRef.current.scrollToIndex({
+            index: story.length - 1,
+            animated: false,
+            viewPosition: 1, // 讓最後一段貼齊視窗底部，如同離開前停下的閱讀位置
+          });
         }
+      };
+      const t1 = setTimeout(scrollToLast, 250);
+      // 再補一次：吸收圖片/影片等媒體晚載入造成的高度變化，確保最終仍停在最後一段。
+      const t2 = setTimeout(() => {
+        scrollToLast();
+        console.log('還原捲動位置 → 最後一段 index:', story.length - 1);
         setPendingScrollOffset(null);
-      }, 250);
-      return () => clearTimeout(t);
+      }, 700);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     }
 
     if (story.length > prevStoryLength.current) {

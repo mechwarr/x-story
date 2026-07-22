@@ -14,6 +14,7 @@ const COIN_KEY = "userCoin";
 const LANG_KEY = "userLangCode";
 const LANG_MANUAL_KEY = "userLangManual"; // "1" 表示使用者曾於設定中手動切換語系
 const ROLE_LEVEL_KEY = "userRoleLevel"; // 權限級別 (1:普通, 5:小編, 9:Admin)
+const USER_ID_KEY = "userId"; // 目前登入帳號的唯一識別（供本機閱讀紀錄依帳號隔離命名空間）
 const AUTO_PLAY_SECONDS_KEY = "autoPlaySeconds"; // 劇情自動播放每段間隔秒數
 
 // 自動播放間隔：預設 3 秒，範圍 1~10 秒（只保留最快的 10 檔）
@@ -342,6 +343,25 @@ const getUserRoleLevel = async (): Promise<number | null> => {
   }
 };
 
+// User Id（帳號唯一識別）：供本機「繼續觀看／已讀完」等閱讀紀錄依帳號隔離命名空間。
+// 於取得 profile（api/users/me）成功時寫入；登出（clearUserProfile）時清除，避免換帳號沿用舊 id。
+const setUserId = async (userId: string) => {
+  try {
+    await SecureStore.setItemAsync(USER_ID_KEY, String(userId));
+  } catch (e) {
+    console.error("setUserId error", e);
+  }
+};
+
+const getUserId = async (): Promise<string | null> => {
+  try {
+    return await SecureStore.getItemAsync(USER_ID_KEY);
+  } catch (e) {
+    console.error("getUserId error", e);
+    return null;
+  }
+};
+
 // ----------- AUTO PLAY SETTINGS ----------- //
 // 劇情自動播放間隔（秒）。為裝置層級偏好，與帳號無關，登出時不清除。
 const setAutoPlaySeconds = async (seconds: number) => {
@@ -376,6 +396,9 @@ const clearUserProfile = async () => {
     // 語系（LANG_KEY / LANG_MANUAL_KEY）為裝置層級的偏好設定，登出時刻意保留，
     // 讓使用者手動選擇的語言在切換帳號／重新登入後仍然有效。
     await SecureStore.deleteItemAsync(ROLE_LEVEL_KEY);
+    // 帳號 id 於登出時清除：避免下一個帳號登入前，暫時沿用上一帳號 id 命名空間而讀到別人的紀錄。
+    // 閱讀紀錄本身以帳號 id 命名保存、不隨登出刪除；同帳號重新登入時會由 profile 重新取得 id 對回。
+    await SecureStore.deleteItemAsync(USER_ID_KEY);
   } catch (e) {
     console.error("clearUserProfile error", e);
   }
@@ -421,6 +444,8 @@ export default {
   getUserLangManual,
   setUserRoleLevel,
   getUserRoleLevel,
+  setUserId,
+  getUserId,
   clearUserProfile,
 
   // Auto Play

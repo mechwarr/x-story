@@ -13,9 +13,14 @@ import colors from '../config/colors';
 import { isEmpty } from 'lodash';
 import { translate, matchesCurrentStoryLang } from '../i18n/i18n';
 import { useLanguage } from '../i18n/LanguageContext';
+import { getBookstoreList, getEffectiveRoleLevel } from '../config/userApiClient';
+import { canViewUnlisted } from '../config/roles';
 
 function ContinueScreen() {
   const [storyCache, setStoryCache] = useState(null);
+  // 書籍可見性判定用：roleLevel（是否為 role>=5 可見未上架者）＋ 目前「在架書籍」ID 集合。
+  // onShelfIds 為 null 代表尚未取得（抓取中／失敗）→ 不誤擋，以免整頁清空。
+  const [shelf, setShelf] = useState({ roleLevel: null, onShelfIds: null });
   const isFocus = useIsFocused();
   // 目前語系：納入篩選依賴，切換語系時重新過濾「繼續觀看」清單，
   // 只顯示與目前 App 語系相符的書籍（與首頁 Books 的篩選邏輯一致）。
@@ -29,15 +34,47 @@ function ContinueScreen() {
     getStories(!storyCache?.continueStory);
   }, [isFocus]);
 
-  // 依目前語系過濾：書籍 lang 取自存檔的 storyData（與首頁同一來源欄位），
-  // 舊存檔可能無 storyData.lang 時退回 item.lang。
+  // 取得角色權限與「在架書籍」清單（每次聚焦刷新）：
+  // 後台書籍「下架／刪除」後，公開 GET api/bookstorelist 便不再回傳該書（或回傳 isActive=false），
+  // 據此把已不在架的書從「繼續觀看」清單隱藏——role>=5（小編／管理員）預覽者不受限、仍全部可見。
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const roleLevel = await getEffectiveRoleLevel();
+        const list = await getBookstoreList();
+        const onShelfIds = Array.isArray(list)
+          ? new Set(
+              list
+                .filter((b) => b?.isActive !== false)
+                .map((b) => Number(b?.storyListId))
+            )
+          : null;
+        if (mounted) setShelf({ roleLevel, onShelfIds });
+      } catch (_e) {
+        if (mounted) setShelf({ roleLevel: null, onShelfIds: null });
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [isFocus]);
+
+  // 依目前語系與「在架狀態」過濾：
+  //  - 語系：書籍 lang 取自存檔的 storyData（與首頁同一來源欄位），舊存檔無 storyData.lang 時退回 item.lang。
+  //  - 在架：role<5 的一般用戶僅顯示仍在架的書（隱藏已下架／刪除者）；role>=5 全部可見；
+  //          在架清單尚未取得（onShelfIds 為 null）時不誤擋，一律顯示（Book 點擊時仍有 canContinueOwned 二次守門）。
   const continueStories = useMemo(() => {
     const list = storyCache?.continueStory ?? [];
     if (!Array.isArray(list)) return [];
-    return list.filter((item) =>
-      matchesCurrentStoryLang(item?.storyData?.lang ?? item?.lang)
-    );
-  }, [storyCache, lang]);
+    const canSeeUnlisted = canViewUnlisted(shelf.roleLevel);
+    return list.filter((item) => {
+      if (!matchesCurrentStoryLang(item?.storyData?.lang ?? item?.lang)) return false;
+      if (canSeeUnlisted) return true;
+      if (!shelf.onShelfIds) return true;
+      return shelf.onShelfIds.has(Number(item?.storyId));
+    });
+  }, [storyCache, lang, shelf]);
 
   return (
     <Screen>

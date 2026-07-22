@@ -7,6 +7,7 @@ import {initLanguageByLoginStatus} from '../i18n/initLanguage';
 import { translate } from '../i18n/i18n';
 import { initWeChatSDK } from '../../components/utils/wechatAuth';
 import { tokenRefreshService } from '../config/authApiClient';
+import { checkAccountSuspended } from '../config/userApiClient';
 import { clearAllUserData } from '../services/clearUserDataService';
 
 export default function useInitApp(
@@ -37,7 +38,32 @@ export default function useInitApp(
       // ✅ 如果已登入，檢查登入是否過期並刷新 token
       if (loggedIn) {
         console.log('[useInitApp] 🔄 檢測到登入狀態，檢查登入時間和刷新 token...');
-        
+
+        // 停權即時攔截（登入後才被停權的情境）：App 重新啟動時重查一次 roleLevel，
+        // 若已被停權（<0）→ 跳提示並登出（清資料、回登入頁）。獨立於 token 刷新的 1 小時
+        // 節流，確保「每次重啟」都會重查。背景執行、不阻塞啟動；取不到 profile 時不誤登出。
+        const handleSuspended = () => {
+          showAlert(
+            translate('accountSuspendedTitle'),
+            translate('accountSuspendedMessage'),
+            [
+              {
+                text: translate('ok'),
+                onPress: async () => {
+                  onBeforeLogout?.(); // 例如重置金幣 Context，避免換帳號後殘留
+                  await clearAllUserData();
+                  setIsLoggedIn(false);
+                  console.log('[useInitApp] ✅ 帳號已停權，已登出並返回登入頁面');
+                },
+              },
+            ],
+            { cancelable: false }
+          );
+        };
+        checkAccountSuspended()
+          .then((suspended) => { if (suspended) handleSuspended(); })
+          .catch((e) => console.warn('[useInitApp] 停權檢查例外（忽略）:', (e as any)?.message));
+
         // 創建登入過期處理函數（超過 30 天需要重新登入）
         const handleLoginExpired = () => {
           showAlert(

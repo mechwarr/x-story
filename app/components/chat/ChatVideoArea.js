@@ -91,7 +91,13 @@ function ChatVideoArea({ videoMsg }) {
             onReadyForDisplay={onReadyForDisplay}
           />
           <View style={styles.playOverlay} pointerEvents="none">
-            <MaterialCommunityIcons name="play" size={ms(48)} color={colors.white} />
+            {/* 白色播放鈕加黑色陰影/描邊：避免遇到同為白色背景的影片首幀時被吃色而看不見。 */}
+            <MaterialCommunityIcons
+              name="play"
+              size={ms(48)}
+              color={colors.white}
+              style={styles.playIcon}
+            />
           </View>
         </View>
       </Pressable>
@@ -152,6 +158,12 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  playIcon: {
+    // 黑色陰影當描邊：白底影片上也能清楚看見白色播放鈕。
+    textShadowColor: 'rgba(0,0,0,0.9)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
   },
   fsContainer: {
     flex: 1,

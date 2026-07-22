@@ -398,17 +398,29 @@ export async function getUserProfile(): Promise<UserProfile | null> {
     const res = await userApi.get<GetUserProfileResponse>(endpoint, headers);
 
     console.log("[userApiClient] ✓ 成功獲取用戶資料:", res);
-    
+
     // 處理不同的響應格式
-    if (res.data) {
-      return res.data;
-    } else if (res.id || res.name || res.email) {
-      // 如果響應直接是 UserProfile 格式
-      return res as UserProfile;
-    } else {
-      console.warn("[userApiClient] ✗ 獲取用戶資料失敗，響應格式不正確:", res);
-      return null;
+    const profile: UserProfile | null = res.data
+      ? res.data
+      : res.id || res.name || res.email
+        ? (res as UserProfile)
+        : null;
+
+    if (profile) {
+      // 順帶快取帳號唯一識別（優先 id，退回 email）：供本機閱讀紀錄依帳號隔離命名空間。
+      // 僅在取得有效值時寫入，避免污染；失敗不影響 profile 回傳。
+      const accountId =
+        profile.id != null ? String(profile.id) : profile.email ? String(profile.email) : null;
+      if (accountId) {
+        tokenStorage
+          .setUserId(accountId)
+          .catch((e) => console.warn("[userApiClient] 快取帳號 id 失敗（忽略）:", (e as any)?.message));
+      }
+      return profile;
     }
+
+    console.warn("[userApiClient] ✗ 獲取用戶資料失敗，響應格式不正確:", res);
+    return null;
   } catch (error) {
     console.error("[userApiClient] 獲取用戶資料時發生錯誤:", error);
     return null;
@@ -444,6 +456,29 @@ export async function getEffectiveRoleLevel(): Promise<number> {
   } catch (error) {
     console.warn("[userApiClient] 取得有效權限級別失敗，預設為一般用戶(0):", (error as any)?.message);
     return 0;
+  }
+}
+
+/**
+ * 停權即時檢查：向後端重查 profile，判斷是否已被停權（roleLevel 為負數）。
+ * 用於「登入後才被停權」的情境：App 重新啟動、token 刷新（喚醒）後各重查一次。
+ *  - roleLevel < 0（後端停權標記）→ 回傳 true（呼叫端負責跳提示並登出）。
+ *  - roleLevel >= 0 → 順帶刷新本地快取（僅快取 > 0 的有效值），回傳 false。
+ *  - 取不到 profile（token 暫時失效／網路異常等）→ 回傳 false，不誤判為停權而登出。
+ */
+export async function checkAccountSuspended(): Promise<boolean> {
+  try {
+    const profile = await getUserProfile();
+    if (profile && profile.roleLevel != null) {
+      const level = Number(profile.roleLevel);
+      if (level < 0) return true;
+      if (level > 0) await tokenStorage.setUserRoleLevel(level);
+      return false;
+    }
+    return false;
+  } catch (error) {
+    console.warn("[userApiClient] 停權檢查失敗（不視為停權）:", (error as any)?.message);
+    return false;
   }
 }
 

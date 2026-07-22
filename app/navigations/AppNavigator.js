@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Image, Platform, Pressable, Text, View } from "react-native";
 import {
   createDrawerNavigator,
@@ -17,7 +17,10 @@ import StoryContext from "../components/story/context";
 
 import routes from "./routes";
 import colors from "../config/colors";
-import { translate } from "../i18n/i18n";
+import storage from "../storage/storage";
+import { getBookstoreList, getEffectiveRoleLevel } from "../config/userApiClient";
+import { canViewUnlisted } from "../config/roles";
+import { translate, matchesCurrentStoryLang } from "../i18n/i18n";
 import VersionScreen from "../screens/VersionScreen";
 import LanguageScreen from "../screens/LanguageScreen";
 import {ResetScreen} from "../screens/ResetScreen";
@@ -77,6 +80,54 @@ export default function AppNavigator() {
   const { isTablet } = useResponsive();
   const drawerWidth = isTablet ? 260 : 180;
 
+  // 進入 App 的預設落點：只有當「繼續觀看」頁實際會顯示至少一本書時，才以「繼續觀看」為初始頁；
+  // 否則（新用戶／已讀完清空紀錄／僅剩已下架或刪除的書而全數被隱藏）維持首頁——與 ContinueScreen
+  // 的可見性過濾完全一致（語系 + 上架狀態 + role>=5 例外），避免落在空頁。
+  // continueStory 已依帳號命名空間隔離（見 storage.js）。initialRouteName 只在 Drawer 首次掛載
+  // 生效，故先判定完成再掛 Drawer（initialRoute 為 null 時暫以底色佔位）。
+  const [initialRoute, setInitialRoute] = useState(null);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      let route = routes.HOME;
+      try {
+        const list = await storage.getStorys("continueStory");
+        // 先套語系過濾（與 ContinueScreen 相同來源欄位）。
+        const langMatched = (Array.isArray(list) ? list : []).filter((it) =>
+          matchesCurrentStoryLang(it?.storyData?.lang ?? it?.lang)
+        );
+        if (langMatched.length) {
+          const roleLevel = await getEffectiveRoleLevel();
+          let hasVisible;
+          if (canViewUnlisted(roleLevel)) {
+            // role>=5（小編／管理員）：未上架／已下架亦可見 → 有語系相符紀錄即算可見。
+            hasVisible = true;
+          } else {
+            const bookstore = await getBookstoreList();
+            const onShelfIds = Array.isArray(bookstore)
+              ? new Set(
+                  bookstore
+                    .filter((b) => b?.isActive !== false)
+                    .map((b) => Number(b?.storyListId))
+                )
+              : null;
+            // 在架清單取不到（網路異常）→ 不誤判為空（與 ContinueScreen 不誤擋一致），視為可見。
+            hasVisible = !onShelfIds
+              ? true
+              : langMatched.some((it) => onShelfIds.has(Number(it?.storyId)));
+          }
+          if (hasVisible) route = routes.CONTINUE;
+        }
+      } catch (_e) {
+        // 判定過程出錯時退回首頁（維持原行為）
+      }
+      if (mounted) setInitialRoute(route);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // 選單文字統一樣式：所有語系共用同一 fontSize，不依長度縮放。
   const drawerLabelStyle = {
     fontSize: isTablet ? 22 : 20,
@@ -91,6 +142,11 @@ export default function AppNavigator() {
       <Text style={drawerLabelStyle}>{label}</Text>
     </View>
   );
+
+  // 尚未判定初始落點前不掛 Drawer，避免先以 HOME 掛載後又無法改變 initialRouteName。
+  if (initialRoute === null) {
+    return <View style={{ flex: 1, backgroundColor: colors.homeBackground }} />;
+  }
 
   return (
     <StoryContext.Provider
@@ -113,7 +169,7 @@ export default function AppNavigator() {
           },
         }}
         backBehavior="firstRoute"
-        initialRouteName={routes.HOME}
+        initialRouteName={initialRoute}
       >
         {/* HOME 仍需註冊為 Drawer.Screen（initialRoute / 底層 Stack），但選單裡的
             HOME 項目改由 CustomDrawerContent 頂端那顆自訂藍眼取代，故隱藏其自動項目，
