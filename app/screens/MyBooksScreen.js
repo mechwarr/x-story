@@ -14,6 +14,7 @@ import storage from '../storage/storage';
 import { bookDataBaseUrl } from '../config/apiClient';
 import { getAuthoritativeOwnedStoryIds } from '../services/bookAccessService';
 import { translate, pickConfigByLang } from '../i18n/i18n';
+import { compareBookByOrder } from '../utils/bookOrder';
 
 // 書籍資料端點統一走 bookDataBaseUrl（與 HomeScreen 同源），固定走正式站、不隨 __DEV__ 切換。
 const url = bookDataBaseUrl;
@@ -73,9 +74,13 @@ function MyBooksScreen() {
 
   // 持有 ∩ 書單。書櫃需呈現「所有購買過的書」（含各語言版本），不依語系過濾，
   // 方便用戶查找所有購買過的語言版本（各語言版本為各自獨立的 story，非重複資料）。
+  // 排序依後端 order（"001"、"002"…）；本頁不依語系過濾，同一 order 必然撞號
+  //（001繁 / 001简 / 001En），故次要排序為 繁體 → 簡體 → 英文，讓同一本書的各語言版本相鄰。
   const myBooks = useMemo(() => {
     const ownedSet = new Set((ownedIds || []).map(Number));
-    return (storyList || []).filter((b) => ownedSet.has(Number(b?.id)));
+    return (storyList || [])
+      .filter((b) => ownedSet.has(Number(b?.id)))
+      .sort(compareBookByOrder);
   }, [ownedIds, storyList]);
 
   return (

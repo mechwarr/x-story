@@ -70,9 +70,11 @@ function Chat({
           {soundMsg ? (
             <ChatSoundArea
               soundMsg={soundMsg}
+              // 語音泡泡底色：優先吃 setup-story-role 的男/女配角對話框底色，
+              // 未設定時退回本則內容底色，再退回預設底。
               backgroundColor={
-                baseColor
-                  ? { backgroundColor: baseColor }
+                supportingColor || baseColor
+                  ? { backgroundColor: supportingColor || baseColor }
                   : styles.leftBackground
               }
             />
@@ -106,9 +108,11 @@ function Chat({
             <View style={{ alignSelf: 'center', marginRight: 8 }}>
               <ChatSoundArea
                 soundMsg={soundMsg}
+                // 語音泡泡底色：優先吃 setup-story-role 的主角對話框底色，
+                // 未設定時退回本則內容底色，再退回預設底。
                 backgroundColor={
-                  baseColor
-                    ? { backgroundColor: baseColor }
+                  mainRoleColor || baseColor
+                    ? { backgroundColor: mainRoleColor || baseColor }
                     : styles.rightBackground
                 }
               />

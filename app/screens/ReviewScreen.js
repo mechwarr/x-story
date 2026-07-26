@@ -16,6 +16,7 @@ import { translate, matchesCurrentStoryLang } from '../i18n/i18n';
 import { useLanguage } from '../i18n/LanguageContext';
 import { getBookstoreList, getEffectiveRoleLevel } from '../config/userApiClient';
 import { canViewUnlisted } from '../config/roles';
+import { fetchStoryOrderMap, makeSavedStoryComparator } from '../utils/bookOrder';
 
 // 「重新回味」：呈現已讀完（finishStory）的書。過濾規則與「繼續觀看」（ContinueScreen）一致：
 //  - 語系：只顯示與目前 App 語系相符的書。
@@ -27,6 +28,8 @@ function ReviewScreen() {
   // 書籍可見性判定用：roleLevel（是否為 role>=5 可見未上架者）＋ 目前「在架書籍」ID 集合。
   // onShelfIds 為 null 代表尚未取得（抓取中／失敗）→ 不誤擋，以免整頁清空。
   const [shelf, setShelf] = useState({ roleLevel: null, onShelfIds: null });
+  // 書籍 id → 現況 order 對照表（與 ContinueScreen 同一來源與理由：存檔快照的 order 可能缺漏或過時）。
+  const [orderMap, setOrderMap] = useState(null);
   const isFocus = useIsFocused();
   // 目前語系：納入篩選依賴，切換語系時重新過濾清單（與首頁 Books／繼續觀看一致）。
   const { lang } = useLanguage();
@@ -47,7 +50,10 @@ function ReviewScreen() {
     (async () => {
       try {
         const roleLevel = await getEffectiveRoleLevel();
-        const list = await getBookstoreList();
+        const [list, map] = await Promise.all([
+          getBookstoreList(),
+          fetchStoryOrderMap(),
+        ]);
         const onShelfIds = Array.isArray(list)
           ? new Set(
               list
@@ -55,7 +61,10 @@ function ReviewScreen() {
                 .map((b) => Number(b?.storyListId))
             )
           : null;
-        if (mounted) setShelf({ roleLevel, onShelfIds });
+        if (mounted) {
+          setShelf({ roleLevel, onShelfIds });
+          setOrderMap(map);
+        }
       } catch (_e) {
         if (mounted) setShelf({ roleLevel: null, onShelfIds: null });
       }
@@ -74,14 +83,17 @@ function ReviewScreen() {
         .map((it) => Number(it?.storyId))
     );
     const canSeeUnlisted = canViewUnlisted(shelf.roleLevel);
-    return list.filter((item) => {
-      if (continueIds.has(Number(item?.storyId))) return false;
-      if (!matchesCurrentStoryLang(item?.storyData?.lang ?? item?.lang)) return false;
-      if (canSeeUnlisted) return true;
-      if (!shelf.onShelfIds) return true;
-      return shelf.onShelfIds.has(Number(item?.storyId));
-    });
-  }, [storyCache, lang, shelf]);
+    return list
+      .filter((item) => {
+        if (continueIds.has(Number(item?.storyId))) return false;
+        if (!matchesCurrentStoryLang(item?.storyData?.lang ?? item?.lang)) return false;
+        if (canSeeUnlisted) return true;
+        if (!shelf.onShelfIds) return true;
+        return shelf.onShelfIds.has(Number(item?.storyId));
+      })
+      // 依 order 排序（取代原本的 AsyncStorage 插入順序），與首頁一致。
+      .sort(makeSavedStoryComparator(orderMap));
+  }, [storyCache, lang, shelf, orderMap]);
 
   return (
     <Screen>

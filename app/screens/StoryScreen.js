@@ -24,7 +24,7 @@ import storage from '../storage/storage';
 import Storage, { DEFAULT_AUTO_PLAY_SECONDS } from '../auth/Storage';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import _ from 'lodash';
-import apiclient from '../config/apiClient';
+import apiclient, { bookDataBaseUrl } from '../config/apiClient';
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins, recordBookRead, getEffectiveRoleLevel } from '../config/userApiClient';
 import { canSwitchScreening, canPreviewAll } from '../config/roles';
@@ -89,8 +89,10 @@ function StoryScreen({ route }) {
     storyData,
     nochapter = EMPTY_NOCHAPTER,
     cachedIndex = null,
-    read_range_end,
-    free_open,
+    // 試閱設定：分章節書由章節選單帶入；不分章節書由 nochapter 表帶入。
+    // 兩者都可能缺（舊存檔／未帶 nochapter 的入口）→ 下方 noChapterGate 補抓。
+    read_range_end: readRangeEndParam,
+    free_open: freeOpenParam,
     // 跨場次／跨章節跳轉的落點：由 onPressOption 透過 replace 帶入，
     // 待新章節/場次內容載入後，於 fetchData / 內容 effect 中定位。
     targetScreeningId = null,
@@ -98,6 +100,52 @@ function StoryScreen({ route }) {
     // 自動接續下一章（replace 重掛）時帶入的自動播放狀態：讓自動播放跨章節維持不中斷。
     autoPlay: initialAutoPlay = false,
   } = router.params ?? {};
+
+  // ── 不分章節書籍的試閱閘門（read_free / read_range_end）──────────────────────
+  // nochapter 表的欄位名是 read_free（分章節的 chapter 表才叫 free_open），且
+  // 「繼續觀看／重新回味」等入口不一定帶得到這張表 → route params 兩個值都可能是 undefined。
+  // 一旦缺值，下方 shouldTrim 恆為 false ＝ 非試閱內容完全不會被鎖、也不會跳解鎖列，
+  // 故在此以 nochapter 清單（或主動補抓）補齊，作為所有入口共用的單一收斂點。
+  const isChapterBook = storyData?.chapter_type === '章節';
+  const [noChapterGate, setNoChapterGate] = useState(null);
+  useEffect(() => {
+    if (isChapterBook) return; // 分章節書的試閱設定一律由章節列表帶入
+    if (freeOpenParam != null && readRangeEndParam != null) return; // params 已齊，不必補
+    const toGate = (row) =>
+      row
+        ? {
+            free_open: row.read_free ?? row.free_open,
+            read_range_end: row.read_range_end,
+          }
+        : null;
+    const fromList = Array.isArray(nochapter)
+      ? nochapter.find((e) => Number(e?.storyid) === Number(storyId))
+      : null;
+    if (fromList) {
+      setNoChapterGate(toGate(fromList));
+      return;
+    }
+    let mounted = true;
+    (async () => {
+      try {
+        // 註：本表僅有 All 端點可用（/nochapter/{storyid} 目前回 404），故抓全表再比對 storyid。
+        const res = await axios.get(bookDataBaseUrl + 'api/v1/admin/nochapter');
+        const row = (Array.isArray(res?.data) ? res.data : []).find(
+          (e) => Number(e?.storyid) === Number(storyId)
+        );
+        if (mounted) setNoChapterGate(toGate(row));
+      } catch (error) {
+        console.error('無章節試閱設定載入失敗：', error);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [isChapterBook, storyId, nochapter, freeOpenParam, readRangeEndParam]);
+
+  // 以下全部沿用 free_open / read_range_end 這兩個名字（route params 優先，缺則用補抓結果）。
+  const free_open = freeOpenParam ?? noChapterGate?.free_open;
+  const read_range_end = readRangeEndParam ?? noChapterGate?.read_range_end;
 
   // 如果 cachedIndex.story 是 null，初始改成0，避免 FlatList 空白
   const initialStoryIndex = cachedIndex?.story === null ? 0 : cachedIndex?.story ?? initStoryIdx;
@@ -138,6 +186,9 @@ function StoryScreen({ route }) {
   // 但不可再推進剩餘劇情」。一旦試閱耗盡即設 true，封鎖所有 onPressOption 推進；
   // 購買成功會 replace/navigate 重掛畫面，此 ref 自然重置。
   const storyLockedRef = useRef(false);
+  // 「一進畫面就整本上鎖」（不分章節 × 未開放試閱 × 未購買）：與「試閱播畢」不同，
+  // 使用者一場都還沒看到，購買成功後必須原地重掛從第一場次開始讀，不能走「讀完→回首頁」收尾。
+  const lockedFromStartRef = useRef(false);
   const [showPurchaseOverlay, setShowPurchaseOverlay] = useState(false);
   const [isBookPurchased, setIsBookPurchased] = useState(false);
   const [purchaseChecked, setPurchaseChecked] = useState(false);
@@ -723,6 +774,28 @@ function StoryScreen({ route }) {
     ]);
   }, [purchaseChecked, roleChecked, roleLevel, isBookPurchased, free_open, read_range_end]);
 
+  // 不分章節書「未開放試閱 × 未購買 × 非預覽者」：整本都是非試閱內容 →
+  // 一進來就上鎖並跳出解鎖列（場次已在 fetchData 截成 0，畫面不會外洩內容）。
+  // 分章節書在章節選單（ChapterItem）就會被鎖頭擋下，不走這裡。
+  // 免費書（priceCoins <= 0）無從購買，鎖了會變死路 → 不鎖。
+  useEffect(() => {
+    if (!purchaseChecked || !roleChecked) return;
+    if (isChapterBook || isBookPurchased || canPreview) return;
+    if (!free_open || free_open === '開放') return; // 旗標未解析出來時不誤鎖
+    if (!(Number(priceCoins) > 0)) return;
+    storyLockedRef.current = true; // 封鎖推進：關掉覆蓋層也不能再往下播
+    lockedFromStartRef.current = true; // 一場都沒看到 → 購買後要從頭讀，不能當成「讀完」
+    setShowPurchaseOverlay(true);
+  }, [
+    purchaseChecked,
+    roleChecked,
+    isChapterBook,
+    isBookPurchased,
+    canPreview,
+    free_open,
+    priceCoins,
+  ]);
+
   // 關閉購買覆蓋層：一併清掉「待購買後跳轉」目標，避免之後（如試閱播畢）再次購買時誤跳。
   const dismissPurchaseOverlay = useCallback(() => {
     pendingJumpRef.current = null;
@@ -792,6 +865,23 @@ function StoryScreen({ route }) {
                         }
                         if (storyData?.chapter_type === '章節') {
                           navigation.navigate(routes.CHAPTER, { name, author, storyId, storyData });
+                        } else if (lockedFromStartRef.current) {
+                          // 未開放試閱而一進來就整本上鎖者：一場都沒讀過，購買後原地重掛從頭開始，
+                          // 不可寫入 finishStory（否則剛買的書會直接掉進「重新回味」）。
+                          lockedFromStartRef.current = false;
+                          storyLockedRef.current = false;
+                          skipPersistRef.current = true;
+                          storage.deleteStory({ storyId }, 'continueStory');
+                          rawNavigation.replace(routes.STORY, {
+                            storyId,
+                            chapterId,
+                            name,
+                            author,
+                            storyData,
+                            nochapter,
+                            read_range_end,
+                            free_open,
+                          });
                         } else {
                           skipPersistRef.current = true; // 抑制離開保底存檔，避免把剛刪掉的進度又寫回
                           storage.deleteStory({ storyId }, 'continueStory');
@@ -813,7 +903,7 @@ function StoryScreen({ route }) {
         },
       ]
     );
-  }, [storyId, priceCoins, coins, name, navigation, refreshCoins, storyData, author, nochapter, jumpTo]);
+  }, [storyId, priceCoins, coins, name, navigation, rawNavigation, refreshCoins, storyData, author, nochapter, chapterId, read_range_end, free_open, jumpTo]);
 
   // 進入場次、對話內容首次載入時寫入一次閱讀紀錄
   useEffect(() => {
@@ -1126,11 +1216,20 @@ function StoryScreen({ route }) {
         // role >= 9（Admin）亦視為完整內容、不截斷（供預覽／校對，看到全部場次）。
         // 註：isBookPurchased/free_open/roleLevel 刻意改由 closure 讀取、不列入 deps，避免使用者於覆蓋層
         //     購買後 isBookPurchased 變動觸發本 effect 重抓、把閱讀索引重設回開頭。
-        const shouldTrim =
-          read_range_end && free_open === '開放' && !isBookPurchased && !canPreview;
-        const screeningsList = shouldTrim
-          ? rawScreenings.slice(0, +read_range_end)
-          : rawScreenings;
+        // 未購買且非預覽者才受試閱閘門限制：
+        //   free_open === '開放'      → 截到 read_range_end（試閱場次範圍尾）
+        //   free_open 明確為「不開放」→ 整本都是非試閱內容 → 0 場次，全部鎖住
+        //     （分章節書由 ChapterItem 在章節選單先擋，故僅套用於不分章節書；
+        //       free_open 尚未解析出來時視為未知、不誤鎖）
+        const gated = !isBookPurchased && !canPreview;
+        const previewClosed = !!free_open && free_open !== '開放';
+        let screeningsList = rawScreenings;
+        if (gated && free_open === '開放' && read_range_end) {
+          screeningsList = rawScreenings.slice(0, +read_range_end);
+        } else if (gated && previewClosed && !isChapterBook && Number(priceCoins) > 0) {
+          // 免費書（priceCoins <= 0）無從購買，鎖了會變死路 → 與下方解鎖列的條件一致，不鎖。
+          screeningsList = [];
+        }
         // 夾住還原的場次索引，避免快取 screen 超過（伺服器更新或試閱截斷後）現有場次數而立即彈回
         let landingScreen = screeningsList.length
           ? Math.min(Math.max(cachedIndex?.screen ?? 0, 0), screeningsList.length - 1)
@@ -1192,7 +1291,9 @@ function StoryScreen({ route }) {
     };
 
     fetchData();
-  }, [read_range_end, purchaseChecked, roleChecked]);
+    // free_open 列入依賴：不分章節書的試閱旗標是補抓來的（noChapterGate），
+    // 解析完成後必須重抓一次才會套用截斷；它不會因購買而變動，不影響原本「購買後不重抓」的用意。
+  }, [read_range_end, free_open, purchaseChecked, roleChecked]);
 
   return (
     <ImageBackground

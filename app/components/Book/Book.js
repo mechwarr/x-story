@@ -92,6 +92,12 @@ function Book(props) {
     return nochapter?.find((e) => e.storyid === id);
   }, [nochapter]);
 
+  // 不分章節書籍的「是否開放免費試閱」旗標：nochapter 表的欄位名是 read_free
+  //（分章節的 chapter 表才叫 free_open）。原本只讀 chapter?.free_open → 永遠 undefined，
+  // 導致 StoryScreen 的 shouldTrim 恆為 false：非試閱內容完全沒被鎖、也不會跳解鎖列。
+  // 兩個欄位名都收，避免後端日後統一欄位名時再壞一次。
+  const noChapterFreeOpen = chapter?.read_free ?? chapter?.free_open;
+
   const storyStatus = useMemo(() => {
     const read = storyCache?.continueStory?.find((e) => +e.storyId === +id);
     const finish = storyCache?.finishStory?.find((e) => +e.storyId === +id);
@@ -109,7 +115,7 @@ function Book(props) {
     read_range_end: read_range_end ?? chapter?.read_range_end,
     // 無章節書籍的試閱旗標：與 read_range_end 同源（無章節對應的 chapter 記錄）。
     // 少了它，StoryScreen 讀完試閱時 free_open !== '開放' → 不會跳購買視窗、直接彈回首頁。
-    free_open: chapter?.free_open,
+    free_open: noChapterFreeOpen,
   };
 
   // 繼續觀看：以該書「最後一次的存檔」(continueStory item) 原樣回到原章節/場次/對話順序，
@@ -131,7 +137,7 @@ function Book(props) {
         cachedIndex: props.cachedIndex,
         read_range_end: read_range_end ?? chapter?.read_range_end,
         // 優先用存檔保留的試閱旗標；舊版存檔沒有時退回 nochapter 推導。
-        free_open: props.free_open ?? chapter?.free_open,
+        free_open: props.free_open ?? noChapterFreeOpen,
       },
     });
   };

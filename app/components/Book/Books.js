@@ -6,6 +6,7 @@ import { toColor, toFontWeight } from '../../config/normalizeStyle';
 import Book from './Book';
 import { matchesCurrentStoryLang } from '../../i18n/i18n';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { compareBookByOrder } from '../../utils/bookOrder';
 
 function Books({ type, config, storyList, storyCache, nochapter, menuFoolproofConfig }) {
   const {
@@ -30,11 +31,15 @@ function Books({ type, config, storyList, storyCache, nochapter, menuFoolproofCo
 
   // 依「分類」與「使用者語系」篩選：避免同一本書的多語版本同時出現（重複顯示），
   // 並只顯示與 App 啟動語系相符的書籍。
+  // 篩選後依後端 order（"001"、"002"…）由小到大排序：分類切分不變，只排分類內部的書。
+  // filter 已產生新陣列，sort 不會改動到父層傳入的 storyList。
   const listData = useMemo(() => {
-    return storyList.filter(
-      (e) =>
-        e?.story_type === type?.story_type && matchesCurrentStoryLang(e?.lang)
-    );
+    return storyList
+      .filter(
+        (e) =>
+          e?.story_type === type?.story_type && matchesCurrentStoryLang(e?.lang)
+      )
+      .sort(compareBookByOrder);
   }, [storyList, type?.story_type, lang]);
 
   if (!listData?.length) return null;
