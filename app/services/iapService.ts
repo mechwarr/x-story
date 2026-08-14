@@ -31,39 +31,15 @@ import {
   logStringList,
 } from '../utils/iapDebugLogger';
 import { appStoreSkuToBackendProductId } from '../utils/iosIapSkuMapping';
+import { storeSkuMatchesBackendProductId } from '../utils/iapCatalog';
 
-// 商品 ID 配置（需要在 App Store Connect 和 Google Play Console 中設定）
-export const PRODUCT_IDS = {
-  PACK_1: 'item_001', // 入門基本包
-  PACK_2: 'item_002', // 熱門推薦包
-  PACK_3: 'item_003', // 高效閱讀包
-  PACK_4: 'item_004', // 文青超值包
-  PACK_5: 'item_005', // VIP獨享包
-  PACK_6: 'item_006', // 尊爵贊助包
-} as const;
-
-export type ProductId = typeof PRODUCT_IDS[keyof typeof PRODUCT_IDS];
-
-// 商品資訊映射（只包含應用內邏輯需要的資訊：金幣數量和 bonus）
-// 注意：商品名稱和價格應從 Google Play/App Store 返回的 Product 物件中獲取
-export const PRODUCT_MAP: Record<string, { coins: number; bonus: number }> = {
-  [PRODUCT_IDS.PACK_1]: { coins: 90, bonus: 5 },
-  [PRODUCT_IDS.PACK_2]: { coins: 150, bonus: 20 },
-  [PRODUCT_IDS.PACK_3]: { coins: 300, bonus: 55 },
-  [PRODUCT_IDS.PACK_4]: { coins: 590, bonus: 120 },
-  [PRODUCT_IDS.PACK_5]: { coins: 1190, bonus: 280 },
-  [PRODUCT_IDS.PACK_6]: { coins: 1790, bonus: 460 },
-};
-
-// 商品 ID 到商品名稱的映射（用於顯示）
-export const PRODUCT_NAMES: Record<string, string> = {
-  [PRODUCT_IDS.PACK_1]: '入門基本包',
-  [PRODUCT_IDS.PACK_2]: '熱門推薦包',
-  [PRODUCT_IDS.PACK_3]: '高效閱讀包',
-  [PRODUCT_IDS.PACK_4]: '文青超值包',
-  [PRODUCT_IDS.PACK_5]: 'VIP獨享包',
-  [PRODUCT_IDS.PACK_6]: '尊爵贊助包',
-};
+/**
+ * 商店／後端商品 ID。
+ * 品項清單一律由後端 api/coin-packs 動態決定，App 不再維護固定的 PRODUCT_IDS／
+ * PRODUCT_MAP／PRODUCT_NAMES：金幣數與 bonus 取自後端金幣包，名稱與價格取自商店回傳的
+ * Product 物件，因此後台新增品項即可上架，不需改 code 發版。
+ */
+export type ProductId = string;
 
 class IAPService {
   private purchaseUpdateSubscription: any = null;
@@ -277,7 +253,7 @@ class IAPService {
           console.error('[iapService]');
           console.error('[iapService] 2. ❌ App Store Connect 未設定應用內購買');
           console.error('[iapService]    → 應用內購買項目需已建立且狀態為「準備提交」或「已批准」');
-          console.error('[iapService]    → 商品 ID 需與程式碼一致（如 item_001～item_006）');
+          console.error('[iapService]    → 商品 ID 需與後端 api/coin-packs 的 productId 完全一致');
           console.error('[iapService]');
           console.error('[iapService] 3. ❌ Bundle ID 不一致');
           console.error('[iapService]    → Xcode 的 Bundle Identifier 需與 App Store Connect 相同');
@@ -300,7 +276,7 @@ class IAPService {
           console.error('[iapService] 3. ❌ 應用未在 Google Play Console 中正確配置');
           console.error('[iapService]    → 商品未建立或應用未發布到測試軌道');
           console.error('[iapService]    → 解決方案：');
-          console.error('[iapService]      a. 在 Google Play Console 中建立商品（item_001, item_002 等）');
+          console.error('[iapService]      a. 在 Google Play Console 中建立與後端 productId 同名的商品');
           console.error('[iapService]      b. 將應用發布到 Alpha/Beta/Internal Testing');
           console.error('[iapService]      c. 將測試帳號加入測試人員名單');
           console.error('[iapService]');
@@ -510,9 +486,9 @@ class IAPService {
    * 2. 發送請求：fetchProducts({ skus, type: 'in-app' })（消耗型）→ 底層向 App Store / Play 請求
    * 3. App Store 驗證：ID 是否存在、是否準備銷售、Bundle ID / 付費協議等
    * 4. 回傳結果：有效商品在 products 陣列；無效 ID 會透過日誌 invalidProductIdentifiers 列出
-   * @param productIds - 可選的商品 ID 列表，如果不提供則使用預設的 PRODUCT_IDS
+   * @param productIds - 要查詢的商品 ID 列表（來自後端 api/coin-packs，App 不再有預設清單）
    */
-  async getProductList(productIds?: string[]): Promise<Product[]> {
+  async getProductList(productIds: string[]): Promise<Product[]> {
     try {
       if (!this.isInitialized) {
         await this.initialize();
@@ -527,11 +503,17 @@ class IAPService {
         return [];
       }
 
-      // 如果提供了商品 ID 列表，使用提供的；否則使用預設的
-      const skus = productIds && productIds.length > 0 
-        ? productIds 
-        : Object.values(PRODUCT_IDS);
-      
+      // 商品 ID 一律由呼叫端（後端 api/coin-packs）提供；沒有就不查，不再回退到本地固定清單，
+      // 否則後台下架／改名的品項會被本地清單「復活」，新增的品項也永遠查不到。
+      const skus = (productIds ?? [])
+        .map((id) => String(id ?? '').trim())
+        .filter((id) => id.length > 0);
+      if (skus.length === 0) {
+        console.warn('[iapService] 未提供任何商品 ID（後端金幣包為 0 筆或尚未載入），略過 fetchProducts');
+        this.cachedProducts = [];
+        return [];
+      }
+
       // 傳給平台的資料：skus 陣列會原樣傳給 App Store / Google Play，須與後台設定的商品 ID 完全一致
       console.log('[iapService] ========== 開始獲取商品列表 ==========');
       console.log('[iapService] 傳給平台的 skus (商品 ID 列表):', JSON.stringify(skus, null, 2));
@@ -614,7 +596,7 @@ class IAPService {
           console.error('[iapService] 1️⃣  商品是否在 App Store Connect 中建立並啟用？（最常見）');
           console.error('[iapService]    ⚠️  這是最常見的原因！');
           console.error('[iapService]    📍 路徑：App Store Connect → 您的應用 → 應用內購買項目');
-          console.error('[iapService]    ✅ 檢查每個商品（item_001 到 item_006）：');
+          console.error('[iapService]    ✅ 逐一檢查上方列出的每個商品 ID：');
           console.error('[iapService]       - 商品必須已建立（不是草稿）');
           console.error('[iapService]       - 商品 ID 必須與程式碼完全一致（區分大小寫）');
           console.error('[iapService]       - 商品狀態必須為「準備提交」或「已批准」');
@@ -629,11 +611,11 @@ class IAPService {
             console.error(`[iapService]       "${sku}"`);
           });
           console.error('[iapService]    ❌ 常見錯誤：');
-          console.error('[iapService]       - Item_001（大寫 I）- 錯誤');
-          console.error('[iapService]       - item_001 （尾隨空格）- 錯誤');
-          console.error('[iapService]       - item_1（少了一個 0）- 錯誤');
-          console.error('[iapService]    ✅ 必須是：');
-          console.error('[iapService]       - item_001（完全一致）- 正確');
+          console.error('[iapService]       - 大小寫不同（如 Item_001 vs item_001）- 錯誤');
+          console.error('[iapService]       - 前後或中間多了空格 - 錯誤');
+          console.error('[iapService]       - 位數／底線不同（如 item_1 vs item_001）- 錯誤');
+          console.error('[iapService]    ✅ 必須與後端 api/coin-packs 回傳的 productId 逐字相同');
+          console.error('[iapService]       （iOS 僅 item_001～item_006 有歷史對照為 item_01～item_06）');
           console.error('[iapService]');
           console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           console.error('[iapService] 3️⃣  是否已登入 App Store 帳號？');
@@ -686,7 +668,7 @@ class IAPService {
           console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           console.error('[iapService] 3️⃣  商品狀態是否為「已啟用」？');
           console.error('[iapService]    📍 路徑：Google Play Console → 您的應用 → 貨幣化 → 產品和訂閱 → 應用內商品');
-          console.error('[iapService]    ✅ 檢查每個商品（item_001 到 item_006）：');
+          console.error('[iapService]    ✅ 逐一檢查上方列出的每個商品 ID：');
           console.error('[iapService]       - 狀態必須為「已啟用」（不是「草稿」）');
           console.error('[iapService]       - 商品 ID 必須與程式碼完全一致（區分大小寫）');
           console.error('[iapService]       - 價格已設定');
@@ -700,11 +682,11 @@ class IAPService {
             console.error(`[iapService]       "${sku}"`);
           });
           console.error('[iapService]    ❌ 常見錯誤：');
-          console.error('[iapService]       - Item_001（大寫 I）- 錯誤');
-          console.error('[iapService]       - item_001 （尾隨空格）- 錯誤');
-          console.error('[iapService]       - item_1（少了一個 0）- 錯誤');
-          console.error('[iapService]    ✅ 必須是：');
-          console.error('[iapService]       - item_001（完全一致）- 正確');
+          console.error('[iapService]       - 大小寫不同（如 Item_001 vs item_001）- 錯誤');
+          console.error('[iapService]       - 前後或中間多了空格 - 錯誤');
+          console.error('[iapService]       - 位數／底線不同（如 item_1 vs item_001）- 錯誤');
+          console.error('[iapService]    ✅ 必須與後端 api/coin-packs 回傳的 productId 逐字相同');
+          console.error('[iapService]       （iOS 僅 item_001～item_006 有歷史對照為 item_01～item_06）');
           console.error('[iapService]');
           console.error('[iapService] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           console.error('[iapService] 5️⃣  應用簽名是否正確？');
@@ -1183,16 +1165,27 @@ class IAPService {
   }
 
   /**
+   * 從已載入的商店商品中找出對應項目。
+   * 傳入的可能是商店 SKU，也可能是後端 productId（收據／帳務紀錄用的是後端 ID），
+   * 因此比對時同時容許 iOS 的歷史對照（item_001 ↔ item_01）。
+   */
+  private findCachedProduct(productId: string): Product | undefined {
+    const target = String(productId ?? '').trim();
+    if (!target) return undefined;
+    return this.cachedProducts.find((p) => {
+      const pid = String((p as any).productId ?? p.id ?? '');
+      return pid === target || storeSkuMatchesBackendProductId(pid, target);
+    });
+  }
+
+  /**
    * 根據產品 ID 取得產品名稱（從平台產品列表，支援多國語系）
-   * @param productId - 產品 ID
+   * @param productId - 商店 SKU 或後端 productId
    * @returns 產品名稱，如果找不到則返回產品 ID
    */
   getProductName(productId: string): string {
-    const product = this.cachedProducts.find(
-      (p) => (p as any).productId === productId || p.id === productId
-    );
-    // 僅回傳平台顯示名稱，不使用後端或本地硬編碼名稱
-    return product?.title ?? productId;
+    // 僅回傳平台顯示名稱，不使用本地硬編碼名稱
+    return this.findCachedProduct(productId)?.title ?? productId;
   }
 
   /**
@@ -1202,9 +1195,7 @@ class IAPService {
    * @returns 平台顯示價格字串，找不到則回傳空字串
    */
   getProductDisplayPrice(productId: string): string {
-    const product = this.cachedProducts.find(
-      (p) => (p as any).productId === productId || p.id === productId
-    );
+    const product = this.findCachedProduct(productId);
     if (!product) {
       return '';
     }
@@ -1348,10 +1339,8 @@ class IAPService {
       console.log('[iapService]   訊息:', verificationResult.message);
       
       // 僅從緩存的平台產品列表取得產品名稱（iOS 可能為 item_01，與後端 item_001 並存）
-      const cachedProduct = this.cachedProducts.find((p) => {
-        const pid = String((p as any).productId ?? p.id ?? '');
-        return pid === storeProductId || pid === productIdForBackend;
-      });
+      const cachedProduct =
+        this.findCachedProduct(storeProductId) ?? this.findCachedProduct(productIdForBackend);
       const productName = cachedProduct?.title ?? storeProductId ?? '商品';
       
       console.log('[iapService] 商品名稱（從平台取得）:', productName);

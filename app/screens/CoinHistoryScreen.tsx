@@ -12,9 +12,11 @@ import { useFocusEffect } from '@react-navigation/native';
 
 import { getCoinLedger, getEntitlements, CoinLedgerItem, BookEntitlementItem } from '../config/userApiClient';
 import { useCoins } from '../store/coinContext';
-import { PRODUCT_NAMES, PRODUCT_IDS, iapService } from '../services/iapService';
+import { iapService } from '../services/iapService';
+import { fetchCurrentPlatformCatalog, buildBackendNameMap } from '../utils/iapCatalog';
 import useResponsive from '../hook/useResponsive';
 import { translate } from '../i18n/i18n';
+import { formatServerDateTime, toEpochMillis } from '../utils/datetime';
 
 /** 後端 type 對應翻譯 key（api/me/coins/ledger 的 type 欄位） */
 const TYPE_LABEL_KEYS: Record<string, string> = {
@@ -33,10 +35,11 @@ function findBookNameByCreatedAt(
   ledgerCreatedAt: string,
   entitlements: BookEntitlementItem[]
 ): string | null {
-  const t = new Date(ledgerCreatedAt).getTime();
+  const t = toEpochMillis(ledgerCreatedAt);
+  if (t === null) return null;
   for (const e of entitlements) {
-    const et = new Date(e.createdAt).getTime();
-    if (Math.abs(t - et) <= 2000) {
+    const et = toEpochMillis(e.createdAt);
+    if (et !== null && Math.abs(t - et) <= 2000) {
       return e.story?.main_menu_name ?? null;
     }
   }
@@ -45,14 +48,14 @@ function findBookNameByCreatedAt(
 
 /**
  * 依 productId 取得顯示名稱：優先用雙平台（App Store / Google Play）回傳的當地語系 title，
- * 平台尚未載入時退回本地硬編碼名稱，最後才退回 productId。
+ * 平台尚未載入時退回後端金幣包名稱（同樣來自 API，非硬編碼），最後才退回 productId。
  */
-function resolveProductName(productId: string): string {
+function resolveProductName(productId: string, backendNames: Record<string, string>): string {
   const platformName = iapService.getProductName(productId);
   if (platformName && platformName !== productId) {
     return platformName;
   }
-  return PRODUCT_NAMES[productId] ?? productId;
+  return backendNames[String(productId ?? '').trim()] ?? productId;
 }
 
 /**
@@ -60,7 +63,10 @@ function resolveProductName(productId: string): string {
  * source 格式範例: "ORDER:xxx|PROD:item_003" 或 "ORDER:xxx|PROD:BONUS" 或 "ORDER:xxx|PROD:item_003_BONUS"
  * 若 PROD 值含 '_BONUS'，則取對應的 item_xxx 平台名稱，第一行顯示為「平台名稱 BONUS」。
  */
-function parseSourceDisplay(source: string): { line1: string; line2: string } {
+function parseSourceDisplay(
+  source: string,
+  backendNames: Record<string, string>
+): { line1: string; line2: string } {
   let line1 = '';
   let line2 = '';
   const parts = source.split('|').map((p) => p.trim());
@@ -71,30 +77,20 @@ function parseSourceDisplay(source: string): { line1: string; line2: string } {
       const prodValue = p.slice(5).trim(); // 'PROD:' 後面
       if (prodValue.toUpperCase().includes('_BONUS')) {
         const baseId = prodValue.replace(/_BONUS$/i, '');
-        line1 = `${resolveProductName(baseId)} BONUS`;
+        line1 = `${resolveProductName(baseId, backendNames)} BONUS`;
       } else if (prodValue.toUpperCase() === 'BONUS') {
         line1 = 'BONUS';
       } else {
-        line1 = resolveProductName(prodValue);
+        line1 = resolveProductName(prodValue, backendNames);
       }
     }
   }
   return { line1, line2 };
 }
 
-// 格式化交易時間：從 ISO 8601 轉換為人類可讀的 yyyy.MM.dd HH:mm
+// 格式化交易時間：後端 UTC 時間戳 → 裝置時區的 yyyy.MM.dd HH:mm（台北為 UTC+8）
 function formatDateTime(iso: string): string {
-  try {
-    const d = new Date(iso);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${y}.${m}.${day} ${hh}:${mm}`;
-  } catch {
-    return iso;
-  }
+  return formatServerDateTime(iso);
 }
 
 export default function CoinHistoryScreen({ embedded = false }: { embedded?: boolean }) {
@@ -103,6 +99,8 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
   const { isTablet, maxContentWidth, ms } = useResponsive();
 
   const [logs, setLogs] = useState<CoinLedgerItem[]>([]);
+  // 後端金幣包名稱（productId → name），供商店尚未回傳 title 時的顯示 fallback
+  const [backendNames, setBackendNames] = useState<Record<string, string>>({});
   const [entitlements, setEntitlements] = useState<BookEntitlementItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,12 +109,15 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
     setLoading(true);
     setError(null);
     try {
-      // 先載入平台商品列表，讓 resolveProductName 能取得當地語系顯示名稱
+      // 先依後端金幣包載入平台商品列表，讓 resolveProductName 能取得當地語系顯示名稱。
+      // 商品清單來自 api/coin-packs，後台新增品項的帳務紀錄也能正確顯示名稱。
       try {
+        const catalog = await fetchCurrentPlatformCatalog();
+        setBackendNames(buildBackendNameMap(catalog.packs));
         await iapService.initialize();
-        await iapService.getProductList(Object.values(PRODUCT_IDS));
+        await iapService.getProductList(catalog.skus);
       } catch {
-        // 平台未就緒時仍可顯示紀錄，名稱退回本地名稱／productId
+        // 平台／後端未就緒時仍可顯示紀錄，名稱退回 productId
       }
 
       const [logsRes, entitlementsRes] = await Promise.all([
@@ -165,7 +166,7 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
             <Text style={styles.emptyText}>{translate('coinHistoryEmpty')}</Text>
           ) : (
             logs.map((log) => {
-              const { line1, line2 } = log.source ? parseSourceDisplay(log.source) : { line1: '', line2: '' };
+              const { line1, line2 } = log.source ? parseSourceDisplay(log.source, backendNames) : { line1: '', line2: '' };
               const bookName =
                 log.type === 'BOOK_PURCHASE' ? findBookNameByCreatedAt(log.createdAt, entitlements) : null;
               const bookTitle = bookName ? `${bookName} - ${translate('unlock')}` : null;

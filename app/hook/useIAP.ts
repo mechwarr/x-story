@@ -6,49 +6,57 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { showAlert } from "../components/CustomAlert";
-import { iapService, PRODUCT_IDS, type ProductId } from '../services/iapService';
-import { getCoinPacks } from '../config/shopApiClient';
+import { iapService, type ProductId } from '../services/iapService';
+import { type CoinPack } from '../config/shopApiClient';
 import { useCoins } from '../store/coinContext';
 import type { Product, Purchase, PurchaseError } from 'react-native-iap';
 import { logKeyValue, logSection, logStringList } from '../utils/iapDebugLogger';
-import { buildAppStoreSkuListFromBackendProductIds } from '../utils/iosIapSkuMapping';
+import {
+  buildCatalogDiagnostics,
+  currentPlatformCode,
+  currentStoreName,
+  fetchCurrentPlatformCatalog,
+  formatCatalogDiagnostics,
+} from '../utils/iapCatalog';
 import { extractProductName } from '../utils/productName';
 import { translate } from '../i18n/i18n';
 
-function normalizePlatformValue(value: unknown): 'GOOGLE' | 'APPLE' | 'UNKNOWN' {
-  const normalized = String(value ?? '').trim().toUpperCase();
-  if (normalized === 'GOOGLE') return 'GOOGLE';
-  if (normalized === 'APPLE') return 'APPLE';
-  return 'UNKNOWN';
-}
+/** 商品 ID 的來源；雙平台一律走後端 api/coin-packs，不存在本地固定清單 */
+type ProductIdSource = 'api-coin-packs' | 'api-coin-packs-failed' | 'unknown';
 
 interface UseIAPReturn {
   products: Product[];
+  /**
+   * 階段 1：本平台的後端金幣包（已過濾 + 依 sortOrder 排序）。
+   * 由本 hook 統一取得，畫面不需要再自己呼叫一次 api/coin-packs。
+   */
+  coinPacks: CoinPack[];
+  /** 階段 1 失敗訊息（取 coin-packs 失敗）；成功為 null。與 error（商店端錯誤）分開 */
+  coinPacksError: string | null;
+  /** 階段 1 診斷文字（平台分布、isActive、不匹配樣本），供「沒有商品」時判斷卡在哪一層 */
+  catalogDiagnostics: string;
   isLoading: boolean;
   isPurchasing: boolean;
   error: Error | null;
   requestedProductIds: string[];
-  productIdSource:
-    | 'api-apple-packs'
-    | 'local-product-ids-fallback'
-    | 'local-product-ids-android'
-    | 'unknown';
+  productIdSource: ProductIdSource;
   purchaseProduct: (productId: ProductId) => Promise<void>;
   restorePurchases: () => Promise<void>;
   refreshProducts: () => Promise<void>;
-  /** iOS：最近一次階段 2（fetchProducts）請求／回傳摘要，供商城 UI 顯示；Android 固定為空字串 */
+  /** 最近一次階段 2（fetchProducts）請求／回傳摘要，供商城 UI 與診斷使用（雙平台一致） */
   iapCatalogSummary: string;
 }
 
 export function useIAP(): UseIAPReturn {
   const [products, setProducts] = useState<Product[]>([]);
+  const [coinPacks, setCoinPacks] = useState<CoinPack[]>([]);
+  const [coinPacksError, setCoinPacksError] = useState<string | null>(null);
+  const [catalogDiagnostics, setCatalogDiagnostics] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [requestedProductIds, setRequestedProductIds] = useState<string[]>([]);
-  const [productIdSource, setProductIdSource] = useState<
-    'api-apple-packs' | 'local-product-ids-fallback' | 'local-product-ids-android' | 'unknown'
-  >('unknown');
+  const [productIdSource, setProductIdSource] = useState<ProductIdSource>('unknown');
   const [iapCatalogSummary, setIapCatalogSummary] = useState('');
   const { refreshCoins } = useCoins();
 
@@ -57,50 +65,47 @@ export function useIAP(): UseIAPReturn {
     try {
       setIsLoading(true);
       setError(null);
-      if (Platform.OS === 'ios') {
-        setIapCatalogSummary('');
-      }
+      setIapCatalogSummary('');
+      setCoinPacksError(null);
 
       console.log('[useIAP] ========== 開始載入商品 ==========');
 
       // 步驟 1: 決定要向「平台」請求的商品 ID 列表
-      // 傳給平台的資料：fetchProducts({ skus: productIds, type: 'in-app' })（消耗型）→ 商店回傳價格與元資料
-      let productIds: string[];
-      let productIdSource:
-        | 'api-apple-packs'
-        | 'local-product-ids-fallback'
-        | 'local-product-ids-android';
-      if (Platform.OS === 'ios') {
-        // iOS：由後端 coin-packs（APPLE）組 SKU；item_001～item_006 對應 App Store 的 item_01～item_06
-        let productIdsFromApi: string[] = [];
-        try {
-          const packs = await getCoinPacks();
-          const applePacks = packs.filter((p) => normalizePlatformValue(p.platform) === 'APPLE');
-          const backendIds = applePacks
-            .map((p) => p.productId)
-            .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
-          productIdsFromApi = buildAppStoreSkuListFromBackendProductIds(backendIds);
-          console.log('[useIAP] 步驟 1 (iOS): 後端 APPLE 金幣包筆數', applePacks.length, '→ 商店 SKU 數', productIdsFromApi.length);
-        } catch (apiErr) {
-          console.warn('[useIAP] 步驟 1 (iOS): 取得 coin-packs 失敗，商店 SKU 為空（與後端 0 筆相同處理）', apiErr);
-          productIdsFromApi = [];
-        }
-        productIds = productIdsFromApi;
-        productIdSource = 'api-apple-packs';
-        logSection('useIAP iOS ProductId Source (api-apple-packs)', () => {
-          logKeyValue('source', productIdSource);
-          logStringList('storeSkus(sent to App Store)', productIds);
-        });
-      } else {
-        // Android：使用本地 PRODUCT_IDS（與 Google Play Console 商品 ID 一致）
-        productIds = Object.values(PRODUCT_IDS);
-        productIdSource = 'local-product-ids-android';
-        console.log('[useIAP] 步驟 1 (Android): 使用 PRODUCT_IDS');
-        logSection('useIAP Android ProductId Source', () => {
-          logKeyValue('source', productIdSource);
-          logStringList('finalProductIds(sent to store)', productIds);
-        });
+      // 雙平台一致：清單完全來自後端 api/coin-packs，App 內沒有任何固定商品 ID，
+      // 後台新增品項即可上架。傳給平台的資料：fetchProducts({ skus, type: 'in-app' })。
+      // 這裡是全 App 唯一取 coin-packs 的地方，畫面直接用 coinPacks，避免重複請求造成兩份不一致的清單。
+      let productIds: string[] = [];
+      let packsForPlatform: CoinPack[] = [];
+      let productIdSource: ProductIdSource = 'api-coin-packs';
+      try {
+        const catalog = await fetchCurrentPlatformCatalog();
+        packsForPlatform = catalog.packs;
+        productIds = catalog.skus;
+
+        const diagnostics = buildCatalogDiagnostics(catalog.allPacks, catalog.packs);
+        setCatalogDiagnostics(formatCatalogDiagnostics(diagnostics));
+        console.log(
+          '[useIAP] 步驟 1: 後端金幣包總數', catalog.allPacks.length,
+          '｜本平台（', currentPlatformCode, '）', packsForPlatform.length,
+          '→ 商店 SKU 數', productIds.length,
+        );
+        console.log('[useIAP] 步驟 1 診斷 raw platform 分布:', diagnostics.rawPlatformStats);
+        console.log('[useIAP] 步驟 1 診斷 normalized platform 分布:', diagnostics.normalizedPlatformStats);
+        console.log('[useIAP] 步驟 1 診斷 本平台 isActive=false 筆數:', diagnostics.inactiveOnThisPlatform);
+        console.log('[useIAP] 步驟 1 診斷 不匹配樣本（最多 6 筆）:', diagnostics.mismatchedSamples);
+      } catch (apiErr) {
+        const msg = apiErr instanceof Error ? apiErr.message : String(apiErr);
+        console.warn('[useIAP] 步驟 1: 取得 coin-packs 失敗，商店 SKU 為空（與後端 0 筆相同處理）', apiErr);
+        productIdSource = 'api-coin-packs-failed';
+        setCoinPacksError(msg);
+        setCatalogDiagnostics(`平台代碼：${currentPlatformCode}\n階段 1 錯誤：${msg}`);
       }
+      setCoinPacks(packsForPlatform);
+      logSection(`useIAP ProductId Source (${currentPlatformCode})`, () => {
+        logKeyValue('source', productIdSource);
+        logStringList('backendProductIds', packsForPlatform.map((p) => p.productId));
+        logStringList(`storeSkus(sent to ${currentStoreName})`, productIds);
+      });
       console.log('[useIAP] 當前平台:', Platform.OS);
       console.log('[useIAP] 傳給平台的商品 ID 列表:', productIds);
       console.log('[useIAP] 商品 ID 數量:', productIds.length);
@@ -113,9 +118,7 @@ export function useIAP(): UseIAPReturn {
         console.error('[useIAP] ❌ 發現無效的商品 ID:', invalidIds);
         setError(new Error('商品 ID 配置錯誤，包含無效值'));
         setProducts([]);
-        if (Platform.OS === 'ios') {
-          setIapCatalogSummary('尚未呼叫 fetchProducts（商品 ID 配置錯誤）');
-        }
+        setIapCatalogSummary('尚未呼叫 fetchProducts（商品 ID 配置錯誤）');
         return;
       }
 
@@ -129,92 +132,62 @@ export function useIAP(): UseIAPReturn {
         console.warn('[useIAP]', errorMsg);
         setError(new Error(errorMsg));
         setProducts([]);
-        if (Platform.OS === 'ios') {
-          setIapCatalogSummary(`尚未呼叫 fetchProducts（initConnection 失敗）\n${errorMsg}`);
-        }
+        setIapCatalogSummary(`尚未呼叫 fetchProducts（initConnection 失敗）\n${errorMsg}`);
         return;
       }
 
-      // 步驟 3: 連線就緒後才向商店請求消耗型商品（fetchProducts + type in-app）；雙平台同順序
+      // 步驟 3: 連線就緒後才向商店請求消耗型商品（fetchProducts + type in-app）；雙平台同流程
       console.log('[useIAP] 步驟 3: 連線已就緒，向商店取得消耗型商品（fetchProducts type: in-app）...');
-      console.log('[useIAP] 當前平台:', Platform.OS);
-      
+      console.log('[useIAP] 當前平台:', Platform.OS, '｜商店:', currentStoreName);
+
       let productList: Product[] = [];
 
-      if (Platform.OS === 'ios' && productIds.length === 0) {
-        // 後端 APPLE 金幣包 0 筆：不呼叫 fetchProducts（避免 iapService 空陣列誤用預設 PRODUCT_IDS）
-        console.log('[useIAP] iOS：後端無 APPLE 商品 ID，略過 fetchProducts，商品列表為空');
+      if (productIds.length === 0) {
+        // 後端本平台金幣包 0 筆：不呼叫 fetchProducts（沒有清單就不查，也不回退本地固定清單）
+        console.log(`[useIAP] 後端無本平台（${currentPlatformCode}）商品 ID，略過 fetchProducts，商品列表為空`);
         productList = [];
-      } else if (Platform.OS === 'android') {
-        // Android 平台：使用 Google Play 獲取商品（保持現有流程不變）
-        console.log('[useIAP] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('[useIAP] 📱 Android 平台：使用 Google Play 獲取商品');
-        console.log('[useIAP] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('[useIAP] 將從 Google Play 獲取商品名稱和價格');
-        console.log('[useIAP] 商品 ID 列表:', productIds);
-
-        productList = await iapService.getProductList(productIds);
-
-        console.log('[useIAP] ✓ Android: 成功獲取 IAP 商品數量:', productList.length);
-        console.log('[useIAP] Android 商品列表:', productList.map(p => ({
-          id: p.id,
-          title: p.title,
-          price: p.displayPrice || p.price,
-          currency: p.currency,
-        })));
-      } else if (Platform.OS === 'ios') {
-        // iOS 平台：使用 App Store 獲取商品
-        console.log('[useIAP] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('[useIAP] 🍎 iOS 平台：使用 App Store 獲取商品');
-        console.log('[useIAP] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('[useIAP] 將從 App Store 獲取商品名稱和價格');
-        console.log('[useIAP] 商品 ID 列表:', productIds);
-
-        productList = await iapService.getProductList(productIds);
-
-        console.log('[useIAP] ✓ iOS: 成功獲取 IAP 商品數量:', productList.length);
-        console.log('[useIAP] iOS 商品列表:', productList.map(p => ({
-          id: p.id,
-          title: p.title,
-          price: p.displayPrice || p.price,
-          currency: p.currency,
-        })));
       } else {
-        // 其他平台（理論上不會發生，但為了完整性）
-        console.warn('[useIAP] ⚠️ 未知平台:', Platform.OS);
-        console.warn('[useIAP] 嘗試使用通用方式獲取商品...');
+        console.log('[useIAP] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log(`[useIAP] 📱 從 ${currentStoreName} 取得商品名稱與價格`);
+        console.log('[useIAP] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('[useIAP] 商品 ID 列表:', productIds);
+
         productList = await iapService.getProductList(productIds);
+
+        console.log('[useIAP] ✓ 成功獲取 IAP 商品數量:', productList.length);
+        console.log('[useIAP] 商品列表:', productList.map(p => ({
+          id: p.id,
+          title: p.title,
+          price: p.displayPrice || p.price,
+          currency: p.currency,
+        })));
       }
-      
+
       setProducts(productList);
-      if (Platform.OS === 'ios') {
-        const returnedIds = productList
-          .map((p) => String((p as { productId?: string; id?: string }).productId ?? (p as { id?: string }).id ?? ''))
-          .filter(Boolean);
-        setIapCatalogSummary(
-          [
-            `ID 來源：${productIdSource}`,
-            productIds.length === 0
-              ? '後端 APPLE 金幣包 0 筆或未產生 SKU，未呼叫 fetchProducts'
-              : `請求 SKU（${productIds.length}）：${productIds.join(', ')}`,
-            `fetchProducts 回傳件數：${productList.length}`,
-            returnedIds.length > 0
-              ? `回傳 productId：${returnedIds.join(', ')}`
-              : productIds.length > 0
-                ? '回傳 productId：（無 — 請對照 App Store Connect 與 SKU）'
-                : '回傳 productId：（未請求）',
-          ].join('\n')
-        );
-      }
+      const returnedIds = productList
+        .map((p) => String((p as { productId?: string; id?: string }).productId ?? (p as { id?: string }).id ?? ''))
+        .filter(Boolean);
+      setIapCatalogSummary(
+        [
+          `ID 來源：${productIdSource}`,
+          productIds.length === 0
+            ? `後端本平台（${currentPlatformCode}）金幣包 0 筆或未產生 SKU，未呼叫 fetchProducts`
+            : `請求 SKU（${productIds.length}）：${productIds.join(', ')}`,
+          `fetchProducts 回傳件數：${productList.length}`,
+          returnedIds.length > 0
+            ? `回傳 productId：${returnedIds.join(', ')}`
+            : productIds.length > 0
+              ? `回傳 productId：（無 — 請對照 ${currentStoreName} 與 SKU）`
+              : '回傳 productId：（未請求）',
+        ].join('\n')
+      );
     } catch (err) {
       const error = err instanceof Error ? err : new Error('載入商品失敗');
       setError(error);
       console.error('[useIAP] ========== 載入商品失敗 ==========');
       console.error('[useIAP] 錯誤:', error);
       setProducts([]);
-      if (Platform.OS === 'ios') {
-        setIapCatalogSummary(`getProductList／載入流程失敗：\n${error.message}`);
-      }
+      setIapCatalogSummary(`getProductList／載入流程失敗：\n${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -382,6 +355,9 @@ export function useIAP(): UseIAPReturn {
 
   return {
     products,
+    coinPacks,
+    coinPacksError,
+    catalogDiagnostics,
     isLoading,
     isPurchasing,
     error,

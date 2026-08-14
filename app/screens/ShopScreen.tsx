@@ -1,34 +1,31 @@
 // app/screens/ShopScreen.tsx
-import React, { useMemo, useEffect, useState, useRef } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import {
   SafeAreaView, View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator, Platform,
 } from 'react-native';
 import { showAlert } from "../components/CustomAlert";
 import { useNavigation } from '@react-navigation/native';
 import routes from '../navigations/routes';
-import PackCard, { PackItem } from '../components/Purchase/PackCard';
+import PackCard, {
+  PackItem,
+  PRICE_BOX_WIDTH,
+  PRICE_BOX_PADDING,
+  PRICE_LETTER_SPACING,
+} from '../components/Purchase/PackCard';
 import { useIAP } from '../hook/useIAP';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
 import { type ProductId } from '../services/iapService';
 import { useCoins } from '../store/coinContext';
-import { getCoinPacks, type CoinPack } from '../config/shopApiClient';
-import { appStoreSkuMatchesBackendProductId } from '../utils/iosIapSkuMapping';
+import {
+  currentPlatformCode,
+  findPackForStoreProductId,
+  storeSkuMatchesBackendProductId,
+} from '../utils/iapCatalog';
 import { extractProductName } from '../utils/productName';
 import { translate } from '../i18n/i18n';
 
 const RIGHT_COLORS = ['#F2D4AE', '#F4B86F', '#F3A55D', '#F18F52', '#EF7D47', '#EA6A3E'];
-
-function normalizePlatformValue(value: unknown): 'GOOGLE' | 'APPLE' | 'UNKNOWN' {
-  const normalized = String(value ?? '').trim().toUpperCase();
-  if (normalized === 'GOOGLE') return 'GOOGLE';
-  if (normalized === 'APPLE') return 'APPLE';
-  return 'UNKNOWN';
-}
-
-function findCoinPackForStoreProductId(coinPacks: CoinPack[], storeProductId: string): CoinPack | undefined {
-  return coinPacks.find((pack) => appStoreSkuMatchesBackendProductId(storeProductId, pack.productId));
-}
 
 // 這些幣別的最小單位即為整數（無小數），商店回傳的價格字串若帶 .00 應去除
 const zeroDecimalCurrencies = [
@@ -51,114 +48,76 @@ function formatDisplayPrice(
   return formattedPrice;
 }
 
-// 依同批「格式化後最長價格字串」決定共用字級：
-// 全部卡片用同一字級，避免大額（字串較長）被縮小、看起來像鼓勵買小額。
-function sharedPriceFontSize(maxLen: number): number {
-  if (maxLen <= 7) return 24;
-  if (maxLen <= 9) return 20;
-  if (maxLen <= 11) return 18;
-  return 16;
+const PRICE_MAX_FONT = 24;
+const PRICE_MIN_FONT = 12;
+
+// 粗估字串寬度（相對字級的倍率）：粗體數字約 0.6em、標點窄、大寫字母寬。
+// 只用字數會失準——"NT$1,690" 與 "¥1980" 同樣 8/5 字，實際寬度差很多。
+function estimateWidthRatio(text: string): number {
+  let ratio = 0;
+  for (const ch of text) {
+    if (ch >= '0' && ch <= '9') ratio += 0.60;
+    // 千分位／小數點與各式空白（部分語系價格用 nbsp 分隔，如 "1 234 €"）
+    else if (/[.,'\s\u00a0\u202f]/.test(ch)) ratio += 0.30;
+    else if (ch >= 'A' && ch <= 'Z') ratio += 0.70;
+    else ratio += 0.62;                 // 幣別符號（$ ¥ ₩ € R$ …）
+  }
+  return ratio;
+}
+
+// 依同批價格中「估算最寬」的那筆決定共用字級：
+// 全部卡片用同一字級，避免大額（字串較長）被縮小、看起來像鼓勵買小額；
+// 同時保證最寬的那筆也塞得進固定寬度的價格區塊，不會被「…」截掉。
+function sharedPriceFontSize(prices: string[]): number {
+  const available = PRICE_BOX_WIDTH - PRICE_BOX_PADDING * 2;
+  let size = PRICE_MAX_FONT;
+  for (const price of prices) {
+    const ratio = estimateWidthRatio(price);
+    if (ratio <= 0) continue;
+    // 扣掉字距佔用的寬度後，換算這筆最多能用多大的字
+    const fit = Math.floor((available - price.length * PRICE_LETTER_SPACING) / ratio);
+    size = Math.min(size, fit);
+  }
+  return Math.max(PRICE_MIN_FONT, size);
 }
 
 export default function ShopScreen() {
   const navigation = useNavigation();
+  // 階段 1（後端金幣包）與階段 2（商店商品）都由 useIAP 一次取得，
+  // 畫面不再自己呼叫 api/coin-packs，避免同一份清單被抓兩次而出現不一致。
   const {
     products,
-    isLoading: isIAPLoading,
+    coinPacks,
+    coinPacksError,
+    catalogDiagnostics,
+    isLoading: isShopLoading,
     isPurchasing,
     purchaseProduct,
     error,
     refreshProducts,
   } = useIAP();
   const { coins } = useCoins();
-  const [coinPacks, setCoinPacks] = useState<CoinPack[]>([]);
-  const [isLoadingCoinPacks, setIsLoadingCoinPacks] = useState(true);
-  const [backendError, setBackendError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [coinPackDebugText, setCoinPackDebugText] = useState<string>('');
   const hasAlertedBackendError = useRef(false);
   const hasAlertedIAPError = useRef(false);
 
   // 根據平台獲取對應的平台名稱和平台代碼
   const platformName = Platform.OS === 'ios' ? 'App Store' : 'Google Play';
-  const platformCode: 'GOOGLE' | 'APPLE' = Platform.OS === 'ios' ? 'APPLE' : 'GOOGLE';
-  const isShopLoading = isIAPLoading || isLoadingCoinPacks;
+  const platformCode = currentPlatformCode;
+  // 診斷資訊只在 Android 顯示於畫面（iOS 維持乾淨版面，log 仍照印）
+  const coinPackDebugText = Platform.OS === 'ios' ? '' : catalogDiagnostics;
 
-  const loadCoinPacks = React.useCallback(async () => {
-    try {
-      setIsLoadingCoinPacks(true);
-      setBackendError(null);
-      console.log('[ShopScreen] 階段 1：開始從後端取得金幣包...');
-      const packs = await getCoinPacks();
-      console.log('[ShopScreen] 階段 1 ✓ 後端回傳金幣包數量:', packs.length);
-
-      const rawPlatformStats = packs.reduce<Record<string, number>>((acc, pack) => {
-        const key = String((pack as any).platform ?? 'undefined');
-        acc[key] = (acc[key] ?? 0) + 1;
-        return acc;
-      }, {});
-
-      const normalizedPlatformStats = packs.reduce<Record<string, number>>((acc, pack) => {
-        const key = normalizePlatformValue((pack as any).platform);
-        acc[key] = (acc[key] ?? 0) + 1;
-        return acc;
-      }, {});
-
-      const filteredPacks = packs.filter(pack => normalizePlatformValue((pack as any).platform) === platformCode);
-      const mismatchedPacks = packs
-        .filter(pack => normalizePlatformValue((pack as any).platform) !== platformCode)
-        .slice(0, 6)
-        .map(pack => ({
-          id: pack.id,
-          productId: pack.productId,
-          platformRaw: (pack as any).platform,
-          platformNormalized: normalizePlatformValue((pack as any).platform),
-        }));
-
-      console.log('[ShopScreen] 階段 1 診斷 raw platform 分布:', rawPlatformStats);
-      console.log('[ShopScreen] 階段 1 診斷 normalized platform 分布:', normalizedPlatformStats);
-      console.log('[ShopScreen] 階段 1 診斷 不匹配樣本（最多 6 筆）:', mismatchedPacks);
-      console.log('[ShopScreen] 階段 1 ✓ 過濾後本平台（', platformCode, '）金幣包數量:', filteredPacks.length);
-
-      if (Platform.OS === 'ios') {
-        setCoinPackDebugText('');
-      } else {
-        setCoinPackDebugText(
-          [
-            `平台代碼：${platformCode}`,
-            `後端總筆數：${packs.length}`,
-            `raw platform 分布：${JSON.stringify(rawPlatformStats)}`,
-            `normalized 分布：${JSON.stringify(normalizedPlatformStats)}`,
-            `本平台過濾後：${filteredPacks.length}`,
-            mismatchedPacks.length > 0
-              ? `不匹配樣本：${JSON.stringify(mismatchedPacks)}`
-              : '不匹配樣本：無',
-          ].join('\n')
-        );
-      }
-      setCoinPacks(filteredPacks);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('[ShopScreen] 階段 1 ✗ 取得後端金幣包失敗:', msg);
-      setBackendError(msg);
-      if (Platform.OS === 'ios') {
-        setCoinPackDebugText('');
-      } else {
-        setCoinPackDebugText(`平台代碼：${platformCode}\n階段 1 錯誤：${msg}`);
-      }
-      setCoinPacks([]);
+  // 後端金幣包取得失敗時跳出 Alert（僅 Android，且僅在錯誤剛發生時提醒一次）
+  useEffect(() => {
+    if (coinPacksError) {
+      console.error('[ShopScreen] 階段 1（後端）錯誤:', coinPacksError);
       if (Platform.OS !== 'ios' && !hasAlertedBackendError.current) {
         hasAlertedBackendError.current = true;
-        showAlert('後端金幣包取得失敗', `階段 1（後端）失敗：${msg}`);
+        showAlert('後端金幣包取得失敗', `階段 1（後端）失敗：${coinPacksError}`);
       }
-    } finally {
-      setIsLoadingCoinPacks(false);
+    } else {
+      hasAlertedBackendError.current = false;
     }
-  }, [platformCode]);
-
-  useEffect(() => {
-    loadCoinPacks();
-  }, [loadCoinPacks, refreshKey]);
+  }, [coinPacksError]);
 
   // IAP 錯誤時跳出 Alert（僅在錯誤剛發生時提醒一次）
   useEffect(() => {
@@ -173,72 +132,109 @@ export default function ShopScreen() {
     }
   }, [error]);
 
-  // 後端成功後重置後端錯誤 Alert 標記，以便下次失敗可再彈
-  useEffect(() => {
-    if (!backendError) hasAlertedBackendError.current = false;
-  }, [backendError]);
-
-  // 將 IAP 商品轉換為 PackItem 格式，並合併 API 資料
-  const packsWithPrice = useMemo(() => {
+  // 合併：以「後端金幣包」為主體逐筆展開（已過濾 isActive、依 sortOrder 排序），
+  // 再把商店回傳的名稱／價格併進來。任何一邊缺資料就整筆不顯示——
+  // 寧可少一張卡，也不要出現金幣 0、沒有 BONUS、按下去也買不成的殘缺商品。
+  const merged = useMemo(() => {
     const productIdKey = (p: typeof products[0]) => (p as any).productId ?? p.id;
-    console.log('[ShopScreen] packsWithPrice 計算: 平台=', platformCode, '| IAP 商品數=', products.length, '| 後端金幣包數=', coinPacks.length);
+    console.log('[ShopScreen] 合併計算: 平台=', platformCode, '| 後端金幣包數=', coinPacks.length, '| 商店商品數=', products.length);
     if (coinPacks.length > 0) {
       console.log('[ShopScreen] 後端金幣包 productId 列表:', coinPacks.map(p => p.productId));
     }
     if (products.length > 0) {
-      console.log('[ShopScreen] IAP 商品 id 列表:', products.map(p => productIdKey(p)));
+      console.log('[ShopScreen] 商店商品 id 列表:', products.map(p => productIdKey(p)));
     }
 
-    return products.map((product, index) => {
+    const items: (PackItem & { productId?: ProductId; isAvailable?: boolean })[] = [];
+    const skippedNoStoreProduct: string[] = []; // 後端有、但商店沒回傳（ID 不一致／未上架／未啟用）
+    const skippedInvalidAmount: string[] = [];  // 後端金幣數異常（<= 0），視為未設定完成
+
+    for (const pack of coinPacks) {
+      const backendId = String(pack.productId ?? '').trim();
+
+      // 商店尚未回傳這筆 → 拿不到當地語系名稱與真實價格，也無法 requestPurchase，直接不顯示
+      const product = products.find((p) =>
+        storeSkuMatchesBackendProductId(productIdKey(p), backendId)
+      );
+      if (!product) {
+        skippedNoStoreProduct.push(backendId);
+        console.warn(
+          `[ShopScreen] 略過不顯示：後端 productId="${backendId}" 未出現在 ${platformName} 回傳清單`,
+          `（請確認 ${platformName} 後台商品已建立／已啟用，且 ID 與後端 ${platformCode} 金幣包一致）`,
+        );
+        continue;
+      }
+
+      // 金幣數是這張卡存在的意義；後端沒給有效值就是資料未設定完成，不顯示
+      const coins = Number(pack.amount);
+      if (!Number.isFinite(coins) || coins <= 0) {
+        skippedInvalidAmount.push(backendId);
+        console.warn(`[ShopScreen] 略過不顯示：後端 productId="${backendId}" 的 amount 無效（${pack.amount}）`);
+        continue;
+      }
+
       const pid = productIdKey(product);
-      // 使用 IAP 的價格（優先使用 displayPrice，否則使用 price）
+      // 價格與幣別一律取自商店（displayPrice 優先）；零小數幣別（如 TWD/JPY）去掉尾端 .00
       const price = product.displayPrice
         ? parseFloat(product.displayPrice.replace(/[^0-9.]/g, ''))
         : (product.price || 0);
-
-      // 從 API 資料中查找對應的金幣包（後端 item_001 與 App Store item_01 等需對照）
-      const coinPackData = findCoinPackForStoreProductId(coinPacks, pid);
-      const hasMatch = !!coinPackData;
-      if (!hasMatch && coinPacks.length > 0) {
-        console.warn('[ShopScreen] 未匹配到後端金幣包 productId=', pid, '（請確認後端 APPLE 金幣包的 productId 與 App Store Connect 一致）');
-      }
-
-      // 幣別由 IAP 商品取得；零小數幣別（如 TWD/JPY）去掉價格尾端 .00
       const currencyCode = (product as any).currency as string | undefined;
 
-      const pack = {
+      const bonusRaw = Number(pack.bonusAmount);
+      const bonus = Number.isFinite(bonusRaw) && bonusRaw > 0 ? bonusRaw : 0;
+
+      items.push({
         id: `${pid}`,
         title: product.title, // 平台顯示名稱（多國語系）
         name: extractProductName(product.title) || product.title, // 僅用平台產品名稱，不用後端回傳
-        coins: coinPackData?.amount ?? 0,
-        bonus: coinPackData?.bonusAmount ?? 0,
-        priceUsd: price, // 使用 IAP 的價格（僅供數值用途）
-        displayPrice: formatDisplayPrice(product.displayPrice ?? undefined, currencyCode), // 商店原始價格字串（去零小數），直接顯示
-        currencyCode, // 幣別代碼，供後續格式化／判斷
-        productId: pid as ProductId,
-        isAvailable: true, // IAP 商品已載入，標記為可用
-      } as PackItem & { productId?: ProductId; isAvailable?: boolean };
+        coins,                 // 後端
+        bonus,                 // 後端
+        priceUsd: price,       // 商店（僅供數值用途）
+        displayPrice: formatDisplayPrice(product.displayPrice ?? undefined, currencyCode), // 商店
+        currencyCode,          // 商店
+        productId: pid as ProductId, // 商店 SKU，購買時要用這個
+        isAvailable: true,
+      } as PackItem & { productId?: ProductId; isAvailable?: boolean });
 
-      console.log(`[ShopScreen] 商品 ${index + 1}: id=${pack.id} coins=${pack.coins} bonus=${pack.bonus} priceUsd=${pack.priceUsd} 後端匹配=${hasMatch}`);
-      return pack;
-    });
-  }, [products, coinPacks, platformCode]);
+      console.log(
+        `[ShopScreen] 商品 ${items.length}: id=${pid} 後端 productId=${backendId} coins=${coins} bonus=${bonus} price=${price}`,
+      );
+    }
 
-  // 同批各卡共用價格字級：取格式化後最長價格字串長度換算
-  const priceFontSize = useMemo(() => {
-    const maxLen = packsWithPrice.reduce((max, p) => {
-      const s = p.displayPrice || String(p.priceUsd);
-      return Math.max(max, s.length);
-    }, 0);
-    return sharedPriceFontSize(maxLen);
-  }, [packsWithPrice]);
+    // 商店回了、但後端沒有對應金幣包的品項（理論上不該發生，因為 SKU 就是後端給的）
+    const orphanStoreProducts = products
+      .map((p) => String(productIdKey(p)))
+      .filter((pid) => !findPackForStoreProductId(coinPacks, pid));
+    if (orphanStoreProducts.length > 0) {
+      console.warn('[ShopScreen] 商店回傳但後端無對應金幣包（不顯示）:', orphanStoreProducts);
+    }
 
-  // 無商品時顯示原因（iOS／Android 同一套文案結構）
+    console.log(
+      `[ShopScreen] 合併結果：可顯示 ${items.length} 筆`,
+      `｜商店未回傳 ${skippedNoStoreProduct.length} 筆`,
+      `｜金幣數無效 ${skippedInvalidAmount.length} 筆`,
+      `｜商店多出 ${orphanStoreProducts.length} 筆`,
+    );
+
+    return { items, skippedNoStoreProduct, skippedInvalidAmount, orphanStoreProducts };
+  }, [products, coinPacks, platformCode, platformName]);
+
+  const packsWithPrice = merged.items;
+
+  // 同批各卡共用價格字級：以格式化後的價格字串估算寬度換算
+  const priceFontSize = useMemo(
+    () => sharedPriceFontSize(packsWithPrice.map((p) => p.displayPrice || String(p.priceUsd))),
+    [packsWithPrice],
+  );
+
+  // 無商品時顯示原因（iOS／Android 同一套文案結構）：依 階段 1 後端 → 階段 2 商店 → 階段 3 合併 逐層說明
   const emptyReason = useMemo(() => {
-    if (products.length > 0) return null;
+    if (packsWithPrice.length > 0) return null;
     const parts: string[] = [];
-    if (backendError) {
-      parts.push(`階段 1（後端）：取得金幣包失敗 — ${backendError}`);
+
+    // 階段 1：後端金幣包
+    if (coinPacksError) {
+      parts.push(`階段 1（後端）：取得金幣包失敗 — ${coinPacksError}`);
     } else if (coinPacks.length === 0) {
       parts.push(`階段 1（後端）：本平台（${platformCode}）金幣包數量為 0`);
       if (coinPackDebugText) {
@@ -247,14 +243,40 @@ export default function ShopScreen() {
     } else {
       parts.push(`階段 1（後端）：已取得 ${coinPacks.length} 筆金幣包`);
     }
-    parts.push(`階段 2（${platformName}）：回傳商品數為 0，請檢查商品 ID 是否與後台一致`);
+
+    // 階段 2：商店回傳
+    if (coinPacks.length > 0) {
+      parts.push(
+        products.length === 0
+          ? `階段 2（${platformName}）：回傳商品數為 0，請檢查商品 ID 是否與後端一致、商品是否已啟用`
+          : `階段 2（${platformName}）：回傳 ${products.length} 筆商品`
+      );
+    }
+
+    // 階段 3：合併（後端為主體，缺任一邊即整筆不顯示）
+    if (coinPacks.length > 0 && products.length > 0) {
+      const stage3: string[] = ['階段 3（合併）：可顯示 0 筆'];
+      if (merged.skippedNoStoreProduct.length > 0) {
+        stage3.push(`　- ${platformName} 未回傳：${merged.skippedNoStoreProduct.join(', ')}`);
+      }
+      if (merged.skippedInvalidAmount.length > 0) {
+        stage3.push(`　- 後端金幣數無效：${merged.skippedInvalidAmount.join(', ')}`);
+      }
+      if (merged.orphanStoreProducts.length > 0) {
+        stage3.push(`　- 商店有但後端無：${merged.orphanStoreProducts.join(', ')}`);
+      }
+      parts.push(stage3.join('\n'));
+    }
+
     return parts.join('\n');
   }, [
+    packsWithPrice.length,
     products.length,
     coinPacks.length,
+    merged,
     platformCode,
     platformName,
-    backendError,
+    coinPacksError,
     coinPackDebugText,
   ]);
 
@@ -346,10 +368,7 @@ export default function ShopScreen() {
           <Text style={styles.emptyReasonTitle}>目前沒有資料的階段：</Text>
           <Text style={styles.emptyReasonText}>{emptyReason ?? '—'}</Text>
           <Pressable
-            onPress={() => {
-              setRefreshKey(k => k + 1);
-              refreshProducts();
-            }}
+            onPress={refreshProducts}
             style={styles.retryButton}
           >
             <Text style={styles.retryButtonText}>{translate('reload')}</Text>
@@ -360,11 +379,6 @@ export default function ShopScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-          {isIAPLoading && (
-            <View style={styles.iapLoadingHint}>
-              <Text style={styles.iapLoadingText}>{translate('loadingStorePrices')}</Text>
-            </View>
-          )}
           {packsWithPrice.map((p, i) => (
             <PackCard
               key={p.id}
@@ -429,18 +443,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 8,
     paddingHorizontal: 16,
-  },
-  iapLoadingHint: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-    backgroundColor: 'rgba(240, 173, 87, 0.1)',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  iapLoadingText: {
-    color: '#f0ad57',
-    fontSize: 12,
   },
   errorContainer: {
     flex: 1,

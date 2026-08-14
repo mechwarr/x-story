@@ -1,6 +1,13 @@
 /**
- * 後端 coin-packs 的 productId（常為 item_001～item_006）與 App Store Connect 實際 SKU（item_01～item_06）對照。
- * 僅在 iOS fetchProducts 前將後端 ID 轉成商店 SKU；Android 仍使用後端／Play 一致的 ID。
+ * 【歷史遺留對照表 — 不要再擴充】
+ *
+ * 當初 item_001～item_006 在 App Store Connect 誤建成 item_01～item_06，兩邊 ID 不一致，
+ * 只能用這張表補救。除了這 6 筆以外，App 不保留任何商品 ID 硬編碼：
+ * 新品項一律由後端 api/coin-packs 動態決定，且後端與 App Store Connect /
+ * Google Play Console 必須使用「完全相同」的 productId，即可免改 code 上架。
+ *
+ * 查無對照者一律原樣送出（見各函式的 fallback），因此新增品項不會受這張表影響。
+ * 僅 iOS 需要此對照；Android 的後端 ID 與 Play 商品 ID 本來就一致。
  */
 
 const BACKEND_TO_APP_STORE_SKU: Record<string, string> = {
@@ -27,23 +34,6 @@ export function appStoreSkuMatchesBackendProductId(
   const s = String(storeProductId ?? '').trim();
   if (b === s) return true;
   return BACKEND_TO_APP_STORE_SKU[b] === s;
-}
-
-/**
- * 由後端金幣包 productId 列表組出要送給 App Store 的 SKU 列表（去重、保序）。
- */
-export function buildAppStoreSkuListFromBackendProductIds(backendIds: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const raw of backendIds) {
-    const trimmed = String(raw ?? '').trim();
-    if (!trimmed) continue;
-    const sku = backendProductIdToAppStoreSku(trimmed);
-    if (seen.has(sku)) continue;
-    seen.add(sku);
-    out.push(sku);
-  }
-  return out;
 }
 
 /** App Store SKU（item_01）→ 後端驗證／coin-pack 用的 productId（item_001）；非特規則原樣回傳 */

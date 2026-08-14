@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ViewStyle } from 'react-native';
 
 export type PackItem = {
@@ -12,22 +12,11 @@ export type PackItem = {
   currencyCode?: string;                // 幣別代碼（如 TWD/JPY），零小數幣別用於去除 .00
 };
 
-// 產品 ID 到 coins 和 bonus 的映射表
-const PRODUCT_COINS_BONUS_MAP: Record<string, { coins: number; bonus: number }> = {
-  'item_001': { coins: 90, bonus: 5 },
-  'item_002': { coins: 150, bonus: 20 },
-  'item_003': { coins: 300, bonus: 55 },
-  'item_004': { coins: 590, bonus: 120 },
-  'item_005': { coins: 1190, bonus: 280 },
-  'item_006': { coins: 1790, bonus: 460 },
-  // iOS App Store SKU（與上列同階金額，供無後端數值時與 Android 顯示一致）
-  'item_01': { coins: 90, bonus: 5 },
-  'item_02': { coins: 150, bonus: 20 },
-  'item_03': { coins: 300, bonus: 55 },
-  'item_04': { coins: 590, bonus: 120 },
-  'item_05': { coins: 1190, bonus: 280 },
-  'item_06': { coins: 1790, bonus: 460 },
-};
+// 價格區塊的版面常數：外層（ShopScreen）要用同一組數字換算共用字級，
+// 兩邊各自寫死會在改版面時悄悄失準，所以由這裡輸出。
+export const PRICE_BOX_WIDTH = 100;
+export const PRICE_BOX_PADDING = 6;
+export const PRICE_LETTER_SPACING = 0.3;
 
 type Props = {
   data: PackItem;
@@ -43,33 +32,10 @@ export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style,
   // 優先使用 name，如果沒有則使用 title
   const displayName = name || title;
   
-  // 從 id 中提取產品 ID（處理 "iap-item_001" 格式）
-  const productId = useMemo(() => {
-    // 如果 id 包含 "iap-"，則提取後面的部分
-    if (data.id.startsWith('iap-')) {
-      return data.id.replace('iap-', '');
-    }
-    // 否則直接使用 id
-    return data.id;
-  }, [data.id]);
-
-  // 根據產品 ID 獲取 coins 和 bonus
-  // 優先使用 data 中的值（從 API 獲取），如果沒有或為 0，則使用硬編碼的 fallback
-  const { coins, bonus } = useMemo(() => {
-    // 優先使用 data 中的值（從 API 獲取）
-    if (data.coins && data.coins > 0) {
-      return { coins: data.coins, bonus: data.bonus || 0 };
-    }
-    
-    // 如果 data 中沒有值或為 0，使用硬編碼的 fallback（向後兼容）
-    const productInfo = PRODUCT_COINS_BONUS_MAP[productId];
-    if (productInfo) {
-      return { coins: productInfo.coins, bonus: productInfo.bonus };
-    }
-    
-    // 最後的 fallback：使用 data 中的值（即使為 0）
-    return { coins: data.coins || 0, bonus: data.bonus || 0 };
-  }, [productId, data.coins, data.bonus]);
+  // 金幣數與 bonus 一律以後端金幣包（api/coin-packs）為準，不再保留本地固定對照表：
+  // 對照表會讓後台調整面額後 App 仍顯示舊值，也讓新品項無表可查而顯示錯誤數字。
+  const coins = data.coins || 0;
+  const bonus = data.bonus || 0;
 
   return (
     <Pressable
@@ -111,7 +77,15 @@ export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style,
             <View style={styles.bonusContainer}>
               <Text style={styles.bonusPlus}>+{bonus}</Text>
               <View style={styles.bonusPill}>
-                <Text style={styles.bonusPillText}>Bonus</Text>
+                {/* 紅底寬度固定，字要壓成一行：不換行、必要時只縮字不撐容器 */}
+                <Text
+                  style={styles.bonusPillText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
+                >
+                  Bonus
+                </Text>
               </View>
             </View>
           )}
@@ -124,6 +98,9 @@ export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style,
         <Text
           style={[styles.price, { fontSize: priceFontSize }]}
           numberOfLines={1}
+          // 字級已由外層依最長價格算好；這裡只是保險，避免估算誤差造成尾端被「…」截掉
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
         >
           {displayPrice || String(priceUsd)}
         </Text>
@@ -197,7 +174,7 @@ const styles = StyleSheet.create({
   bonusPill: {
     backgroundColor: '#E53935',
     borderRadius: 6,
-    paddingHorizontal: 7,
+    paddingHorizontal: 4,               // 內距收窄，讓 Bonus 在固定寬度內排得下一行
     paddingVertical: 4,
     alignItems: 'center',
     justifyContent: 'center',
@@ -207,22 +184,24 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,                       // 放大 Bonus 標籤
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+    textAlign: 'center',
+    alignSelf: 'stretch',               // 撐滿可用寬度，adjustsFontSizeToFit 才有依據
   },
 
   // 右半
   right: {
-    width: 100,                         // 固定寬度，讓價格區塊更靠右
+    width: PRICE_BOX_WIDTH,             // 固定寬度，讓價格區塊更靠右
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,                      // 防止被壓縮
-    paddingHorizontal: 8,               // 左右內距，避免文字貼邊
+    paddingHorizontal: PRICE_BOX_PADDING, // 內距收窄，換取價格字串的可用寬度
   },
   price: {
     color: '#0E4C44',
     fontSize: 24,                      // 稍微縮小價格文字，與整體協調
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: PRICE_LETTER_SPACING,
     textAlign: 'center',
     alignSelf: 'stretch',              // 撐滿容器寬度，adjustsFontSizeToFit 才會生效
   },

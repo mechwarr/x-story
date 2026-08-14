@@ -5,11 +5,13 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import routes from '../navigations/routes';
-import { iapService, PRODUCT_IDS, PRODUCT_NAMES } from '../services/iapService';
+import { iapService } from '../services/iapService';
+import { fetchCurrentPlatformCatalog, buildBackendNameMap } from '../utils/iapCatalog';
 import type { IapReceipt } from '../config/shopApiClient';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
 import { translate } from '../i18n/i18n';
+import { formatServerDateTime, toEpochMillis } from '../utils/datetime';
 
 type Purchase = {
   id: string;          // 收據編號
@@ -22,36 +24,26 @@ type Purchase = {
   status: string;      // 狀態
 };
 
-// 格式化日期時間：從 ISO 8601 轉換為 yyyy.MM.dd HH:mm
+// 格式化日期時間：後端 UTC 時間戳 → 裝置時區的 yyyy.MM.dd HH:mm（台北為 UTC+8）
 function formatDateTime(isoString: string): string {
-  try {
-    const date = new Date(isoString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${year}.${month}.${day} ${hours}:${minutes}`;
-  } catch (error) {
-    return isoString;
-  }
+  return formatServerDateTime(isoString);
 }
 
 /**
  * 依 productId 取得顯示名稱：優先用雙平台（App Store / Google Play）回傳的當地語系 title，
- * 平台尚未載入時退回本地硬編碼名稱，最後才退回 productId。
+ * 平台尚未載入時退回後端金幣包名稱（同樣來自 API，非硬編碼），最後才退回 productId。
  */
-function resolveProductName(productId: string): string {
+function resolveProductName(productId: string, backendNames: Record<string, string>): string {
   const platformName = iapService.getProductName(productId);
   if (platformName && platformName !== productId) {
     return platformName;
   }
-  return PRODUCT_NAMES[productId] ?? productId;
+  return backendNames[String(productId ?? '').trim()] ?? productId;
 }
 
-// 將 IAP 收據轉換為 UI 顯示格式（優先平台當地語系名稱，退回本地名稱）
-function convertReceiptToPurchase(receipt: IapReceipt): Purchase {
-  const productName = resolveProductName(receipt.productId);
+// 將 IAP 收據轉換為 UI 顯示格式（優先平台當地語系名稱，退回後端名稱）
+function convertReceiptToPurchase(receipt: IapReceipt, backendNames: Record<string, string>): Purchase {
+  const productName = resolveProductName(receipt.productId, backendNames);
   // 交易金額：依 productId 從雙平台取得真實貨幣價格（含幣別符號）
   const priceText = iapService.getProductDisplayPrice(receipt.productId);
 
@@ -81,23 +73,24 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
       setIsLoading(true);
       setError(null);
 
-      // 先載入平台產品列表，讓 getProductName 能回傳平台顯示名稱
+      // 先依後端金幣包載入平台產品列表，讓 getProductName／getProductDisplayPrice 有資料可查。
+      // 商品清單來自 api/coin-packs，後台新增品項的收據也能正確顯示名稱與價格。
+      let backendNames: Record<string, string> = {};
       try {
+        const catalog = await fetchCurrentPlatformCatalog();
+        backendNames = buildBackendNameMap(catalog.packs);
         await iapService.initialize();
-        await iapService.getProductList(Object.values(PRODUCT_IDS));
+        await iapService.getProductList(catalog.skus);
       } catch (e) {
-        // IAP 未就緒時仍可顯示收據，名稱會顯示 productId
+        // IAP／後端未就緒時仍可顯示收據，名稱會退回 productId
       }
 
       const receipts = await iapService.getIapReceipts();
 
-      receipts.sort((a, b) => {
-        const dateA = new Date(a.createdAt);
-        const dateB = new Date(b.createdAt);
-        return dateB.getTime() - dateA.getTime();
-      });
+      // 由新到舊。解析失敗者（null）視為最舊，避免 NaN 讓排序結果不穩定
+      receipts.sort((a, b) => (toEpochMillis(b.createdAt) ?? 0) - (toEpochMillis(a.createdAt) ?? 0));
 
-      const convertedPurchases = receipts.map(convertReceiptToPurchase);
+      const convertedPurchases = receipts.map((r) => convertReceiptToPurchase(r, backendNames));
       setPurchases(convertedPurchases);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : translate('loadPurchaseHistoryFailed');
