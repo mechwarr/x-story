@@ -40,7 +40,7 @@ export default function useInitApp(
         console.log('[useInitApp] 🔄 檢測到登入狀態，檢查登入時間和刷新 token...');
 
         // 停權即時攔截（登入後才被停權的情境）：App 重新啟動時重查一次 roleLevel，
-        // 若已被停權（<0）→ 跳提示並登出（清資料、回登入頁）。獨立於 token 刷新的 1 小時
+        // 若已被停權（<=0）→ 跳提示並登出（清資料、回登入頁）。獨立於 token 刷新的 1 小時
         // 節流，確保「每次重啟」都會重查。背景執行、不阻塞啟動；取不到 profile 時不誤登出。
         const handleSuspended = () => {
           showAlert(

@@ -2,6 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RestfulApi } from "./api";
 import { portURL, devBaseUrl } from "./apiClient";
+import { registerSuspensionChecker } from "./suspensionGuard";
 import tokenStorage from "../auth/Storage";
 
 const ENTITLEMENTS_CACHE_KEY = 'entitlements_cache';
@@ -460,19 +461,20 @@ export async function getEffectiveRoleLevel(): Promise<number> {
 }
 
 /**
- * 停權即時檢查：向後端重查 profile，判斷是否已被停權（roleLevel 為負數）。
+ * 停權即時檢查：向後端重查 profile，判斷是否已被停權（roleLevel <= 0）。
  * 用於「登入後才被停權」的情境：App 重新啟動、token 刷新（喚醒）後各重查一次。
- *  - roleLevel < 0（後端停權標記）→ 回傳 true（呼叫端負責跳提示並登出）。
- *  - roleLevel >= 0 → 順帶刷新本地快取（僅快取 > 0 的有效值），回傳 false。
+ *  - roleLevel <= 0（後端停權／封鎖標記，含 0 與負數）→ 回傳 true（呼叫端負責跳提示並登出）。
+ *  - roleLevel > 0 → 順帶刷新本地快取，回傳 false。
  *  - 取不到 profile（token 暫時失效／網路異常等）→ 回傳 false，不誤判為停權而登出。
+ *    僅在後端「明確回傳」roleLevel <= 0 時才判定停權，暫態（查不到值）不會誤殺。
  */
 export async function checkAccountSuspended(): Promise<boolean> {
   try {
     const profile = await getUserProfile();
     if (profile && profile.roleLevel != null) {
       const level = Number(profile.roleLevel);
-      if (level < 0) return true;
-      if (level > 0) await tokenStorage.setUserRoleLevel(level);
+      if (level <= 0) return true;
+      await tokenStorage.setUserRoleLevel(level);
       return false;
     }
     return false;
@@ -481,6 +483,10 @@ export async function checkAccountSuspended(): Promise<boolean> {
     return false;
   }
 }
+
+// 把停權檢查實作註冊給 suspensionGuard，讓底層 RestfulApi 在任何帶 token 的
+// API 活動時能（節流地）重查 roleLevel，<= 0 即觸發驅離（提示 → 確認 → 登出）。
+registerSuspensionChecker(checkAccountSuspended);
 
 /**
  * 重新向後端查詢真實 roleLevel 並覆寫本地快取，回傳更新後的級別。

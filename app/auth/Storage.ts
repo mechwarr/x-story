@@ -1,6 +1,7 @@
 // utils/Storage.ts
 import * as SecureStore from "expo-secure-store";
 import { resetSessionExpiredLatch } from "../config/sessionAuth";
+import { resetSuspensionLatch } from "../config/suspensionGuard";
 
 // Token Keys
 const TOKEN_KEY = "authToken";           // accessToken
@@ -193,6 +194,9 @@ const saveLoginData = async (tokens: LoginTokens) => {
 
     // 重新登入成功後解除「權限過期已通知」閂鎖，讓日後若再過期仍能再次提示。
     resetSessionExpiredLatch();
+
+    // 解除「停權已通知」閂鎖並重置節流：新帳號（或解除停權後重登的帳號）重新受監控。
+    resetSuspensionLatch();
 
     console.log("[Storage] ✅ 登入資料已完整存儲");
   } catch (e) {

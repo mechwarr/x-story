@@ -1,4 +1,5 @@
 import { attemptReauth } from "./sessionAuth";
+import { pingSuspensionGuard } from "./suspensionGuard";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
@@ -58,6 +59,12 @@ export class RestfulApi {
             delete outgoingHeaders[SKIP_REAUTH_HEADER];
         }
         const hasAuthHeader = !!outgoingHeaders["Authorization"];
+
+        // 停權強制驅離：任何帶 token 的 API 活動都觸發（節流的）背景停權重查，
+        // roleLevel <= 0 時跳停權提示並登出。同步返回、不阻塞也不影響本次請求。
+        if (hasAuthHeader && !isRetry) {
+            pingSuspensionGuard();
+        }
 
         const fetchOptions: RequestInit = {
             method,

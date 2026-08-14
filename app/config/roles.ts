@@ -4,6 +4,8 @@
 
 /**
  * 已知的權限級別。後端為數值權限，數字越大權限越高。
+ *  <= 0 = 停權／封鎖（含 0 與負數；登入攔截見 auth/LoginContainer.js，
+ *         登入後即時攔截見 userApiClient.checkAccountSuspended）
  *  1 = 普通用戶
  *  5 = 小編
  *  9 = Admin

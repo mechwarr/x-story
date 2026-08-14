@@ -20,6 +20,7 @@ import { translate } from './i18n/i18n';
 import { CustomAlertHost, showAlert } from './components/CustomAlert';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { registerSessionExpiredHandler } from './config/sessionAuth';
+import { registerSuspendedHandler } from './config/suspensionGuard';
 
 // 以目前語系為 key 包住主畫面：手動切換語系時整個子樹重新掛載，
 // 讓所有畫面重新讀取 translate() 並套用新語系（translate 本身不會觸發重繪）。
@@ -80,7 +81,7 @@ function RootLayoutContent() {
     }
   }, [token]);
 
-  // 停權即時攔截（登入後才被停權）：喚醒刷新 token 後重查 roleLevel，若已被停權（<0）→ 提示並登出。
+  // 停權即時攔截（登入後才被停權）：喚醒刷新 token 後重查 roleLevel，若已被停權（<=0）→ 提示並登出。
   const handleAccountSuspended = useCallback(() => {
     showAlert(
       translate('accountSuspendedTitle'),
@@ -106,6 +107,13 @@ function RootLayoutContent() {
   useEffect(() => {
     registerSessionExpiredHandler(handleTokenRefreshFailed);
   }, [handleTokenRefreshFailed]);
+
+  // 註冊「停權強制驅離」處理：任一支帶 token 的 API 活動觸發（節流的）停權重查，
+  // 查得 roleLevel <= 0 時由 suspensionGuard 觸發這裡——顯示停權提示、確認後清資料登出。
+  // suspensionGuard 內部有閂鎖，同一波不會重複觸發。
+  useEffect(() => {
+    registerSuspendedHandler(handleAccountSuspended);
+  }, [handleAccountSuspended]);
 
 
   useEffect(() => {
@@ -189,7 +197,7 @@ function RootLayoutContent() {
           // 喚醒刷新成功後，用（可能是新的）token 立即重抓金幣，避免回到前景時卡著舊餘額（修法 3）。
           if (refreshed) {
             coinRefreshRef.current?.();
-            // 停權即時攔截：刷新後重查 roleLevel，若已被停權（<0）→ 提示並登出。
+            // 停權即時攔截：刷新後重查 roleLevel，若已被停權（<=0）→ 提示並登出。
             checkAccountSuspended()
               .then((suspended) => { if (suspended) handleAccountSuspended(); })
               .catch((e) => console.warn('[RootLayout] 停權檢查例外（忽略）:', (e as any)?.message));
