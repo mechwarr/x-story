@@ -157,7 +157,7 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
             </View>
 
             {/* 再次輸入新密碼 */}
-            <View style={[styles.inputRow, { marginTop: 12 }]}>
+            <View style={[styles.inputRow, { marginTop: 12, marginBottom: 10 }]}>
                 <TextInput
                     style={styles.input}
                     placeholder={translate("confirmPassword")}
@@ -198,7 +198,7 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
 
             {/* 提交按鈕 / Loading */}
             {isSending ? (
-                <ActivityIndicator size="large" color="#0ABAB5" style={{ marginTop: 24 }} />
+                <ActivityIndicator size="large" color="#0ABAB5" style={{ marginTop: 15 }} />
             ) : (
                 <TouchableOpacity
                     style={[styles.primaryBtn, !isValid && { opacity: 0.6 }]}
@@ -261,23 +261,23 @@ const styles = StyleSheet.create({
         color: "#CCCCCC",
         fontSize: 13,
         lineHeight: 18,
-        textAlign: "center",
+        textAlign: "left",
         marginBottom: 24,
     },
     ruleUpdateHint: {
         color: "#AAAAAA",
         fontSize: 13,
         textAlign: "center",
-        marginTop: 12,
+        marginBottom: 30,
     },
     inputRow: {
         width: "100%",
-        height: 52,
-        borderRadius: 14,
+        height: 50,
+        borderRadius: 25,
         backgroundColor: "#1C1C1C",
         flexDirection: "row",
         alignItems: "center",
-        paddingLeft: 16,
+        paddingLeft: 20,
     },
     input: {
         flex: 1,
@@ -300,12 +300,12 @@ const styles = StyleSheet.create({
     },
     primaryBtn: {
         width: "100%",
-        height: 52,
-        borderRadius: 14,
+        height: 50,
+        borderRadius: 25,
         backgroundColor: "#0ABAB5",
         justifyContent: "center",
         alignItems: "center",
-        marginTop: 24,
+        marginTop: 15,
     },
     primaryBtnText: {
         color: "white",
@@ -315,15 +315,15 @@ const styles = StyleSheet.create({
     },
     cancelButton: {
         width: "100%",
-        height: 46,
-        borderRadius: 14,
+        height: 50,
+        borderRadius: 25,
         backgroundColor: "#555555",
         justifyContent: "center",
         alignItems: "center",
-        marginTop: 14,
+        marginTop: 15,
     },
     cancelButtonText: {
         color: "#CCCCCC",
-        fontSize: 16,
+        fontSize: 18,
     },
 });

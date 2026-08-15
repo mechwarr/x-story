@@ -445,9 +445,9 @@
         "en": "Restore Failed"
     },
     "resetPassword": {
-        "zh-TW": "重設密碼\n（至少 8 個字元）",
-        "zh-CN": "重设密码\n（至少 8 个字符）",
-        "en": "Reset Password\n(at least 8 characters)"
+        "zh-TW": "重設密碼",
+        "zh-CN": "重设密码",
+        "en": "Reset Password"
     },
     "newPassword": {
         "zh-TW": "請輸入新密碼",
@@ -580,9 +580,9 @@
         "en": "Sign in"
     },
     "createPassword": {
-        "zh-TW": "請設定您的密碼（至少 8 個字元）",
-        "zh-CN": "设定密码（至少 8 个字符）",
-        "en": "Create a Password\n(at least 8 characters)"
+        "zh-TW": "請設定您的密碼",
+        "zh-CN": "设定密码",
+        "en": "Create a Password"
     },
     "enterPassword": {
         "zh-TW": "設定密碼",
