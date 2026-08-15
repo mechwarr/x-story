@@ -3,6 +3,8 @@ import { RestfulApi } from "./api";
 import { portURL } from "./apiClient";
 import tokenStorage from "../auth/Storage";
 import { tokenRefreshService } from "./authApiClient";
+import { showAlert } from "../components/CustomAlert";
+import { translate } from "../i18n/i18n";
 
 // 商城/IAP 相關 API 一律走 portURL，避免 dev/prod 指到不同資料源造成商品清單不一致
 const shopApi = new RestfulApi({
@@ -273,11 +275,17 @@ export async function purchaseProduct(
       return res;
     } else {
       console.warn("購買失敗:", res.message);
-      alert(res?.message || "購買失敗，請稍後再試");
+      showAlert(
+        translate("purchaseFailedTitle"),
+        res?.message || translate("purchaseFailedRetry")
+      );
       return null;
     }
   } catch (error) {
-    alert(extractErrorMessage(error));
+    showAlert(
+      translate("purchaseFailedTitle"),
+      extractErrorMessage(error) || translate("purchaseErrorGeneric")
+    );
     console.error("購買時發生錯誤:", error);
     return null;
   }

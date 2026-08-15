@@ -315,8 +315,17 @@ function RootLayoutContent() {
           // 🔐 重設密碼畫面
           <ResetPasswordScreen
             token={token}
-            onCancel={() => setIsResetPassword(false)}   // 取消回到登入頁
-            onSuccess={() => setIsResetPassword(false)}  // 成功後回到登入頁（也可改成直接導向登入）
+            // 取消：回到登入首頁
+            onCancel={() => {
+              setIsResetPassword(false);
+              setToken(null);
+            }}
+            // 成功：回到「會員 Email 登入頁」讓使用者用新密碼登入（沿用信箱驗證成功的導向機制）
+            onSuccess={() => {
+              emitVerifyRedirect();
+              setIsResetPassword(false);
+              setToken(null);
+            }}
           />
         ) : (
           // 🔑 尚未登入：顯示登入容器

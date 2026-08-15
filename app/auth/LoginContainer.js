@@ -35,7 +35,8 @@ export default function LoginContainer({ onLoginSuccess }) {
   const [showRegisterView, setshowRegisterView] = useState(true);
   const [historyStack, setHistoryStack] = useState([]);
 
-  // 信箱驗證成功（deep link 於 _layout 處理）後，切換到「會員登入頁」讓使用者重新登入。
+  // 信箱驗證成功／重設密碼成功（皆由 deep link 於 _layout 處理）後，
+  // 切換到「會員 Email 登入頁」讓使用者重新登入。
   useEffect(() => {
     const unsubscribe = subscribeVerifyRedirect(() => {
       setShowEmailVerification(false);
@@ -202,7 +203,10 @@ export default function LoginContainer({ onLoginSuccess }) {
       } else {
         console.error('[Facebook Login] 後端返回的 accessToken 為空');
         console.error('[Facebook Login] ✅ 送往後端的 token:', body?.token);
-        alert("serverToken is empty, please try again");
+        showAlert(
+          translate('socialLoginErrorTitle', { provider: 'Facebook' }),
+          translate('socialLoginTokenMissingMessage')
+        );
       }
     } catch (e) {
       // 取消不提示；其他錯誤才提示
@@ -212,18 +216,23 @@ export default function LoginContainer({ onLoginSuccess }) {
       }
       console.error('[Facebook Login] 發生錯誤:', e);
       console.error('[Facebook Login] ✅ 目前取得的 token（若有）:', body?.token);
-      alert("Facebook 登入錯誤: " + (e?.message ?? String(e)));
+      showAlert(
+        translate('socialLoginErrorTitle', { provider: 'Facebook' }),
+        e?.message ?? String(e)
+      );
     }
   };
 
   const handleGoogleLogin = async () => {
+    // idToken 宣告在 try 之外：catch 區塊的 log 會讀它，
+    // 若宣告在 try 內，catch 會先拋 ReferenceError，導致後面的錯誤提示彈不出來。
+    let idToken = null;
     try {
       console.log('[Google Login] ========== 開始 Google 登入流程 ==========');
       console.log('[Google Login] 平台:', Platform.OS);
-      
+
       let res = null;
-      let idToken = null;
-      
+
       // iOS 上強制使用互動式登入，確保顯示登入視窗
       if (Platform.OS === 'ios') {
         console.log('[Google Login] iOS 平台：直接使用互動式登入，確保顯示登入視窗');
@@ -432,7 +441,10 @@ export default function LoginContainer({ onLoginSuccess }) {
       } else {
         console.error('[Apple Login] ✅ 送往後端的 idToken:', appleAuthResult.idToken);
         console.error('[Apple Login] ✅ 送往後端的 authorizationCode:', appleAuthResult.authorizationCode);
-        alert("token is empty, please try again");
+        showAlert(
+          translate('socialLoginErrorTitle', { provider: 'Apple' }),
+          translate('socialLoginTokenMissingMessage')
+        );
       }
     } catch (e) {
       // 取消不提示；其他錯誤才提示
@@ -442,7 +454,10 @@ export default function LoginContainer({ onLoginSuccess }) {
         idToken: appleAuthResult?.idToken,
         authorizationCode: appleAuthResult?.authorizationCode,
       });
-      alert("Apple 登入錯誤: " + e.message);
+      showAlert(
+        translate('socialLoginErrorTitle', { provider: 'Apple' }),
+        e?.message ?? String(e)
+      );
     }
   };
 

@@ -61,13 +61,13 @@
     },
     "enterEmail": {
         "zh-TW": "請輸入您的 Email",
-        "zh-CN": "请输入您的 Email",
+        "zh-CN": "请输入邮箱",
         "en": "Enter your email"
     },
     "registerEmailPlaceholder": {
         "zh-TW": "請輸入您的 Email",
         "zh-CN": "请输入邮箱",
-        "en": "Add your email"
+        "en": "Enter your email"
     },
     "resendEmailPlaceholder": {
         "zh-TW": "請輸入您的 Email",
@@ -122,7 +122,7 @@
     "passwordPolicyMessage": {
         "zh-TW": "密碼須 8-20 字元，\n且包含至少一個大寫字母、一個小寫字母及一個數字",
         "zh-CN": "密码须 8-20 字符，\n且包含至少一个大写字母、一个小写字母及一个数字",
-        "en": "8–20 characters, at least 1 uppercase, 1 lowercase, and 1 number."
+        "en": "8–20 characters,\nat least 1 uppercase, 1 lowercase, and 1 number."
     },
     "passwordPolicyHint": {
         "zh-TW": "密碼須 8-20 字元，且包含至少一個大寫字母、一個小寫字母及一個數字",
@@ -132,7 +132,7 @@
     "passwordRuleUpdateHint": {
         "zh-TW": "須符合密碼規則才能更新",
         "zh-CN": "须符合密码规则才能更新",
-        "en": "Must meet the password rules to update"
+        "en": "Your new password must meet the requirements."
     },
     "resendVerification": {
         "zh-TW": "重發驗證信",
@@ -150,7 +150,7 @@
         "en": "Registration failed. Please try again later."
     },
     "emailAlreadyRegistered": {
-        "zh-TW": "此信箱已註冊",
+        "zh-TW": "Email已註冊",
         "zh-CN": "邮箱已注册",
         "en": "This email is already registered."
     },
@@ -160,8 +160,8 @@
         "en": "Verification Email Resent"
     },
     "resendMailSuccessMessage": {
-        "zh-TW": "驗證信已重新發送，\n請前往信箱查看",
-        "zh-CN": "验证邮件已重新发送，\n请前往邮箱查收",
+        "zh-TW": "已寄出驗證信，\n請前往信箱查看",
+        "zh-CN": "已发送验证邮件，\n请前往邮箱查收",
         "en": "We've resent the verification email.\nPlease check your inbox."
     },
     "resendMailFailedMessage": {
@@ -170,19 +170,19 @@
         "en": "Failed to resend verification email. Please try again later."
     },
     "resendMailNotFoundOrVerified": {
-        "zh-TW": "找不到該 email 使用者或信箱已驗證",
-        "zh-CN": "找不到该 email 用户或邮箱已验证",
-        "en": "This email isn't registered, or the account is already verified."
+        "zh-TW": "帳號不存在或此Email已驗證",
+        "zh-CN": "帐号不存在或此邮箱已完成验证",
+        "en": "Account not found or this email is already verified."
+    },
+    "verifyLinkInvalidOrExpired": {
+        "zh-TW": "驗證連結已過期或無效，\n請重新註冊或重發驗證信",
+        "zh-CN": "验证链接已过期或无效，\n请重新注册或重发验证邮件",
+        "en": "Verification link invalid or expired.\nPlease register again or resend the verification email."
     },
     "forgotPasswordFailedMessage": {
         "zh-TW": "重設密碼寄信失敗，請稍後再試",
         "zh-CN": "重设密码寄信失败，请稍后再试",
         "en": "Failed to send the reset email. Please try again later."
-    },
-    "resetPasswordFailedMessage": {
-        "zh-TW": "密碼重設失敗，請稍後再試",
-        "zh-CN": "密码重设失败，请稍后再试",
-        "en": "Failed to reset password. Please try again later."
     },
     "cancel": {
         "zh-TW": "取消",
@@ -318,6 +318,16 @@
         "zh-TW": "登入失敗，請稍後再試",
         "zh-CN": "登录失败，请稍后再试",
         "en": "Login failed. Please try again later."
+    },
+    "socialLoginErrorTitle": {
+        "zh-TW": "{provider} 登入錯誤",
+        "zh-CN": "{provider} 登录错误",
+        "en": "{provider} Login Error"
+    },
+    "socialLoginTokenMissingMessage": {
+        "zh-TW": "未取得有效的登入憑證，請重試",
+        "zh-CN": "未获取有效的登录凭证，请重试",
+        "en": "Could not obtain a valid login credential. Please try again."
     },
     "accountSuspendedTitle": {
         "zh-TW": "帳號已停權",
@@ -614,6 +624,11 @@
         "zh-CN": "重设连接已失效，请重新获取。",
         "en": "The reset link has expired or is invalid. Please request a new one."
     },
+    "passwordMismatchTitle": {
+        "zh-TW": "密碼不一致",
+        "zh-CN": "密码不一致",
+        "en": "Passwords Do Not Match"
+    },
     "passwordMismatchMessage": {
         "zh-TW": "兩次輸入的密碼不一致",
         "zh-CN": "两次输入的密码不一致",
@@ -635,18 +650,13 @@
         "en": "Password Updated"
     },
     "passwordUpdatedMessage": {
-        "zh-TW": "您的密碼已成功更新，請使用新密碼登入。",
-        "zh-CN": "您的密码已成功更新，请使用新密码登录。",
-        "en": "Your password has been updated. Please sign in with your new password."
-    },
-    "passwordUpdateFailedTitle": {
-        "zh-TW": "更新失敗",
-        "zh-CN": "更新失败",
-        "en": "Update Failed"
+        "zh-TW": "您的密碼已成功更新，\n請使用新密碼登入",
+        "zh-CN": "您的密码已成功更新，\n请使用新密码登录",
+        "en": "Your password has been updated.\nPlease sign in with your new password"
     },
     "passwordUpdateFailedMessage": {
-        "zh-TW": "密碼更新未完成，請稍後再試或重新取得重設連結。",
-        "zh-CN": "密码更新未完成，请稍后再试或重新获取重设连接。",
+        "zh-TW": "密碼更新失敗，\n請稍後再試或重新取得密碼重設連結",
+        "zh-CN": "密码更新失败，\n请稍后重试或重新获取密码重置链接",
         "en": "Password update failed. Please try again later or request a new reset link."
     },
     "passwordUpdateErrorTitle": {

@@ -83,14 +83,13 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
             if (ok) {
                 // 更新成功
                 showAlert("passwordUpdatedTitle", "passwordUpdatedMessage", { success: true });
-            } else {
-                // API 回傳失敗
-                showAlert("passwordUpdateFailedTitle", "passwordUpdateFailedMessage");
             }
+            // 失敗不在這裡彈窗：resetXStoryPassword 內部已跳過一次錯誤提示，
+            // 這裡再跳會變成連續兩則錯誤彈窗（與 authApiClient 其他 API 的慣例一致）
         } catch (_err) {
             setIsSending(false);
-            // 例外錯誤（網路、中斷等）
-            showAlert("passwordUpdateErrorTitle", "passwordUpdateErrorMessage");
+            // 例外錯誤（網路、中斷等）；resetXStoryPassword 已自行攔截例外，正常情況不會走到這裡
+            showAlert("genericErrorTitle", "passwordUpdateFailedMessage");
         }
     };
 
@@ -113,9 +112,7 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
                 showsVerticalScrollIndicator={false}
             >
             <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
-            <View style={{ alignItems: "center", marginBottom: 16 }}>
-                <Text style={styles.title}>{translate("resetPassword")}</Text>
-            </View>
+            <Text style={styles.title}>{translate("resetPassword")}</Text>
 
             {/* 密碼規則說明 */}
             <Text style={styles.policyHint}>{translate("passwordPolicyHint")}</Text>
@@ -251,11 +248,13 @@ const styles = StyleSheet.create({
     imgIcon: {
         resizeMode: "contain",
     },
+    // 與 Email 登入頁（XStoryLogin）的標題一致：字級、粗細、置中、下方間距
     title: {
-        fontSize: 28,
+        fontSize: 24,
         fontWeight: "bold",
         color: "white",
-        letterSpacing: 1,
+        marginBottom: 40,
+        textAlign: "center",
     },
     policyHint: {
         color: "#CCCCCC",

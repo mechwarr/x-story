@@ -146,7 +146,7 @@ export async function resentRegisterMail(
     } else {
       // 只記錄後端原始訊息供除錯，對使用者一律顯示內建翻譯，避免後端回傳亂碼字串
       console.warn("重發驗證信失敗:", res?.message);
-      alert(translate("resendMailFailedMessage"));
+      showAlert(translate("genericErrorTitle"), translate("resendMailFailedMessage"));
       return false;
     }
   } catch (error) {
@@ -157,7 +157,7 @@ export async function resentRegisterMail(
       extractStatusCode(error) === 401
         ? translate("resendMailNotFoundOrVerified")
         : translate("resendMailFailedMessage");
-    alert(message);
+    showAlert(translate("genericErrorTitle"), message);
     return false;
   }
 }
@@ -245,13 +245,14 @@ export async function forgotXStoryPassword(
     if (res && res.success) {
       return true;
     } else {
-      alert(res?.message || translate("forgotPasswordFailedMessage"));
+      // 只記錄後端原始訊息供除錯，對使用者一律顯示內建翻譯（後端僅有繁中）
       console.warn("重設密碼寄信失敗:", res?.message);
+      showAlert(translate("genericErrorTitle"), translate("forgotPasswordFailedMessage"));
       return false;
     }
   } catch (error) {
-    alert(extractErrorMessage(error));
-    console.error("重設密碼時發生錯誤:", error);
+    console.error("重設密碼時發生錯誤:", extractErrorMessage(error));
+    showAlert(translate("genericErrorTitle"), translate("forgotPasswordFailedMessage"));
     return false;
   }
 }
@@ -288,13 +289,14 @@ export async function VerifyMail(payload: XStoryVerifyRequest): Promise<boolean>
       // 成功後的提示與導向交由 deep link 處理端（_layout）以套用 i18n 標題／內文並跳轉登入頁
       return true;
     } else {
-      alert(res?.message || "驗證失敗，請稍後再試");
+      // 驗證失敗一律視為「連結已過期或無效」，後端原文（僅繁中）只留 log
       console.warn("驗證失敗:", res?.message);
+      showAlert(translate("genericErrorTitle"), translate("verifyLinkInvalidOrExpired"));
       return false;
     }
   } catch (error) {
-    alert(extractErrorMessage(error));
-    console.error("驗證時發生錯誤:", error);
+    console.error("驗證時發生錯誤:", extractErrorMessage(error));
+    showAlert(translate("genericErrorTitle"), translate("verifyLinkInvalidOrExpired"));
     return false;
   }
 }
@@ -370,13 +372,15 @@ export async function resetXStoryPassword(
     if (res && res.success) {
       return true;
     } else {
-      alert(res?.message || translate("resetPasswordFailedMessage"));
+      // 只記錄後端原始訊息供除錯，對使用者一律顯示內建翻譯（後端僅有繁中）
+      // 失敗提示只在這裡跳一次，呼叫端（ResetPasswordScreen）不再重複彈窗
       console.warn("密碼重設失敗:", res?.message);
+      showAlert(translate("genericErrorTitle"), translate("passwordUpdateFailedMessage"));
       return false;
     }
   } catch (error) {
-    alert(extractErrorMessage(error));
-    console.error("密碼重設時發生錯誤:", error);
+    console.error("密碼重設時發生錯誤:", extractErrorMessage(error));
+    showAlert(translate("genericErrorTitle"), translate("passwordUpdateFailedMessage"));
     return false;
   }
 }
