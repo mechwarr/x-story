@@ -3,4 +3,6 @@
   <color name="iconBackground">#FFFFFF</color>
   <color name="colorPrimary">#023c69</color>
   <color name="colorPrimaryDark">#000000</color>
+  <!-- 自動填入高亮：取代系統預設黃底，用低透明度品牌綠 -->
+  <color name="autofilledHighlight">#26009688</color>
 </resources>

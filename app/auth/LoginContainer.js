@@ -40,8 +40,9 @@ export default function LoginContainer({ onLoginSuccess }) {
     const unsubscribe = subscribeVerifyRedirect(() => {
       setShowEmailVerification(false);
       setshowRegisterView(false);
-      setShowEmailLogin(false);
-      setHistoryStack([]);
+      setShowEmailLogin(true);
+      // 堆疊只留 emailLogin：Android 返回鍵可從 Email 登入頁退回登入首頁
+      setHistoryStack(['emailLogin']);
     });
     return unsubscribe;
   }, []);
@@ -671,11 +672,13 @@ export default function LoginContainer({ onLoginSuccess }) {
             <RegisterXStoryScreen
               onCancel={handleEmailVerificationCancel}
               onSuccess={() => {
-                setShowEmailVerification(false);
+                // 先顯示提示、按下 OK 後才關閉註冊頁：避免彈窗與畫面切換同幀，
+                // 讓等待驗證的 loading 畫面在彈窗後方一閃而過
                 showAlert(
                   translate("registerEmailSentTitle"),
                   translate("registerEmailSentMessage"),
-                  [{ text: translate("ok") }]
+                  [{ text: translate("ok"), onPress: () => setShowEmailVerification(false) }],
+                  { cancelable: false }
                 );
               }}
             />

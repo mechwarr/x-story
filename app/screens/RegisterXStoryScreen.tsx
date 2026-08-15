@@ -354,7 +354,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 10,
   },
-  passwordInput: { flex: 1, fontSize: 16, color: "white" },
+  // padding 歸零 + includeFontPadding：Android 的 TextInput 有原生預設內距，
+  // 不覆寫會疊加在 wrapper 的 paddingHorizontal 上，導致與 input（Email 欄）左右／垂直位置不一致
+  passwordInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "white",
+    padding: 0,
+    includeFontPadding: false,
+    textAlignVertical: "center",
+  },
   eyeButton: { padding: 5 },
   eyeIcon: { width: 24, height: 24, tintColor: "#AAAAAA" },
 

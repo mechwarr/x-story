@@ -5,6 +5,8 @@
     <item name="colorAccent">#009688</item>
     <item name="colorControlActivated">#009688</item>
     <item name="colorControlHighlight">#33009688</item>
+    <!-- 自動填入後系統預設會蓋一層黃底(#4DFFEB3B)，深色輸入框上很突兀，改用品牌色淡底 -->
+    <item name="android:autofilledHighlight" tools:targetApi="26">@color/autofilledHighlight</item>
     <item name="android:statusBarColor">#000000</item>
     <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
   </style>

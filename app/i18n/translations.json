@@ -202,12 +202,12 @@
     "registerEmailSentTitle": {
         "zh-TW": "註冊",
         "zh-CN": "注册",
-        "en": "Registration"
+        "en": "Sign Up"
     },
     "registerEmailSentMessage": {
-        "zh-TW": "我們已將註冊連結寄到您的信箱，請點擊信中的連結進行註冊認證",
-        "zh-CN": "我们已将注册连接寄到您的信箱，请点击信中的连接进行注册认证",
-        "en": "We’ve sent you a link to complete your registration. Click the link in the email to verify your account."
+        "zh-TW": "我們已將註冊連結寄到您的信箱，\n請點擊信中的連結進行註冊認證",
+        "zh-CN": "我们已将验证邮件发送至您的邮箱，\n请点击邮件中的链接完成邮箱验证",
+        "en": "We've sent a verification email.\nPlease click the link in the email to verify your account."
     },
     "emailVerifiedTitle": {
         "zh-TW": "驗證成功",
@@ -545,9 +545,9 @@
         "en": "Sign up with Wechat"
     },
     "termsAgreement": {
-        "zh-TW": "我已閱讀並同意 [c=tos]X Stories 的《服務條款》[/c]及[c=pp]X Stories 的《隱私政策》[/c]。",
-        "zh-CN": "我已阅读并同意 [c=tos]X Stories 的《服务条款》[/c]及[c=pp]X Stories 的《隐私政策》[/c]。",
-        "en": "By creating an account, I accept [c=tos]X Stories’ 《Terms of Service》[/c] and confirm that I have read [c=pp]X Stories’ 《Privacy Policy》[/c]."
+        "zh-TW": "我已閱讀並同意X Stories 的 [c=tos]《服務條款》[/c]及[c=pp]《隱私政策》[/c]。",
+        "zh-CN": "我已阅读并同意X Stories 的 [c=tos]《服务条款》[/c]及[c=pp]《隐私政策》[/c]。",
+        "en": "By creating an account, I accept X Stories’ [c=tos]‹Terms of Service›[/c] and confirm that I have read X Stories’ [c=pp]‹Privacy Policy›[/c]."
     },
     "alreadyHaveAccount": {
         "zh-TW": "已有帳號？",

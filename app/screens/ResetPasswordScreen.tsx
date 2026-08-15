@@ -279,10 +279,15 @@ const styles = StyleSheet.create({
         alignItems: "center",
         paddingLeft: 20,
     },
+    // padding 歸零 + includeFontPadding：Android 的 TextInput 有原生預設內距，
+    // 不覆寫會疊加在 inputRow 的 paddingLeft 上，導致文字位置與其他畫面的輸入框不一致
     input: {
         flex: 1,
         color: "white",
         fontSize: 16,
+        padding: 0,
+        includeFontPadding: false,
+        textAlignVertical: "center",
     },
     // 新增：眼睛按鈕與圖示
     eyeButton: {
