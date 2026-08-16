@@ -188,7 +188,14 @@ const saveLoginData = async (tokens: LoginTokens) => {
     
     // 記錄登入時間
     await setLoginTime();
-    
+
+    // read-back 驗證：setLoginTime 內部吞例外，寫失敗時只有這裡能發現。
+    // 缺這筆記錄會讓下次啟動的 30 天檢查失去基準，故失敗時重試一次。
+    if (!(await getLoginTime())) {
+      console.warn("[Storage] ⚠️ 登入時間寫入後讀不到，重試一次");
+      await setLoginTime();
+    }
+
     // 記錄上次刷新時間（登入時視為第一次刷新）
     await setLastRefreshTime();
 
@@ -226,28 +233,52 @@ const clearLoginData = async () => {
  */
 const isLoginExpired = async (maxDays: number = 30): Promise<boolean> => {
   try {
-    const loginTime = await getLoginTime();
-    
-    if (!loginTime) {
-      console.log("[Storage] ⚠️ 沒有找到登入時間記錄");
-      return true; // 沒有登入時間記錄，視為已過期
+    // 缺 loginTime 時退而求其次用 lastRefreshTime：有刷新記錄代表這台裝置確實登入過。
+    let baseTime = await getLoginTime();
+    if (!baseTime) {
+      baseTime = await getLastRefreshTime();
+      if (baseTime) {
+        console.warn(
+          "[Storage] ⚠️ 無登入時間記錄，改以上次刷新時間為基準:",
+          new Date(baseTime).toISOString()
+        );
+      }
     }
-    
+
+    // 兩者皆無：可能是 loginTime 引入前的舊版升級上來，或當初 SecureStore 寫入失敗。
+    // 「不知道何時登入」不等於「已過期」——真正的授權判定在後端，refreshToken 若已失效
+    // 仍會走 token_invalid → 登出流程。這裡補記基準並放行，避免誤踢有效登入的使用者。
+    if (!baseTime) {
+      console.warn("[Storage] ⚠️ 沒有找到登入時間記錄，補記為現在並視為未過期");
+      await setLoginTime();
+      return false;
+    }
+
     const now = Date.now();
-    const daysSinceLogin = (now - loginTime) / (1000 * 60 * 60 * 24);
-    
+
+    // 基準時間晚於現在 → 裝置時鐘被調整過，沿用會算出假的「已過期」，重設基準。
+    if (baseTime > now) {
+      console.warn("[Storage] ⚠️ 登入時間晚於現在（裝置時鐘異常），重設基準時間");
+      await setLoginTime();
+      return false;
+    }
+
+    const daysSinceLogin = (now - baseTime) / (1000 * 60 * 60 * 24);
+
     console.log("[Storage] 登入時間檢查:", {
-      loginTime: new Date(loginTime).toISOString(),
+      loginTime: new Date(baseTime).toISOString(),
       now: new Date(now).toISOString(),
       daysSinceLogin: daysSinceLogin.toFixed(2),
       maxDays,
       isExpired: daysSinceLogin > maxDays,
     });
-    
+
     return daysSinceLogin > maxDays;
   } catch (e) {
+    // 讀不到就別猜：誤判成過期會把有效登入的使用者踢出去，而真正失效的 token
+    // 仍會在後續 API 收到 401 時走刷新失敗流程登出，安全性不因此下降。
     console.error("isLoginExpired error", e);
-    return true; // 發生錯誤時，保守起見視為已過期
+    return false;
   }
 };
 

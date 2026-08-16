@@ -1,4 +1,4 @@
-import { useIsFocused, useNavigation } from '@react-navigation/native';
+import { useIsFocused } from '@react-navigation/native';
 import axios from 'axios';
 import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList } from 'react-native';
@@ -15,8 +15,6 @@ import { canViewUnlisted } from '../config/roles';
 import { matchesCurrentStoryLang, pickConfigByLang } from '../i18n/i18n';
 import { toColor } from '../config/normalizeStyle';
 import { useLanguage } from '../i18n/LanguageContext';
-import routes from '../navigations/routes';
-import { consumePendingProfileRedirect } from '../auth/firstLoginRedirect';
 
 // 書籍資料端點（menu / news / story-type / nochapter / story-list）統一使用 bookDataBaseUrl，
 // 固定走正式站、不隨 __DEV__ 切換（原因與來源詳見 config/apiClient.ts 的 bookDataBaseUrl 註解）。
@@ -24,14 +22,10 @@ const url = bookDataBaseUrl;
 
 function HomeScreen() {
   const isFocus = useIsFocused();
-  const navigation = useNavigation();
 
-  // 首次登入且個人資料未完成 → 進入主畫面後自動導向 ProfileScreen（僅觸發一次）
-  useEffect(() => {
-    if (consumePendingProfileRedirect()) {
-      navigation.navigate(routes.PROFILE);
-    }
-  }, [navigation]);
+  // 註：「首次登入且個人資料未完成 → 先顯示 ProfileScreen」已移到 StoryNavigator 的
+  // initialRouteName 決定（見 navigations/StoryNavigator.js），首頁不再負責轉場，
+  // 也就不會先渲染首頁、跑一輪書籍 API 後才跳走。
 
   const [storyInfo, setStoryInfo] = useState({
     type: [],

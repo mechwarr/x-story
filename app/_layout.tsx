@@ -19,8 +19,8 @@ import { checkAccountSuspended } from './config/userApiClient';
 import { translate } from './i18n/i18n';
 import { CustomAlertHost, showAlert } from './components/CustomAlert';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
-import { registerSessionExpiredHandler } from './config/sessionAuth';
-import { registerSuspendedHandler } from './config/suspensionGuard';
+import { registerSessionExpiredHandler, resetSessionExpiredLatch } from './config/sessionAuth';
+import { registerSuspendedHandler, resetSuspensionLatch } from './config/suspensionGuard';
 
 // 以目前語系為 key 包住主畫面：手動切換語系時整個子樹重新掛載，
 // 讓所有畫面重新讀取 translate() 並套用新語系（translate 本身不會觸發重繪）。
@@ -55,11 +55,31 @@ function RootLayoutContent() {
     () => coinRefreshRef.current?.() // 冷啟動 token 刷新成功後，用新 token 立即重抓金幣
   );
 
+  // 目前 UI 是否為登入態。全域的「權限過期」處理是註冊進 sessionAuth 的常駐 callback，
+  // 讀不到最新的 state，故以 ref 同步。
+  const isLoggedInRef = useRef(isLoggedIn);
+  useEffect(() => {
+    isLoggedInRef.current = isLoggedIn;
+  }, [isLoggedIn]);
+
   // 處理 token 刷新失敗：顯示 alert 並清除資料（用於應用喚醒場景）
   const handleTokenRefreshFailed = useCallback(() => {
+    // 畫面不在登入態時一律不跳窗。兩種情況：
+    //  1. 已登出／未登入 —— 資料早已清乾淨，再彈「帳戶權限過期」只是噪音。
+    //  2. 登入成功後、進主畫面前的空窗（saveLoginData 已寫 token 並解鎖閂鎖，
+    //     但 onLoginSuccess 尚未執行）——此時 profile／金幣等請求若回 401 會走到這裡，
+    //     不可跳窗、更不可清掉剛存好的登入資料，否則會把正在登入的使用者打回登入頁。
+    //     token 若真的無效，進主畫面後的 API 仍會 401 並走正常過期流程。
+    if (!isLoggedInRef.current) {
+      console.log('[RootLayout] ⏸ 目前非登入態，略過權限過期彈窗');
+      // 觸發端已取用過閂鎖，這裡沒真的提示就要還回去，
+      // 否則之後進入主畫面真的發生權限過期時會被靜靜吞掉。
+      resetSessionExpiredLatch();
+      return;
+    }
     showAlert(
-      '帳戶權限過期',
-      '您的登入權限已過期，請重新登入。',
+      translate('authExpiredTitle'),
+      translate('authExpiredMessage'),
       [
         {
           text: translate('ok'),
@@ -75,14 +95,22 @@ function RootLayoutContent() {
     );
   }, [setIsLoggedIn]);
 
-  useEffect(() => {
-    if (token && token.length > 0) {
-      tokenStorage.setStoreToken(token);
-    }
-  }, [token]);
+  // 註：此處原本有一段「token 有值就 setStoreToken(token)」的 effect，已移除。
+  // 這個 token state 只由 reset-password deep link 設值（見 handleDeepLink），
+  // 等於把「重設密碼用的一次性 token」寫進 SecureStore 的 accessToken 欄位，
+  // 導致下次冷啟動被誤判為已登入 → 背景刷新必失敗 → 誤跳「帳戶權限過期」。
+  // 真正的 accessToken 一律由登入流程的 Storage.saveLoginData 寫入。
 
   // 停權即時攔截（登入後才被停權）：喚醒刷新 token 後重查 roleLevel，若已被停權（<=0）→ 提示並登出。
   const handleAccountSuspended = useCallback(() => {
+    // 與權限過期同理：非登入態不跳窗。登入當下的停權攔截由 LoginContainer 自行處理
+    //（清 token + 跳停權提示 + 不進主畫面），這裡再跳一則會變成登入頁上的重複彈窗。
+    if (!isLoggedInRef.current) {
+      console.log('[RootLayout] ⏸ 目前非登入態，略過停權彈窗');
+      // 同樣把閂鎖還回去，避免之後真的進入 App 後停權驅離被吞掉。
+      resetSuspensionLatch();
+      return;
+    }
     showAlert(
       translate('accountSuspendedTitle'),
       translate('accountSuspendedMessage'),
@@ -155,8 +183,8 @@ function RootLayoutContent() {
           // 創建登入過期處理函數（超過 30 天需要重新登入）
           const handleLoginExpired = () => {
             showAlert(
-              '登入已過期',
-              '您的登入已超過 30 天，為了帳戶安全，請重新登入。',
+              translate('sessionExpiredTitle'),
+              translate('sessionExpiredMessage'),
               [
                 {
                   text: translate('ok'),
@@ -175,8 +203,8 @@ function RootLayoutContent() {
           // 網路異常時僅提示、不登出（超過一小時回來若網路未就緒常會觸發）
           const handleNetworkError = () => {
             showAlert(
-              '網路異常',
-              '無法連線更新登入狀態，請檢查網路後再試。您可繼續使用，下次回到 App 時會再嘗試更新。',
+              translate('networkErrorTitle'),
+              translate('networkErrorMessage'),
               [{ text: translate('ok') }]
             );
           };

@@ -29,11 +29,28 @@ import {
 } from '../config/userApiClient';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
+import DropdownArrow, {
+  DROPDOWN_ARROW_WIDTH,
+  DROPDOWN_ARROW_HEIGHT,
+} from '../components/DropdownArrow';
 import { translate, getCurrentLang } from '../i18n/i18n';
 import { peekPendingSocialName, clearPendingSocialName } from '../auth/pendingSocialName';
+import { setProfileIncompletePersisted } from '../auth/firstLoginRedirect';
+import { walletActionFontSize } from '../utils/walletFont';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
+
+/**
+ * 輸入框外觀：與 LoginScreen 的按鈕、XStoryLogin / ResetPassword / Register 的輸入框
+ * 同一套語彙（圓角 25、高度 50、水平內距 20）。
+ *
+ * 高度一定要跟著給：RN 會把圓角 clamp 到 height/2，只寫 borderRadius: 25 而元件高度
+ * 不到 50 時（此頁原本約 41~45），實際渲染出來的弧角會比登入頁小。
+ */
+const FIELD_RADIUS = 25;
+const FIELD_HEIGHT = 50;
+const FIELD_PADDING_H = 20;
 
 /**
  * 容錯解析後端生日 → 本地 Date（解析不出來回 null）。
@@ -111,12 +128,24 @@ export default function ProfileScreen() {
   // 頭像維持 1:1 圓形比例，寬度 RWD：手機為螢幕寬 30%、平板為 25%。
   const avatarSize = Math.round(windowWidth * (isTablet ? 0.25 : 0.3));
   const isEn = getCurrentLang() === 'en';
-  // 英文詞較長（Refill / Coin History），加值與紀錄鈕字級放大一點
-  const walletFontSize = ms(isEn ? 18 : 17);
+  // 加值與紀錄鈕字級：與 HistoryScreen 的「加值」共用同一組數值（見 utils/walletFont）
+  const walletFontSize = walletActionFontSize(ms);
   // 「更新個人資訊 / Update Profile」按鈕：英文再放大一點（此字串短，不影響領取 CTA 的長字）
   const updateFontSize = ms(isEn ? 20 : 16);
   // 日期選擇器（iOS）依當前語言在地化年月日/週幾顯示；Android 原生跟隨裝置語言
   const pickerLocale = getCurrentLang() === 'zh-CN' ? 'zh-Hans' : getCurrentLang() === 'zh-TW' ? 'zh-Hant' : 'en';
+
+  /** 眼睛（回首頁）：首次登入時 ProfileScreen 是這個 Stack 的根（見 StoryNavigator），
+   *  直接 navigate 會把首頁「疊」在個人資料頁之上，返回鍵又退回個人資料頁。
+   *  此情況改用 reset 讓首頁成為根；其他情況（從首頁 push 進來）維持原本的 navigate 退回。 */
+  const goHome = useCallback(() => {
+    const state = (navigation as any).getState?.();
+    if (state?.routes?.[0]?.name === routes.PROFILE) {
+      (navigation as any).reset({ index: 0, routes: [{ name: routes.MAIN }] });
+      return;
+    }
+    navigation.navigate(routes.MAIN as never);
+  }, [navigation]);
 
   // ---- 載入用戶資料（換帳號後每次進入此畫面都重新拉取，避免顯示上一帳號名稱/生日/性別）----
   const loadUserProfile = useCallback(async () => {
@@ -158,6 +187,9 @@ export default function ProfileScreen() {
         // 生日 + 性別皆齊全 = 已完成個人資料；任一缺 → 仍顯示任務獎勵 CTA
         const profileComplete = hasBirthday && hasGender;
         setShowCompleteProfileClaimCta(!profileComplete);
+        // 同步持久化旗標：資料補齊 → 清除（之後啟動正常落在首頁／繼續觀看）；
+        // 仍缺 → 保持為真（含在別的裝置被改動、或登入時取不到 profile 的情況）。
+        setProfileIncompletePersisted(!profileComplete);
         console.log('[ProfileScreen] ✓ 成功載入用戶資料:', userData);
       } else {
         // 抓取失敗（回傳 null）→ 不猜樣式，標記載入失敗以顯示重試
@@ -234,6 +266,8 @@ export default function ProfileScreen() {
       if (result.success !== false) {
         // 已存回後端 → 清除社群暱稱暫存，避免下次載入殘留
         clearPendingSocialName();
+        // 依這次送出的內容重算完成度並同步旗標（不必等下次載入才清）
+        setProfileIncompletePersisted(!(!!birthdayISO && (gender === 1 || gender === 2)));
         showAlert(translate('profileUpdatedSuccessTitle'), translate('profileUpdatedSuccessMessage'), [
           { text: translate('ok'), onPress: () => {} },
         ]);
@@ -253,8 +287,8 @@ export default function ProfileScreen() {
     if (isSubmitting) return;
 
     if (gender !== 1 && gender !== 2) {
-      // 非真正錯誤（輸入提示）→ 標題用 "Alert"，與 server 回傳錯誤的「發生錯誤」區隔
-      showAlert(translate('commonAlertTitle'), translate('profileSelectGenderForBonus'));
+      // 全站彈窗標題統一為「錯誤／错误／Error」，不再用 "Alert" 區隔輸入提示與伺服器錯誤
+      showAlert(translate('genericErrorTitle'), translate('profileSelectGenderForBonus'));
       return;
     }
 
@@ -273,6 +307,8 @@ export default function ProfileScreen() {
       }
       // 已存回後端 → 清除社群暱稱暫存，避免下次載入殘留
       clearPendingSocialName();
+      // 依這次送出的內容重算完成度並同步旗標（獎勵領取成功與否都不影響資料已完成的事實）
+      setProfileIncompletePersisted(!(!!birthdayISO && (gender === 1 || gender === 2)));
 
       try {
         const claimResult = await claimActivityReward({ activityName: 'PROFILE_COMPLETED' });
@@ -347,7 +383,7 @@ export default function ProfileScreen() {
   if (isLoading) {
     return (
       <View style={styles.safe}>
-        <ScreenTopBar onEyePress={() => navigation.navigate(routes.MAIN as never)} />
+        <ScreenTopBar onEyePress={goHome} />
         <View style={[styles.container, styles.loadingContainer, { paddingHorizontal: horizontalPadding }]}>
           <ActivityIndicator size="large" color="#00a99d" />
           <Text style={[styles.loadingText, { fontSize: bodyFontSize }]}>{translate('profileLoading')}</Text>
@@ -360,7 +396,7 @@ export default function ProfileScreen() {
   if (loadFailed) {
     return (
       <View style={styles.safe}>
-        <ScreenTopBar onEyePress={() => navigation.navigate(routes.MAIN as never)} />
+        <ScreenTopBar onEyePress={goHome} />
         <View style={[styles.container, styles.loadingContainer, { paddingHorizontal: horizontalPadding }]}>
           <Text style={[styles.loadingText, { fontSize: bodyFontSize, textAlign: 'center', marginTop: 0 }]}>
             {translate('profileLoadFailedMessage')}
@@ -376,6 +412,9 @@ export default function ProfileScreen() {
   // 與 AppHeader（Android 主畫面）金幣 icon 一致：ms(20)
   const coinIconSmall = ms(20);
   const coinIconBtn = ms(20);
+  // 下拉倒三角形：全站共用尺寸（僅隨 RWD 縮放，不隨字級/字型變動）
+  const arrowWidth = ms(DROPDOWN_ARROW_WIDTH);
+  const arrowHeight = ms(DROPDOWN_ARROW_HEIGHT);
   /** 首次完成個人資料（生日 + 性別）尚未填妥 → 鎖定底部更新按鈕 */
   const isProfileIncomplete =
     showCompleteProfileClaimCta && (!birthday || (gender !== 1 && gender !== 2));
@@ -396,7 +435,7 @@ export default function ProfileScreen() {
           {...(Platform.OS === 'ios' ? { contentInsetAdjustmentBehavior: 'automatic' as const } : {})}
           contentContainerStyle={styles.scrollContent}
         >
-          <ScreenTopBar onEyePress={() => navigation.navigate(routes.MAIN as never)} />
+          <ScreenTopBar onEyePress={goHome} />
 
           <View style={[styles.contentWrap, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
             <View style={[styles.container, { paddingHorizontal: horizontalPadding }]}>
@@ -470,7 +509,7 @@ export default function ProfileScreen() {
                   >
                     {birthdayText}
                   </Text>
-                  <Text style={[styles.arrow, { fontSize: bodyFontSize }]}>{'▾'}</Text>
+                  <DropdownArrow width={arrowWidth} height={arrowHeight} />
                 </View>
               </Pressable>
 
@@ -489,7 +528,7 @@ export default function ProfileScreen() {
                     >
                       {genderDisplayLabel(gender)}
                     </Text>
-                    <Text style={[styles.arrow, { fontSize: bodyFontSize }]}>{'▾'}</Text>
+                    <DropdownArrow width={arrowWidth} height={arrowHeight} />
                   </View>
                 </Pressable>
               ) : (
@@ -499,7 +538,9 @@ export default function ProfileScreen() {
                     <Picker
                       selectedValue={gender}
                       onValueChange={(v) => setGender(v as GenderCode)}
-                      dropdownIconColor="#cdd4db"
+                      // 原生下拉箭頭大小由 OS 固定（約 24dp），與生日列的三角形不一致 →
+                      // 隱藏它，改在右側疊上與其他下拉列同尺寸的 DropdownArrow
+                      dropdownIconColor="transparent"
                       style={styles.picker}
                       itemStyle={{ color: '#e7eef6', fontSize: bodyFontSize }}
                     >
@@ -508,6 +549,9 @@ export default function ProfileScreen() {
                       <Picker.Item label={translate('genderMale')} value={1} />
                       <Picker.Item label={translate('genderFemale')} value={2} />
                     </Picker>
+                    <View style={styles.pickerArrow} pointerEvents="none">
+                      <DropdownArrow width={arrowWidth} height={arrowHeight} />
+                    </View>
                   </View>
                 </View>
               )}
@@ -780,28 +824,44 @@ const styles = StyleSheet.create({
   input: {
     color: '#e7eef6',
     backgroundColor: '#1f2226',
-    borderRadius: 25,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    borderRadius: FIELD_RADIUS,
+    minHeight: FIELD_HEIGHT,
+    paddingHorizontal: FIELD_PADDING_H,
+    // 高度改由 minHeight 決定；Android 的 TextInput 有原生預設內距，歸零才不會疊加
+    paddingVertical: 0,
+    textAlignVertical: 'center',
   },
 
   // ---- 生日盒 ----
   valueBox: {
     backgroundColor: '#1f2226',
-    borderRadius: 25,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderRadius: FIELD_RADIUS,
+    minHeight: FIELD_HEIGHT,
+    paddingHorizontal: FIELD_PADDING_H,
+    paddingVertical: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   valueText: { color: '#e7eef6', flexShrink: 1 },
-  arrow: { color: '#cdd4db' },
   valueTextPlaceholder: { color: '#9aa3ad' },
 
   // ---- 性別選單 ----
-  pickerBox: { backgroundColor: '#1f2226', borderRadius: 25 },
-  picker: { color: '#e7eef6', minHeight: 44, paddingVertical: 0 },
+  pickerBox: {
+    backgroundColor: '#1f2226',
+    borderRadius: FIELD_RADIUS,
+    minHeight: FIELD_HEIGHT,
+    justifyContent: 'center',
+  },
+  /** Android：自繪箭頭疊在原生 Picker 右側，right 對齊輸入框的水平內距 */
+  pickerArrow: {
+    position: 'absolute',
+    right: FIELD_PADDING_H,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  picker: { color: '#e7eef6', minHeight: FIELD_HEIGHT, paddingVertical: 0 },
 
   // ---- CTA ----
   submitBtn: {
@@ -975,9 +1035,11 @@ const styles = StyleSheet.create({
     color: '#e7eef6',
     fontSize: 16,
     backgroundColor: '#1f2226',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    borderRadius: FIELD_RADIUS,
+    minHeight: FIELD_HEIGHT,
+    paddingHorizontal: FIELD_PADDING_H,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
     marginBottom: 16,
   },
   modalButtons: {

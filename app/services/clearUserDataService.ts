@@ -2,6 +2,7 @@
 import tokenStorage from '../auth/Storage';
 import storage from '../storage/storage';
 import { clearAllIdempotencyKeys } from '../config/idempotencyKeyCache';
+import { markSessionExpired } from '../config/sessionAuth';
 
 /**
  * 清除所有用戶資料的服務
@@ -9,7 +10,12 @@ import { clearAllIdempotencyKeys } from '../config/idempotencyKeyCache';
  */
 export async function clearAllUserData(): Promise<void> {
   console.log('[clearUserDataService] 🗑️ 開始清除所有資料...');
-  
+
+  // 先上鎖再清資料（清除是 async 的）：登出當下仍在飛的請求會帶著舊 token 回 401，
+  // 那是預期中的失敗，不該讓使用者回到登入頁後又被彈一則「帳戶權限過期」。
+  // 下次登入成功時由 Storage.saveLoginData → resetSessionExpiredLatch 解鎖。
+  markSessionExpired();
+
   try {
     // 清除 AsyncStorage
     await storage.deleteAllStorage();

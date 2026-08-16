@@ -58,13 +58,13 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
         // ✅ 本地驗證（僅在 !isValid 時檢查，維持你原本的邏輯）
         if (!isValid) {
             if (!token) {
-                // 連結失效
-                showAlert("resetLinkInvalidTitle", "resetLinkInvalidMessage");
+                // 連結失效（與後端回報連結過期時共用同一則文案，避免兩條路徑說法不一致）
+                showAlert("genericErrorTitle", "resetLinkExpiredMessage");
                 return;
             }
             if (pwd !== pwd2) {
                 // 兩次密碼不一致
-                showAlert("passwordMismatchTitle", "passwordMismatchMessage");
+                showAlert("genericErrorTitle", "passwordMismatchMessage");
                 return;
             }
             if (!PASSWORD_REGEX.test(pwd)) {

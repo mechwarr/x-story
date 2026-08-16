@@ -4,7 +4,7 @@ import tokenStorage from '../auth/Storage';
 import { portURL } from "./apiClient";
 import { translate } from "../i18n/i18n";
 import { showAlert } from "../components/CustomAlert";
-import { registerReauthenticator, ReauthOutcome } from "./sessionAuth";
+import { registerReauthenticator, ReauthOutcome, claimSessionExpiredNotice } from "./sessionAuth";
 
 /**
  * 登入／註冊／refresh／logout 與 iapService 使用的 `api/me/iap-receipts` 等，實際都部署在
@@ -374,13 +374,20 @@ export async function resetXStoryPassword(
     } else {
       // 只記錄後端原始訊息供除錯，對使用者一律顯示內建翻譯（後端僅有繁中）
       // 失敗提示只在這裡跳一次，呼叫端（ResetPasswordScreen）不再重複彈窗
+      // 200 + success:false 代表後端拒絕了這個 token，即連結已過期或無效
       console.warn("密碼重設失敗:", res?.message);
-      showAlert(translate("genericErrorTitle"), translate("passwordUpdateFailedMessage"));
+      showAlert(translate("genericErrorTitle"), translate("resetLinkExpiredMessage"));
       return false;
     }
   } catch (error) {
+    // 400 為後端判定 token 失效；其餘（逾時、連線失敗、5xx）維持一般失敗文案，
+    // 避免把網路問題誤報成「連結過期」讓使用者白跑一趟重寄流程。
+    const status = extractStatusCode(error);
     console.error("密碼重設時發生錯誤:", extractErrorMessage(error));
-    showAlert(translate("genericErrorTitle"), translate("passwordUpdateFailedMessage"));
+    showAlert(
+      translate("genericErrorTitle"),
+      translate(status === 400 ? "resetLinkExpiredMessage" : "passwordUpdateFailedMessage")
+    );
     return false;
   }
 }
@@ -874,10 +881,12 @@ class TokenRefreshService {
       const refreshToken = await tokenStorage.getRefreshToken();
       const accessToken = await tokenStorage.getToken();
 
-      // 缺 refreshToken 或 accessToken 都無法刷新，視為需要重新登入。
+      // 缺 refreshToken 或 accessToken：代表本機已無登入資料（已登出、或尚未登入），
+      // 而不是後端否決了這個 token。登出瞬間仍在飛的請求會帶舊 token 回 401 走到這裡，
+      // 若當成 token_invalid 就會在使用者已回到登入頁後誤跳「帳戶權限過期」。
       if (!refreshToken || !accessToken) {
-        console.log('[TokenRefreshService] ⚠️ 缺少 refreshToken 或 accessToken，無法刷新');
-        return { ok: false, reason: 'token_invalid' };
+        console.log('[TokenRefreshService] ⚠️ 本機已無 refreshToken／accessToken，視為已登出，不刷新也不提示');
+        return { ok: false, reason: 'logged_out' };
       }
 
       console.log('[TokenRefreshService] ✓ 開始刷新，refreshToken 長度:', refreshToken.length);
@@ -943,7 +952,12 @@ class TokenRefreshService {
     const isExpired = await tokenStorage.isLoginExpired(30);
     if (isExpired) {
       console.log('[TokenRefreshService] ⚠️ 登入已超過 30 天，需要重新登入');
-      onLoginExpired?.();
+      // 與被動式 401 共用閂鎖：冷啟動與喚醒可能都判定過期，只提示第一則。
+      if (claimSessionExpiredNotice()) {
+        onLoginExpired?.();
+      } else {
+        console.log('[TokenRefreshService] ⏸ 已提示過過期，略過重複的登入過期彈窗');
+      }
       return false;
     }
 
@@ -974,8 +988,19 @@ class TokenRefreshService {
       return false;
     }
 
+    // 本機已無登入資料（多半是這期間使用者已登出）：不是權限過期，不提示也不重複登出。
+    if (outcome.reason === 'logged_out') {
+      console.log('[TokenRefreshService] ⏸ 本機已無登入資料，略過權限過期提示');
+      return false;
+    }
+
     console.error('[TokenRefreshService] ❌ Token 刷新失敗（權限過期），未獲得新的 token');
-    onRefreshFailed?.();
+    // 與被動式 401 共用閂鎖，避免同一次過期在多條路徑各跳一則。
+    if (claimSessionExpiredNotice()) {
+      onRefreshFailed?.();
+    } else {
+      console.log('[TokenRefreshService] ⏸ 已提示過過期，略過重複的權限過期彈窗');
+    }
     return false;
   }
 

@@ -339,6 +339,46 @@
         "zh-CN": "您的账号已被停权，无法登录使用。如有疑问请联系客服。",
         "en": "Your account has been suspended and cannot be used to log in. Please contact support if you have any questions."
     },
+    "sessionExpiredTitle": {
+        "zh-TW": "登入已過期",
+        "zh-CN": "登录已过期",
+        "en": "Session Expired"
+    },
+    "sessionExpiredMessage": {
+        "zh-TW": "為保障帳戶安全，\n請重新登入",
+        "zh-CN": "为保障账号安全，\n请重新登录",
+        "en": "Please sign in again to protect your account."
+    },
+    "authExpiredTitle": {
+        "zh-TW": "帳戶權限過期",
+        "zh-CN": "账户权限已过期",
+        "en": "Session Expired"
+    },
+    "authExpiredMessage": {
+        "zh-TW": "您的登入權限已過期，\n請重新登入",
+        "zh-CN": "您的登录权限已过期，\n请重新登录",
+        "en": "Your session has expired. Please sign in again."
+    },
+    "networkErrorTitle": {
+        "zh-TW": "網路異常",
+        "zh-CN": "网络异常",
+        "en": "Network Error"
+    },
+    "networkErrorMessage": {
+        "zh-TW": "無法連線更新登入狀態，\n請檢查網路後再試。\n您可繼續使用，下次回到 App 時會再嘗試更新。",
+        "zh-CN": "无法连接以更新登录状态，\n请检查网络后再试。\n您可继续使用，下次回到 App 时会再尝试更新。",
+        "en": "Couldn't update your session. Please check your connection and try again.\nYou can keep using the app; we'll retry the next time you open it."
+    },
+    "wechatInitFailedTitle": {
+        "zh-TW": "微信功能初始化失敗",
+        "zh-CN": "微信功能初始化失败",
+        "en": "WeChat Setup Failed"
+    },
+    "wechatInitFailedMessage": {
+        "zh-TW": "微信登入功能可能無法使用，\n若問題持續請聯繫客服",
+        "zh-CN": "微信登录功能可能无法使用，\n若问题持续请联系客服",
+        "en": "WeChat sign-in may be unavailable.\nPlease contact support if the problem persists."
+    },
     "storyOrderParseErrorMessage": {
         "zh-TW": "劇情資料有誤（順序無法解析），將返回首頁。",
         "zh-CN": "剧情数据有误（顺序无法解析），将返回首页。",
@@ -614,35 +654,15 @@
         "zh-CN": "请输入您的 Email",
         "en": "Add your email"
     },
-    "resetLinkInvalidTitle": {
-        "zh-TW": "重設連結無效",
-        "zh-CN": "重设连接无效",
-        "en": "Reset Link Invalid"
-    },
-    "resetLinkInvalidMessage": {
-        "zh-TW": "重設連結已失效，請重新取得。",
-        "zh-CN": "重设连接已失效，请重新获取。",
-        "en": "The reset link has expired or is invalid. Please request a new one."
-    },
-    "passwordMismatchTitle": {
-        "zh-TW": "密碼不一致",
-        "zh-CN": "密码不一致",
-        "en": "Passwords Do Not Match"
+    "resetLinkExpiredMessage": {
+        "zh-TW": "密碼重設連結已過期或無效",
+        "zh-CN": "密码重置链接已过期或无效",
+        "en": "Password reset link invalid or expired."
     },
     "passwordMismatchMessage": {
         "zh-TW": "兩次輸入的密碼不一致",
         "zh-CN": "两次输入的密码不一致",
         "en": "Passwords do not match."
-    },
-    "passwordTooShortTitle": {
-        "zh-TW": "密碼過短",
-        "zh-CN": "密码过短",
-        "en": "Password Too Short"
-    },
-    "passwordTooShortMessage": {
-        "zh-TW": "密碼需至少 {minLen} 個字元。",
-        "zh-CN": "密码需至少 {minLen} 个字符。",
-        "en": "Your password must be at least {minLen} characters."
     },
     "passwordUpdatedTitle": {
         "zh-TW": "密碼已更新",
@@ -738,11 +758,6 @@
         "zh-TW": "請先選擇性別以完成個人資料並領取獎勵。",
         "zh-CN": "请先选择性别以完成个人资料并领取奖励。",
         "en": "Please select your gender to complete your profile and claim the reward."
-    },
-    "commonAlertTitle": {
-        "zh-TW": "Alert",
-        "zh-CN": "Alert",
-        "en": "Alert"
     },
     "profileLoadFailedMessage": {
         "zh-TW": "無法取得個人資料，請稍後再試",

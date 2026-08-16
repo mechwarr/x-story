@@ -21,7 +21,18 @@ export default function useInitApp(
 
   useEffect(() => {
     const checkLoginStatus = async () => {
-      const token = await tokenStorage.getToken();
+      let token = await tokenStorage.getToken();
+
+      // 完整性檢查：正常登入一定同時具備 accessToken 與 refreshToken（saveLoginData 一起寫入）。
+      // 只剩 accessToken 代表本機登入狀態已損毀 —— 例如舊版曾把重設密碼 deep link 的一次性 token
+      // 誤寫成 accessToken、或上次登出中途失敗。沿用它會讓使用者「看似已登入」卻每支 API 都 401，
+      // 最後被彈一則莫名其妙的「帳戶權限過期」。這裡靜默清掉登入資料、直接當成未登入即可自我修復。
+      if (token && !(await tokenStorage.getRefreshToken())) {
+        console.warn('[useInitApp] ⚠️ 只有 accessToken 而無 refreshToken，登入狀態不完整，清除後視為未登入');
+        await tokenStorage.clearLoginData();
+        token = null;
+      }
+
       const loggedIn = !!token;
 
       console.log("[useInitApp] Token retrieved:", token ? `長度 ${token.length}` : 'null');
@@ -67,8 +78,8 @@ export default function useInitApp(
         // 創建登入過期處理函數（超過 30 天需要重新登入）
         const handleLoginExpired = () => {
           showAlert(
-            '登入已過期',
-            '您的登入已超過 30 天，為了帳戶安全，請重新登入。',
+            translate('sessionExpiredTitle'),
+            translate('sessionExpiredMessage'),
             [
               {
                 text: translate('ok'),
@@ -87,8 +98,8 @@ export default function useInitApp(
         // 創建刷新失敗處理函數（可以訪問內部的 setIsLoggedIn）
         const handleRefreshFailed = () => {
           showAlert(
-            '帳戶權限過期',
-            '您的登入權限已過期，請重新登入。',
+            translate('authExpiredTitle'),
+            translate('authExpiredMessage'),
             [
               {
                 text: translate('ok'),
@@ -159,10 +170,11 @@ export default function useInitApp(
                   appState: AppState.currentState,
                 });
                 
-                // 顯示 Alert 通知用戶
+                // 顯示 Alert 通知用戶。SDK 原始錯誤訊息（無多語系、對使用者無意義）
+                // 只留在上方的 console.error，彈窗一律顯示內建翻譯。
                 showAlert(
-                  '微信功能初始化失敗',
-                  `${errorMessage}\n\n微信登入功能可能無法使用。如果問題持續，請聯繫客服。`,
+                  translate('wechatInitFailedTitle'),
+                  translate('wechatInitFailedMessage'),
                   [{ text: translate('ok') }]
                 );
               });

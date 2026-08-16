@@ -16,13 +16,16 @@ import routes from '../navigations/routes';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
 import { translate } from '../i18n/i18n';
+import { walletActionFontSize } from '../utils/walletFont';
 
 type TabKey = 'coin' | 'purchase';
 
 export default function HistoryScreen() {
   const [tab, setTab] = useState<TabKey>('coin');
   const navigation = useNavigation();
-  const { isTablet, maxContentWidth, horizontalPadding } = useResponsive();
+  const { isTablet, maxContentWidth, horizontalPadding, ms } = useResponsive();
+  // 與 ProfileScreen 的「加值」鈕字級一致（英文 Refill 不再沿用 RN 預設 14）
+  const walletFontSize = walletActionFontSize(ms);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -53,7 +56,14 @@ export default function HistoryScreen() {
             style={styles.chargeBtn}
             onPress={() => navigation.navigate(routes.PURCHASE as never)}
           >
-            <Text style={styles.chargeText}>{translate('profileTopUp')}</Text>
+            <Text
+              style={[styles.chargeText, { fontSize: walletFontSize }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+            >
+              {translate('profileTopUp')}
+            </Text>
           </Pressable>
         </View>
       )}

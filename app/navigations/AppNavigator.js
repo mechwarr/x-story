@@ -21,6 +21,11 @@ import storage from "../storage/storage";
 import { getBookstoreList, getEffectiveRoleLevel } from "../config/userApiClient";
 import { canViewUnlisted } from "../config/roles";
 import { translate, matchesCurrentStoryLang } from "../i18n/i18n";
+import {
+  isPendingProfileRedirect,
+  setPendingProfileRedirect,
+  getProfileIncompletePersisted,
+} from "../auth/firstLoginRedirect";
 import VersionScreen from "../screens/VersionScreen";
 import LanguageScreen from "../screens/LanguageScreen";
 import {ResetScreen} from "../screens/ResetScreen";
@@ -91,6 +96,20 @@ export default function AppNavigator() {
     (async () => {
       let route = routes.HOME;
       try {
+        // 冷啟動以既有 token 自動登入時不會經過 LoginContainer，記憶體旗標為空 →
+        // 改讀持久化旗標（資料補齊前一直為真），讓「資料未完成」的使用者同樣先看到 ProfileScreen。
+        if (!isPendingProfileRedirect() && (await getProfileIncompletePersisted())) {
+          setPendingProfileRedirect(true);
+        }
+
+        // 個人資料未完成：一律落在 HOME（其內層 Stack 會直接顯示 ProfileScreen）。
+        // 不可落在「繼續觀看」——那樣 HOME 這個 Stack 根本不會掛載，導向個人資料頁就永遠不會發生。
+        // （新帳號通常沒有閱讀紀錄，但帳號 id 尚未寫入 SecureStore 時 storage 會退回匿名命名空間，
+        //   仍可能讀到裝置上的既有紀錄而誤落在「繼續觀看」。）
+        if (isPendingProfileRedirect()) {
+          if (mounted) setInitialRoute(routes.HOME);
+          return;
+        }
         const list = await storage.getStorys("continueStory");
         // 先套語系過濾（與 ContinueScreen 相同來源欄位）。
         const langMatched = (Array.isArray(list) ? list : []).filter((it) =>

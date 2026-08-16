@@ -24,7 +24,7 @@ import {
 } from '../config/authApiClient';
 import { useCoins } from '../store/coinContext';
 import { getUserProfile } from '../config/userApiClient';
-import { setPendingProfileRedirect } from './firstLoginRedirect';
+import { setPendingProfileRedirect, setProfileIncompletePersisted } from './firstLoginRedirect';
 import { setPendingSocialName, deriveGoogleDisplayName } from './pendingSocialName';
 import { subscribeVerifyRedirect } from './verifyRedirect';
 
@@ -98,15 +98,25 @@ export default function LoginContainer({ onLoginSuccess }) {
       }
       // 快取權限級別（roleLevel，9 = Admin），供首頁判斷是否顯示未上架書籍
       await tokenStorage.setUserRoleLevel(Number(userData?.roleLevel) || 0);
-      const hasBirthday = !!(userData?.birthDate && String(userData.birthDate).trim());
-      const hasGender = userData?.gender === 1 || userData?.gender === 2;
-      // 生日 + 性別皆齊全才算完成；任一缺 → 首次登入導向 ProfileScreen
-      setPendingProfileRedirect(!(hasBirthday && hasGender));
+
+      if (userData) {
+        const hasBirthday = !!(userData.birthDate && String(userData.birthDate).trim());
+        const hasGender = userData.gender === 1 || userData.gender === 2;
+        // 生日 + 性別皆齊全才算完成；任一缺 → 本次登入導向 ProfileScreen，
+        // 並記在持久化旗標，讓資料補齊前的每次冷啟動（自動登入）也先進 ProfileScreen。
+        const incomplete = !(hasBirthday && hasGender);
+        setPendingProfileRedirect(incomplete);
+        await setProfileIncompletePersisted(incomplete);
+      } else {
+        // getUserProfile 內部已吞掉例外、失敗時回傳 null（常見於剛存 token 的瞬間 API/時機競態）。
+        // 不因單次失敗就取消跳轉，否則「註冊後首次登入導向資料頁」會被誤吞；
+        // 但也不寫持久化旗標——避免把暫時抓不到誤記成「資料未完成」。
+        console.warn('[LoginContainer] 登入後取不到 profile，本次仍導向資料頁');
+        setPendingProfileRedirect(true);
+      }
     } catch (e) {
-      // 登入當下抓取 profile 失敗（常見於剛存 token 的瞬間 API/時機競態）：
-      // 不因單次失敗就取消跳轉，否則「註冊後首次登入導向資料頁」會被誤吞。
-      // 預設仍跳轉，交由 ProfileScreen 自行判斷是否已完成（旗標為一次性，之後不再跳）。
-      console.warn('[LoginContainer] 登入後取得 profile 失敗，預設仍導向資料頁:', e?.message ?? e);
+      // 非預期例外（例如 SecureStore 寫入失敗）：同樣不取消跳轉，交由 ProfileScreen 自行判斷。
+      console.warn('[LoginContainer] 登入後處理 profile 發生例外，預設仍導向資料頁:', e?.message ?? e);
       setPendingProfileRedirect(true);
     }
     onLoginSuccess();

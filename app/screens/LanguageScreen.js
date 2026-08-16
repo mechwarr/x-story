@@ -3,6 +3,10 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
 import AppHeader from "../components/AppHeader";
+import DropdownArrow, {
+  DROPDOWN_ARROW_WIDTH,
+  DROPDOWN_ARROW_HEIGHT,
+} from "../components/DropdownArrow";
 import Screen from "./Screen";
 import Content from "./Content";
 import colors from "../config/colors";
@@ -21,7 +25,7 @@ import Storage, {
 //    切換後會持久化並標記為手動，且整個畫面子樹會以新語系重新掛載（見 _layout.tsx 的 LanguageGate）。
 //  - 自動播放速度：以 < 秒數 > 步進器調整劇情自動播放的每段間隔（範圍 1~10 秒），持久化於 Storage。
 function LanguageScreen() {
-  const { scale } = useResponsive();
+  const { scale, ms } = useResponsive();
   const { lang, changeLanguage } = useLanguage();
   const navigation = useNavigation();
   const [open, setOpen] = useState(false);
@@ -85,9 +89,13 @@ function LanguageScreen() {
           <Text style={[styles.triggerText, { fontSize: fs }]}>
             {current.label}
           </Text>
-          <Text style={[styles.caret, { fontSize: fs }]}>
-            {open ? "▲" : "▼"}
-          </Text>
+          <DropdownArrow
+            direction={open ? "up" : "down"}
+            width={ms(DROPDOWN_ARROW_WIDTH)}
+            height={ms(DROPDOWN_ARROW_HEIGHT)}
+            color={colors.personalText}
+            style={styles.caret}
+          />
         </Pressable>
 
         {/* 展開的選項清單 */}
@@ -186,7 +194,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   caret: {
-    color: colors.personalText,
     marginLeft: 12,
   },
   dropdown: {
