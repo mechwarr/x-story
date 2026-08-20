@@ -3,6 +3,8 @@
  * - 斷點以寬度 768 為平板（iPad 直向約 768pt）
  * - 內容最大寬度避免在大螢幕上過度拉寬
  */
+import { Platform } from 'react-native';
+
 export const BREAKPOINT_TABLET = 768;
 
 /** 頂欄 / Drawer 藍眼 logo (blueeye.png) 基準尺寸，實際為 Math.round(HEADER_ICON_BASE_SIZE * scale) */
@@ -10,6 +12,18 @@ export const HEADER_ICON_BASE_SIZE = 32;
 export const MAX_CONTENT_WIDTH = 680;
 /** 平板時左右留白（內容置中時每側的 padding） */
 export const TABLET_HORIZONTAL_PADDING = 24;
+
+/**
+ * screens/Screen.js 的上方留白。
+ * 注意：Screen 用的是 react-native 的 SafeAreaView，在 iOS 上它「完全忽略」style 的 padding
+ *（見 RCTSafeAreaShadowView.m：setPadding* 全被覆寫成 no-op，只會套安全區 insets），
+ * 而 App 根層 _layout.tsx 已用 SafeAreaWrapper 吃掉安全區，Screen 拿到的 insets 是 0，
+ * 所以這個值實際上只在 Android 生效。頂欄幾何請一律取用 hook/useHeaderMetrics.ts，不要各頁自行硬寫。
+ */
+export const SCREEN_TOP_PADDING = Platform.OS === 'android' ? 15 : 47;
+
+/** 頂欄列（藍眼 / 人頭那一列）的基準高度，實際為 Math.max(值, ms(值)) */
+export const HEADER_ROW_BASE_HEIGHT = 50;
 
 /**
  * 平板統一 UI 放大係數（單一可調來源）。

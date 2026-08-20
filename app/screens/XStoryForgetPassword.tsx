@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  Image,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
@@ -14,7 +13,7 @@ import { showAlert } from "../components/CustomAlert";
 import { forgotXStoryPassword } from "../config/authApiClient";
 import { translate } from "../i18n/i18n";
 import useResponsive from "../hook/useResponsive";
-import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
+import HeaderEyeLogo from "../components/HeaderEyeLogo";
 
 // Email 格式驗證（與註冊共用同一規則）
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -29,8 +28,7 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
   const [email, setEmail] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [waitingVerification, setWaitingVerification] = useState(false);
-  const { isTablet, maxContentWidth, ms } = useResponsive();
-  const headerIconSize = ms(HEADER_ICON_BASE_SIZE);
+  const { isTablet, maxContentWidth } = useResponsive();
 
   const sendResetEmail = async () => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -66,9 +64,7 @@ export function XStoryForgetPassword({ onEmailChange, onCancel, onSuccess }: Pro
       style={[styles.screen, isTablet && { paddingHorizontal: 24 }]}
       behavior={Platform.select({ ios: "padding", android: undefined })}
     >
-      <View style={styles.logoContainer}>
-        <Image style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]} source={require("../../assets/blueeye.png")} />
-      </View>
+      <HeaderEyeLogo />
 
       <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
       <Text style={styles.title}>{translate("forgotPassword")}</Text>
@@ -188,15 +184,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
     paddingHorizontal: 20,
-  },
-  imgIcon: {
-    resizeMode: "contain",
-  },
-  logoContainer: {
-    position: "absolute",
-    top: 20,
-    left: 20,
-    zIndex: 10,
   },
   // 忘記密碼頁表單比登入頁少了密碼欄與忘記密碼連結，補上高度差讓標題置中後對齊登入頁
   bottomSpacer: {

@@ -13,7 +13,7 @@ import { XStoryForgetPassword } from "./XStoryForgetPassword";
 import { translate } from "../i18n/i18n";
 import { loginWithXStory, LoginTokenResult } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
-import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
+import HeaderEyeLogo from "../components/HeaderEyeLogo";
 
 // Email 格式驗證（與註冊/忘記密碼共用同一規則）
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -31,8 +31,7 @@ export function XStoryLogin({ onLoginSuccess, onCancel }: Props) {
     const [password, setPassword] = useState("");
     const [showForgetPassword, setShowForgetPassword] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const { isTablet, maxContentWidth, ms } = useResponsive();
-    const headerIconSize = ms(HEADER_ICON_BASE_SIZE);
+    const { isTablet, maxContentWidth } = useResponsive();
 
     const handleLogin = async () => {
         // 前端先驗證，通過才送出 request
@@ -51,9 +50,7 @@ export function XStoryLogin({ onLoginSuccess, onCancel }: Props) {
 
     return (
         <View style={[styles.container, isTablet && { paddingHorizontal: 24 }]}>
-            <View style={styles.logoContainer}>
-                <Image style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]} source={require("../../assets/blueeye.png")} />
-            </View>
+            <HeaderEyeLogo />
 
             <View style={[styles.formWrap, isTablet && { maxWidth: maxContentWidth, width: '100%' }]}>
             <Text style={styles.title}>{translate("signInTitle")}</Text>
@@ -189,15 +186,6 @@ const styles = StyleSheet.create({
         color: "#f0ad57",
         fontSize: 15,
         textDecorationLine: "underline",
-    },
-    imgIcon: {
-        resizeMode: "contain",
-    },
-    logoContainer: {
-        position: "absolute",
-        top: 20,
-        left: 20,
-        zIndex: 10,
     },
     passwordInputWrapper: {
         width: "100%",

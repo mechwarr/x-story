@@ -1,5 +1,5 @@
 // app/screens/ProfileScreen.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -36,9 +36,9 @@ import DropdownArrow, {
 import { translate, getCurrentLang } from '../i18n/i18n';
 import { peekPendingSocialName, clearPendingSocialName } from '../auth/pendingSocialName';
 import { setProfileIncompletePersisted } from '../auth/firstLoginRedirect';
-import { walletActionFontSize } from '../utils/walletFont';
+import { walletActionFontSize, walletRecordsFontSize } from '../utils/walletFont';
 
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DatePickerSheet from '../components/DatePickerSheet';
 import { Picker } from '@react-native-picker/picker';
 
 /**
@@ -51,6 +51,12 @@ import { Picker } from '@react-native-picker/picker';
 const FIELD_RADIUS = 25;
 const FIELD_HEIGHT = 50;
 const FIELD_PADDING_H = 20;
+
+/**
+ * 尚未設定生日時，日期滾輪的起始定位。
+ * 不用「今天」或某個實際生日（原為 1995/8/5），避免看起來像已經幫使用者填好值。
+ */
+const DEFAULT_BIRTHDAY_PICKER_DATE = new Date(2001, 0, 1);
 
 /**
  * 容錯解析後端生日 → 本地 Date（解析不出來回 null）。
@@ -100,9 +106,6 @@ export default function ProfileScreen() {
   const [name, setName] = useState<string>('');
   /** null 表示尚未帶入/設定生日，畫面顯示 yyyy/mm/dd 占位字串 */
   const [birthday, setBirthday] = useState<Date | null>(null);
-  /** iOS bottom sheet 暫存的生日：開啟即帶入預設值，按「確定」才寫回 birthday。
-   *  解決 iOS spinner 未轉動就不觸發 onChange，導致 birthday 仍為 null、送出時被略過的問題。 */
-  const [draftBirthday, setDraftBirthday] = useState<Date | null>(null);
   const [gender, setGender] = useState<GenderCode>(0);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   /** iOS：性別以列顯示選中值，點擊後開 bottom sheet（Picker） */
@@ -128,12 +131,16 @@ export default function ProfileScreen() {
   // 頭像維持 1:1 圓形比例，寬度 RWD：手機為螢幕寬 30%、平板為 25%。
   const avatarSize = Math.round(windowWidth * (isTablet ? 0.25 : 0.3));
   const isEn = getCurrentLang() === 'en';
-  // 加值與紀錄鈕字級：與 HistoryScreen 的「加值」共用同一組數值（見 utils/walletFont）
+  // 加值鈕字級：與 HistoryScreen 的「加值」共用同一組數值（見 utils/walletFont）
   const walletFontSize = walletActionFontSize(ms);
-  // 「更新個人資訊 / Update Profile」按鈕：英文再放大一點（此字串短，不影響領取 CTA 的長字）
-  const updateFontSize = ms(isEn ? 20 : 16);
-  // 日期選擇器（iOS）依當前語言在地化年月日/週幾顯示；Android 原生跟隨裝置語言
-  const pickerLocale = getCurrentLang() === 'zh-CN' ? 'zh-Hans' : getCurrentLang() === 'zh-TW' ? 'zh-Hant' : 'en';
+  // 「查看紀錄 / Coin History」：中文同上，英文再大一級
+  const recordsFontSize = walletRecordsFontSize(ms);
+  // 「更新個人資訊 / Update Profile」按鈕：三語同字級（英文原本放大到 20，比中文明顯大一截）
+  const updateFontSize = ms(16);
+  // 「完成並領取 50 金幣 / Complete to Get 50 Coins」CTA：英文字串長但按鈕是滿版兩行，可比中文再大一級
+  const claimFontSize = ms(isEn ? 19 : 16);
+  /** 生日上限＝今天（不可選未來日期）。放在 render 外避免每次 render 產生新 Date 觸發下游重算 */
+  const maxBirthdayDate = useMemo(() => new Date(), []);
 
   /** 眼睛（回首頁）：首次登入時 ProfileScreen 是這個 Stack 的根（見 StoryNavigator），
    *  直接 navigate 會把首頁「疊」在個人資料頁之上，返回鍵又退回個人資料頁。
@@ -211,30 +218,10 @@ export default function ProfileScreen() {
     }, [loadUserProfile])
   );
 
-  /** 首次/未設定生日時的選擇器預設值（不會送出，僅供 picker 起始顯示） */
-  const birthdayPickerValue = birthday ?? new Date(1995, 7, 5);
-
-  // ---- 事件：日期變更 ----
-  // Android：原生對話框「確定」時即帶回所選日期 → 直接寫回 birthday。
-  const onChangeBirthday = (e: DateTimePickerEvent, date?: Date) => {
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    if (date) setBirthday(date);
-  };
-
-  /** iOS：開啟生日 sheet → 先把目前值（或預設）放進 draft，確保未轉動也有值可確定 */
-  const openBirthdayPicker = () => {
-    setDraftBirthday(birthday ?? birthdayPickerValue);
-    setShowDatePicker(true);
-  };
-
-  /** iOS：sheet 內滾動只更新 draft，不直接動 birthday */
-  const onChangeDraftBirthday = (e: DateTimePickerEvent, date?: Date) => {
-    if (date) setDraftBirthday(date);
-  };
-
-  /** iOS：按「確定」才把 draft 寫回 birthday（未轉動時即帶入預設值）*/
-  const confirmBirthday = () => {
-    if (draftBirthday) setBirthday(draftBirthday);
+  // ---- 事件：生日 ----
+  // DatePickerSheet 自行管理滾輪暫存值，按「確定」才回拋日期；「取消」則完全不改動 birthday。
+  const confirmBirthday = (date: Date) => {
+    setBirthday(date);
     setShowDatePicker(false);
   };
   const hasBirthday = !!birthday;
@@ -433,7 +420,8 @@ export default function ProfileScreen() {
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           showsVerticalScrollIndicator={false}
           {...(Platform.OS === 'ios' ? { contentInsetAdjustmentBehavior: 'automatic' as const } : {})}
-          contentContainerStyle={styles.scrollContent}
+          // 安全區底部留白改由捲動內容負責（按鈕不再貼底，footer 只管排版）
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 28 }]}
         >
           <ScreenTopBar onEyePress={goHome} />
 
@@ -453,7 +441,6 @@ export default function ProfileScreen() {
               {/* 餘額 + 操作列：iOS / Android 一致，皆為單行 —— 金幣 icon + 金額 後方
                   平行排列「加值」「查看紀錄」，不換行、不堆疊到下方 */}
               <View style={styles.balanceActionsRow}>
-                <View style={styles.flexSpacer} />
                 <View style={styles.balanceBox}>
                   <Image style={[styles.coin, { width: coinIconSmall, height: coinIconSmall }]} source={require('../../assets/coin.png')} />
                   <Text style={[styles.balanceText, { fontSize: bodyFontSize }]} numberOfLines={1}>{coins}</Text>
@@ -464,18 +451,15 @@ export default function ProfileScreen() {
                       style={[styles.chargeText, { fontSize: walletFontSize }]}
                       numberOfLines={1}
                       adjustsFontSizeToFit
-                      minimumFontScale={0.85}
+                      minimumFontScale={0.9}
                     >
                       {translate('profileTopUp')}
                     </Text>
                   </Pressable>
                   <Pressable style={styles.recordsBtn} onPress={() => navigation.navigate(routes.HISTORY as never)}>
-                    <Text
-                      style={[styles.linkText, { fontSize: walletFontSize }]}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.85}
-                    >
+                    {/* 刻意不加 adjustsFontSizeToFit：此文字一律以設定字級呈現，
+                        寬度不足時由左側 spacer／餘額方塊／加值鈕讓位（見 styles 註解） */}
+                    <Text style={[styles.linkText, { fontSize: recordsFontSize }]} numberOfLines={1}>
                       {translate('profileViewRecords')}
                     </Text>
                   </Pressable>
@@ -496,7 +480,7 @@ export default function ProfileScreen() {
               </View>
 
               {/* 生日 */}
-              <Pressable style={styles.inputRow} onPress={() => (Platform.OS === 'ios' ? openBirthdayPicker() : setShowDatePicker(true))}>
+              <Pressable style={styles.inputRow} onPress={() => setShowDatePicker(true)}>
                 <Text style={[styles.label, { fontSize: labelFontSize }]}>{translate('profileBirthdayLabel')}</Text>
                 <View style={styles.valueBox}>
                   <Text
@@ -557,7 +541,7 @@ export default function ProfileScreen() {
               )}
 
               {/* 更新鈕 + 刪除帳號：以 marginTop:'auto' 對齊至內容底部 */}
-              <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+              <View style={styles.footer}>
                 {/* CTA：未完成個人資料（無生日且未選性別）→ 完成並領獎；否則 → 僅更新 */}
                 <Pressable
                   style={[
@@ -576,12 +560,13 @@ export default function ProfileScreen() {
                         <Text
                           style={[
                             styles.submitText,
-                            { fontSize: submitFontSize },
+                            { fontSize: claimFontSize },
                             isProfileIncomplete && styles.submitTextLocked,
                           ]}
                           numberOfLines={2}
                           adjustsFontSizeToFit={Platform.OS === 'ios'}
-                          minimumFontScale={0.82}
+                          // 下限拉高，否則 iOS 會把放大後的字級整個縮回原本大小
+                          minimumFontScale={0.95}
                         >
                           {translate('profileCompleteAndClaimCoins')}
                         </Text>
@@ -657,46 +642,15 @@ export default function ProfileScreen() {
         </Pressable>
       </Modal>
 
-      {/* Android：系統日期選擇器 */}
-      {showDatePicker && Platform.OS === 'android' && (
-        <DateTimePicker
-          value={birthdayPickerValue}
-          mode="date"
-          display="default"
-          onChange={onChangeBirthday}
-          maximumDate={new Date()}
-          locale={pickerLocale}
-        />
-      )}
-
-      {/* iOS：底部 sheet，避免 spinner 內嵌撐破版面 */}
-      {Platform.OS === 'ios' && (
-        <Modal transparent animationType="slide" visible={showDatePicker} onRequestClose={() => setShowDatePicker(false)}>
-          <Pressable style={styles.datePickerBackdrop} onPress={() => setShowDatePicker(false)}>
-            <Pressable
-              style={[styles.datePickerSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
-              onPress={(e) => e.stopPropagation()}
-            >
-              <View style={[styles.datePickerToolbar, { paddingTop: Math.max(insets.top, 12) }]}>
-                <View style={styles.datePickerToolbarSpacer} />
-                <Pressable onPress={confirmBirthday} hitSlop={12}>
-                  <Text style={styles.datePickerDoneText}>{translate('ok')}</Text>
-                </Pressable>
-              </View>
-              <DateTimePicker
-                value={draftBirthday ?? birthdayPickerValue}
-                mode="date"
-                display="spinner"
-                onChange={onChangeDraftBirthday}
-                maximumDate={new Date()}
-                themeVariant="dark"
-                accentColor="#009688"
-                locale={pickerLocale}
-              />
-            </Pressable>
-          </Pressable>
-        </Modal>
-      )}
+      {/* 生日：iOS / Android 共用同一個自繪滾輪 sheet（文字跟隨 App 語系，見 DatePickerSheet 註解） */}
+      <DatePickerSheet
+        visible={showDatePicker}
+        value={birthday}
+        defaultValue={DEFAULT_BIRTHDAY_PICKER_DATE}
+        maximumDate={maxBirthdayDate}
+        onCancel={() => setShowDatePicker(false)}
+        onConfirm={confirmBirthday}
+      />
 
       {/* iOS：性別 — bottom sheet 滾輪選單，與生日列一致「先顯示值再點選」 */}
       {Platform.OS === 'ios' && (
@@ -706,19 +660,15 @@ export default function ProfileScreen() {
               style={[styles.datePickerSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
               onPress={(e) => e.stopPropagation()}
             >
-              <View
-                style={[
-                  styles.datePickerToolbar,
-                  styles.genderSheetToolbar,
-                  { paddingTop: Math.max(insets.top, 12) },
-                ]}
-              >
+              {/* 與 DatePickerSheet 的工具列一致：左取消、右確定，且用 confirm（三語為 確定/确定/Confirm）
+                  ——原本用 ok，但 ok 三語都是 "OK"，簡中／英文都看不到在地化文字。 */}
+              <View style={[styles.datePickerToolbar, styles.genderSheetToolbar]}>
                 <Pressable onPress={() => setShowGenderPicker(false)} hitSlop={12}>
                   <Text style={styles.genderSheetCancelText}>{translate('cancel')}</Text>
                 </Pressable>
                 <View style={styles.datePickerToolbarSpacer} />
                 <Pressable onPress={() => setShowGenderPicker(false)} hitSlop={12}>
-                  <Text style={styles.datePickerDoneText}>{translate('ok')}</Text>
+                  <Text style={styles.datePickerDoneText}>{translate('confirm')}</Text>
                 </Pressable>
               </View>
               <View style={styles.genderPickerWrap}>
@@ -769,23 +719,29 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
-  // ---- 餘額 + 操作列（同一行）----
+  // ---- 餘額 + 操作列 ----
+  // 靠右靠齊 + 允許換行：一行塞得下時，餘額與按鈕列並排靠右（與原本相同）；
+  // 塞不下時（英文 Refill + Coin History 較長），按鈕列整組換到第二行仍靠右，
+  // 而不是把文字縮小或切邊。gap 同時作為欄距與行距。
   balanceActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
     gap: 14,
     marginBottom: 16,
   },
-  flexSpacer: { flex: 1 },
   walletRowRight: {
-    flex: 1,
+    // flexBasis 維持 auto（＝按鈕的自然寬度）；換行優先於收縮，
+    // 一般機型上英文按鈕即以完整尺寸與字級呈現。
+    flexGrow: 0,
+    flexShrink: 1,
     justifyContent: 'flex-start',
     alignItems: 'flex-end', // 讓「查看紀錄」與「加值」的底部對齊
-    marginLeft: 14,
   },
   // 餘額方塊（你指定的樣式）
-  balanceBox: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // flexShrink:1 —— 寬度不足時，spacer 收完換這裡讓位，把空間留給右側按鈕列
+  balanceBox: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   coin: { width: 16, height: 16, resizeMode: 'contain' },
   balanceText: { color: '#f0ad57', fontWeight: '700' },
 
@@ -800,10 +756,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 9,
     borderRadius: 10,
-    flexShrink: 1, // 寬度不足時可收縮，配合 adjustsFontSizeToFit 縮小文字
+    // 整列的最後一道讓步：spacer → 餘額方塊 都收完仍塞不下時，才輪到「加值」收縮
+    // （它保留 adjustsFontSizeToFit，字會縮；「查看紀錄」則完全不縮）
+    flexShrink: 1,
   },
   recordsBtn: {
-    flexShrink: 1, // 同上：寬度不足時收縮，讓「查看紀錄」文字縮小而非溢出
+    // 「查看紀錄 / Coin History」永遠以自然寬與設定字級呈現，不參與收縮
+    flexShrink: 0,
   },
   chargeText: { color: '#fff', fontWeight: '700' },
   linkText: {
@@ -865,12 +824,16 @@ const styles = StyleSheet.create({
 
   // ---- CTA ----
   submitBtn: {
-    marginTop: 8,
     backgroundColor: '#00a99d',
-    borderRadius: 25,
-    paddingVertical: 12,
+    // 與註冊／登入頁的主要按鈕同一組尺寸：圓角 25 + 高度 50（不給高度時，
+    // 圓角會被 clamp 到 height/2，此頁原本只有 44~47 → 弧角只剩 22~23.5，看起來扁）
+    borderRadius: FIELD_RADIUS,
+    minHeight: FIELD_HEIGHT,
+    // 高度由 minHeight 主導；領取 CTA 若擠成兩行才會再往上撐
+    paddingVertical: 8,
     paddingHorizontal: 14,
     alignItems: 'center',
+    justifyContent: 'center',
     alignSelf: 'stretch',
   },
   submitBtnDisabled: {
@@ -933,11 +896,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // ---- 底部對齊容器（更新鈕 + 刪除帳號）----
-  footer: {
-    marginTop: 'auto',
-    paddingTop: 16,
-  },
+  // ---- 更新鈕 + 刪除帳號 ----
+  // 原本用 marginTop:'auto' 把按鈕頂到畫面最底，性別欄與綠 Bar 之間會空一大塊。
+  // 改為跟著內容流排列，間距沿用 inputRow 的 marginBottom(14)，與註冊／登入頁的等距節奏一致。
+  footer: {},
 
   // ---- 刪除帳號 ----
   deleteAccountRow: {
@@ -968,6 +930,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingHorizontal: 16,
+    // bottom sheet 的工具列與安全區無關（原本誤用 insets.top，在瀏海機上會多出約 47pt）
+    paddingTop: 12,
     paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#3a3f44',

@@ -7,7 +7,7 @@
     "selectLanguage": {
         "zh-TW": "選擇語言",
         "zh-CN": "选择语言",
-        "en": "Select Language"
+        "en": "Language"
     },
     "autoPlaySpeed": {
         "zh-TW": "自動播放速度",
@@ -30,9 +30,9 @@
         "en": "My Library"
     },
     "noMyBooks": {
-        "zh-TW": "尚未擁有任何書籍",
-        "zh-CN": "尚未拥有任何书籍",
-        "en": "You don't own any books yet"
+        "zh-TW": "尚未解鎖任何書籍",
+        "zh-CN": "尚未解锁任何书籍",
+        "en": "You haven't unlocked any stories yet."
     },
     "menuReviewAgain": {
         "zh-TW": "再次回味",
@@ -427,7 +427,7 @@
     "coinsInsufficientMessage": {
         "zh-TW": "解鎖此故事需要 {priceLabel}，\n您目前有 {coinsLabel}。\n請前往商城購買更多金幣",
         "zh-CN": "解锁此故事需要 {priceLabel}，\n您目前有 {coinsLabel}。\n请前往商城购买更多金币",
-        "en": "This story requires {priceLabel} to unlock. You currently have {coinsLabel}. Please visit the Coin Store to get more coins."
+        "en": "This story requires {priceLabel} to unlock. \nYou currently have {coinsLabel}. \nPlease visit the Coin Store to get more coins."
     },
     "goToShop": {
         "zh-TW": "前往商城",
@@ -470,9 +470,9 @@
         "en": "Something went wrong. Please try again later."
     },
     "iapPurchaseSuccessMessage": {
-        "zh-TW": "您已購買 {product}！獲得 {coins} 金幣！",
-        "zh-CN": "您已购买 {product}！获得 {coins} 金币！",
-        "en": "You've successfully purchased the {product}! Received {coins} coins!"
+        "zh-TW": "您已購買 {product}！\n獲得 {coins} 金幣！",
+        "zh-CN": "您已购买 {product}！\n获得 {coins} 金币！",
+        "en": "You've successfully purchased the {product}!\n Received {coins} coins!"
     },
     "restorePurchaseTitle": {
         "zh-TW": "恢復購買",
@@ -742,7 +742,7 @@
     "profileCompletedRewardSuccessMessage": {
         "zh-TW": "感謝您完成基本資料，\n代幣將於 24 小時內發送至您的帳戶",
         "zh-CN": "感谢您完成个人信息，\n代币将于 24 小时内发送至您的账户",
-        "en": "Thanks for completing your profile. Coins will be added within 24 hours."
+        "en": "Thanks for completing your profile.\nCoins will be added within 24 hours."
     },
     "profileRewardClaimFailedTitle": {
         "zh-TW": "領取獎勵失敗",
@@ -760,9 +760,9 @@
         "en": "Please select your gender to complete your profile and claim the reward."
     },
     "profileLoadFailedMessage": {
-        "zh-TW": "無法取得個人資料，請稍後再試",
-        "zh-CN": "无法获取个人信息，请稍后重试",
-        "en": "We couldn't load your profile. Please try again."
+        "zh-TW": "無法取得個人資料，\n請稍後再試",
+        "zh-CN": "无法获取个人信息，\n请稍后重试",
+        "en": "We couldn't load your profile.\n Please try again."
     },
     "retry": {
         "zh-TW": "重試",
@@ -869,10 +869,20 @@
         "zh-CN": "书籍购买",
         "en": "Book Purchase"
     },
+    "coinTypeAdminGrant": {
+        "zh-TW": "管理員授權",
+        "zh-CN": "管理员授权",
+        "en": "Admin Grant"
+    },
+    "coinTypeActivityReward": {
+        "zh-TW": "帳號升級獎勵",
+        "zh-CN": "账号升级奖励",
+        "en": "Upgrade Reward"
+    },
     "coinHistoryEmpty": {
         "zh-TW": "尚無金幣紀錄",
         "zh-CN": "暂无金币记录",
-        "en": "No coin records yet"
+        "en": "No transaction history yet."
     },
     "purchaseHistoryTitle": {
         "zh-TW": "交易紀錄",
@@ -882,7 +892,7 @@
     "purchaseHistoryEmpty": {
         "zh-TW": "暫無購買記錄",
         "zh-CN": "暂无购买记录",
-        "en": "No purchase records yet"
+        "en": "No transaction history yet."
     },
     "loadPurchaseHistoryFailed": {
         "zh-TW": "載入購買記錄失敗",

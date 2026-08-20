@@ -6,15 +6,16 @@ import routes from '../navigations/routes';
 import NewsMarquee from './NewsMarquee';
 import { useCoins } from '../store/coinContext';
 import useResponsive from '../hook/useResponsive';
-import { HEADER_ICON_BASE_SIZE } from '../config/responsive';
+import useHeaderMetrics from '../hook/useHeaderMetrics';
 
 function AppHeader({ news, config, onNewsPress }) {
   const navigation = useNavigation();
   const { coins, refreshCoins } = useCoins();
-  const { horizontalPadding, ms } = useResponsive();
-  const iconSize = ms(HEADER_ICON_BASE_SIZE);
+  const { ms } = useResponsive();
+  // 首頁頂欄＝全站藍眼位置的基準，尺寸／留白統一由 useHeaderMetrics 提供
+  //（內頁 ScreenTopBar、左側 Drawer、登入頁 HeaderEyeLogo 都讀同一份數值）。
+  const { iconSize, rowHeight: headerHeight, rowPaddingHorizontal } = useHeaderMetrics();
   const coinIconSize = ms(20);
-  const headerHeight = Math.max(50, ms(50));
 
   // 組件掛載時刷新金幣餘額
   useEffect(() => {
@@ -22,7 +23,7 @@ function AppHeader({ news, config, onNewsPress }) {
   }, [refreshCoins]);
 
   return (
-    <View style={[styles.container, { height: headerHeight, paddingHorizontal: horizontalPadding }]}>
+    <View style={[styles.container, { height: headerHeight, paddingHorizontal: rowPaddingHorizontal }]}>
       {/* 左邊 Drawer 開關 */}
       <Pressable
         onPress={() => navigation.dispatch(DrawerActions.openDrawer())}

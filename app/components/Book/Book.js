@@ -22,6 +22,7 @@ import { getAuthoritativeOwnedStoryIds } from '../../services/bookAccessService'
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../../config/idempotencyKeyCache';
 import { useCoins } from '../../store/coinContext';
 import storage from '../../storage/storage';
+import { recordCoinOrderBook } from '../../storage/coinOrderBooks';
 import { toAlertTextStyle } from '../../config/foolproofStyle';
 
 const screenWidth = Dimensions.get('window').width;
@@ -123,21 +124,24 @@ function Book(props) {
   // nochapter，以及 cachedIndex(screen＝場次, story＝對話索引, path＝造訪對話順序, scrollOffset)。
   // 這裡直接帶入這些欄位、不經 storyPayload 重新推導，避免覆蓋掉存檔的定位資訊
   // （storyPayload 會把 storyId 改成 storyData.id、並用 nochapter 重算 chapterId/read_range_end）。
-  const goToContinue = () => {
+  // record 不傳（繼續觀看頁：存檔 item 已由 ContinueScreen 展開成 props）時取 props；
+  // 首頁防呆視窗走「本書已有讀到一半紀錄」時，傳入 storyCache 裡的該筆存檔。
+  const goToContinue = (record) => {
+    const saved = record ?? props;
     navigation.navigate(routes.HOME, {
       screen: routes.STORY,
       params: {
         name: main_menu_name,
         author,
-        storyId: props.storyId ?? id,
-        chapterId: chapterId ?? chapter?.id,
-        storyData,
-        nochapter,
+        storyId: saved.storyId ?? props.storyId ?? id,
+        chapterId: saved.chapterId ?? chapterId ?? chapter?.id,
+        storyData: saved.storyData ?? storyData,
+        nochapter: saved.nochapter ?? nochapter,
         // 章節/場次/對話順序的還原核心：一律以存檔為準。
-        cachedIndex: props.cachedIndex,
-        read_range_end: read_range_end ?? chapter?.read_range_end,
+        cachedIndex: saved.cachedIndex,
+        read_range_end: saved.read_range_end ?? read_range_end ?? chapter?.read_range_end,
         // 優先用存檔保留的試閱旗標；舊版存檔沒有時退回 nochapter 推導。
-        free_open: props.free_open ?? noChapterFreeOpen,
+        free_open: saved.free_open ?? noChapterFreeOpen,
       },
     });
   };
@@ -195,6 +199,7 @@ function Book(props) {
           author,
           storyId: id,
           storyData,
+          nochapter,
         },
       });
     } else {
@@ -203,6 +208,60 @@ function Book(props) {
         params: storyPayload,
       });
     }
+  };
+
+  // 主選單-防呆視窗（書籍簡介彈窗）：標題/內文/兩顆按鈕字樣來自 menu-foolproof 參數表
+  // （menuFoolproofConfig，已於 HomeScreen 依語系挑列）。未設定的欄位自動略過、沿用預設。
+  // 公開書的一般入口與 role >= 5 的未公開書預覽入口共用（入口禮儀一致，不因角色跳過簡介）。
+  // - 重新閱讀（左）：goToStart，從頭開始（有章節會進章節選單頁）。
+  // - 繼續閱讀（右）：本書已有「讀到一半」紀錄 → 比照繼續觀看，驗證在架/持有後
+  //   直接回到存檔的章節/場次/對話狀態；沒有紀錄才前往繼續觀看清單頁（ContinueScreen）。
+  const showMenuIntro = () => {
+    showAlert(
+      main_menu_title,
+      main_menu_content,
+      [
+        {
+          text: main_menu_btn_left,
+          onPress: goToStart,
+          textStyle: toAlertTextStyle(
+            menuFoolproofConfig?.menu_foolproof_stroy_item1_size,
+            menuFoolproofConfig?.menu_foolproof_stroy_item1_weight,
+            menuFoolproofConfig?.menu_foolproof_stroy_item1_color
+          ),
+        },
+        {
+          text: main_menu_btn_right || translate('ok'),
+          onPress: async () => {
+            const saved = storyStatus.read;
+            if (saved?.cachedIndex) {
+              // 與繼續觀看入口同一守門：下架不能看、付費書被移除書單則導回購買閘門。
+              if (await canContinueOwned()) goToContinue(saved);
+              return;
+            }
+            navigation.navigate(routes.CONTINUE);
+          },
+          textStyle: toAlertTextStyle(
+            menuFoolproofConfig?.menu_foolproof_stroy_item2_size,
+            menuFoolproofConfig?.menu_foolproof_stroy_item2_weight,
+            menuFoolproofConfig?.menu_foolproof_stroy_item2_color
+          ),
+        },
+      ],
+      { cancelable: true },
+      {
+        titleStyle: toAlertTextStyle(
+          menuFoolproofConfig?.menu_foolproof_story_name_size,
+          menuFoolproofConfig?.menu_foolproof_story_name_weight,
+          menuFoolproofConfig?.menu_foolproof_story_name_color
+        ),
+        messageStyle: toAlertTextStyle(
+          menuFoolproofConfig?.menu_foolproof_stroy_information_size,
+          menuFoolproofConfig?.menu_foolproof_stroy_information_weight,
+          menuFoolproofConfig?.menu_foolproof_stroy_information_color
+        ),
+      }
+    );
   };
 
   // 處理購買故事
@@ -271,6 +330,8 @@ function Book(props) {
                 console.log('[Book] ✓ 已清除 idempotencyKey 緩存');
                 // 本地記錄已購買，章節頁可據此隱藏購買按鈕
                 await storage.addLocalPurchasedStoryId(id);
+                // 記下訂單↔書籍對照：金幣紀錄只拿得到 ORDER 編號，只有此刻知道它對應哪本書
+                await recordCoinOrderBook(result.orderId, result.storyListId ?? id);
                 
                 // 購買成功後強制刷新金幣餘額
                 await refreshCoins(true);
@@ -328,7 +389,8 @@ function Book(props) {
         onPress={async () => {
           // 未公開（鎖頭）：僅「一般入口」受限。「繼續觀看 / 再次回味」是已在書櫃中的書，
           // 永遠可進入、不受此閘門限制。
-          //  - role >= 5（小編／管理員）：可點擊預覽，有章節進章節列表、無章節進故事頁。
+          //  - role >= 5（小編／管理員）：可點擊預覽，但入口禮儀與公開書一致——
+          //    同樣先跳書籍簡介防呆視窗，按鈕行為相同（左：從頭開始；右：還原進度或繼續觀看頁）。
           //  - 其餘角色：跳出多語系 alert「即將上架／敬請期待！」，不進入。
           if (!isOpen && !showIcon && !showReviewIcon) {
             const roleLevel = await getEffectiveRoleLevel();
@@ -336,23 +398,7 @@ function Book(props) {
               showAlert(translate('comingSoonTitle'), translate('comingSoon'));
               return;
             }
-            if (hasChapter) {
-              navigation.navigate(routes.HOME, {
-                screen: routes.CHAPTER,
-                params: {
-                  name: main_menu_name,
-                  author,
-                  storyId: id,
-                  storyData,
-                  nochapter,
-                },
-              });
-            } else {
-              navigation.navigate(routes.HOME, {
-                screen: routes.STORY,
-                params: storyPayload,
-              });
-            }
+            showMenuIntro();
             return;
           }
 
@@ -382,48 +428,8 @@ function Book(props) {
               }
             }
           } else {
-            // 一般選項：每次點擊都跳出簡介彈窗，讓使用者選擇。
-            // - 重新閱讀（左）：goToStart，從頭開始（有章節會進章節選單頁）。
-            // - 繼續閱讀（右）：前往繼續觀看清單頁（ContinueScreen）。
-            // 主選單-防呆視窗：標題/內文/兩顆按鈕字樣來自 menu-foolproof 參數表
-            // （menuFoolproofConfig，已於 HomeScreen 依語系挑列）。未設定的欄位自動略過、沿用預設。
-            showAlert(
-              main_menu_title,
-              main_menu_content,
-              [
-                {
-                  text: main_menu_btn_left,
-                  onPress: goToStart,
-                  textStyle: toAlertTextStyle(
-                    menuFoolproofConfig?.menu_foolproof_stroy_item1_size,
-                    menuFoolproofConfig?.menu_foolproof_stroy_item1_weight,
-                    menuFoolproofConfig?.menu_foolproof_stroy_item1_color
-                  ),
-                },
-                {
-                  text: main_menu_btn_right || translate('ok'),
-                  onPress: () => navigation.navigate(routes.CONTINUE),
-                  textStyle: toAlertTextStyle(
-                    menuFoolproofConfig?.menu_foolproof_stroy_item2_size,
-                    menuFoolproofConfig?.menu_foolproof_stroy_item2_weight,
-                    menuFoolproofConfig?.menu_foolproof_stroy_item2_color
-                  ),
-                },
-              ],
-              { cancelable: true },
-              {
-                titleStyle: toAlertTextStyle(
-                  menuFoolproofConfig?.menu_foolproof_story_name_size,
-                  menuFoolproofConfig?.menu_foolproof_story_name_weight,
-                  menuFoolproofConfig?.menu_foolproof_story_name_color
-                ),
-                messageStyle: toAlertTextStyle(
-                  menuFoolproofConfig?.menu_foolproof_stroy_information_size,
-                  menuFoolproofConfig?.menu_foolproof_stroy_information_weight,
-                  menuFoolproofConfig?.menu_foolproof_stroy_information_color
-                ),
-              }
-            );
+            // 一般選項：每次點擊都跳出簡介彈窗（showMenuIntro），讓使用者選擇。
+            showMenuIntro();
           }
         }}
       >

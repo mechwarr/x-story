@@ -1,5 +1,5 @@
 // app/screens/HistoryScreen.tsx
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   SafeAreaView,
   View,
@@ -8,11 +8,12 @@ import {
   Pressable,
   Image,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 import CoinHistoryScreen from './CoinHistoryScreen';
 import PurchaseHistoryScreen from './PurchaseHistoryScreen';
 import routes from '../navigations/routes';
+import { useCoins } from '../store/coinContext';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
 import { translate } from '../i18n/i18n';
@@ -24,8 +25,16 @@ export default function HistoryScreen() {
   const [tab, setTab] = useState<TabKey>('coin');
   const navigation = useNavigation();
   const { isTablet, maxContentWidth, horizontalPadding, ms } = useResponsive();
+  const { coins, refreshCoins } = useCoins();
   // 與 ProfileScreen 的「加值」鈕字級一致（英文 Refill 不再沿用 RN 預設 14）
   const walletFontSize = walletActionFontSize(ms);
+
+  // 金幣餘額列在兩個分頁都會顯示，回到本頁（例如加值完）就刷新
+  useFocusEffect(
+    useCallback(() => {
+      refreshCoins();
+    }, [refreshCoins])
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -49,24 +58,24 @@ export default function HistoryScreen() {
         />
       </View>
 
-      {tab === 'purchase' && (
-        <View style={styles.chargeRow}>
-          <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
-          <Pressable
-            style={styles.chargeBtn}
-            onPress={() => navigation.navigate(routes.PURCHASE as never)}
+      {/* 金幣餘額與加值：兩個分頁都顯示，加值導向代幣商城 */}
+      <View style={styles.chargeRow}>
+        <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
+        <Text style={[styles.coinCount, { fontSize: walletFontSize }]}>{coins}</Text>
+        <Pressable
+          style={styles.chargeBtn}
+          onPress={() => navigation.navigate(routes.PURCHASE as never)}
+        >
+          <Text
+            style={[styles.chargeText, { fontSize: walletFontSize }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
           >
-            <Text
-              style={[styles.chargeText, { fontSize: walletFontSize }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.85}
-            >
-              {translate('profileTopUp')}
-            </Text>
-          </Pressable>
-        </View>
-      )}
+            {translate('profileTopUp')}
+          </Text>
+        </Pressable>
+      </View>
 
       <View style={styles.content}>
         {tab === 'coin' ? (
@@ -140,6 +149,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   coinIcon: { width: 18, height: 18 },
+  coinCount: { color: '#e7eef6', fontWeight: '700' },
   chargeBtn: {
     backgroundColor: '#ff3344',
     paddingHorizontal: 12,

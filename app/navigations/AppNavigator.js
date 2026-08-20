@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Image, Platform, Pressable, Text, View } from "react-native";
+import { Image, Pressable, Text, View } from "react-native";
 import {
   createDrawerNavigator,
   DrawerContentScrollView,
   DrawerItemList,
 } from "@react-navigation/drawer";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 // import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import StoryNavigator from "./StoryNavigator";
@@ -31,44 +30,45 @@ import LanguageScreen from "../screens/LanguageScreen";
 import {ResetScreen} from "../screens/ResetScreen";
 import ShopScreen from "../screens/ShopScreen";
 import useResponsive from "../hook/useResponsive";
-import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
+import useHeaderMetrics from "../hook/useHeaderMetrics";
 
 const Drawer = createDrawerNavigator();
 
-function CustomDrawerContent(props) {
-  const insets = useSafeAreaInsets();
-  const { horizontalPadding, ms } = useResponsive();
+function CustomDrawerContent({ drawerWidth, ...props }) {
+  // 選單頂端的藍眼「與首頁 AppHeader 的眼睛同尺寸、同位置」——直接讀 useHeaderMetrics
+  // （全站頂欄幾何的唯一來源），而非交給 DrawerItemList 自動渲染（它的 DrawerItem 內建
+  // marginHorizontal + icon 內距，會讓眼睛左緣多推 ~16px、且尺寸公式不同，永遠對不齊）。
+  // HOME 這一項已在下方以 drawerItemStyle:display 'none' 隱藏，避免出現兩顆眼睛。
+  const { iconSize, rowHeight, topPadding, eyeLeft, rowPaddingHorizontal } = useHeaderMetrics();
 
-  // 選單頂端的藍眼「與工具列 AppHeader 的眼睛同尺寸、同位置」——用完全相同的常數重建，
-  // 而非交給 DrawerItemList 自動渲染（它的 DrawerItem 內建 marginHorizontal + icon 內距，
-  // 會讓眼睛左緣多推 ~16px、且尺寸公式不同，永遠對不齊）。HOME 這一項已在下方以
-  // drawerItemStyle:display 'none' 隱藏，避免出現兩顆眼睛。
-  const eyeSize = ms(HEADER_ICON_BASE_SIZE);
-  const headerHeight = Math.max(50, ms(50));
-  // 垂直：對齊 Screen 的 top offset（SafeArea 上緣 + 與 Screen 相同的 paddingTop 常數），
-  // 讓 Drawer 眼睛與 AppHeader 眼睛落在同一高度。
-  const topOffset = insets.top + (Platform.OS === "android" ? 15 : 47);
-  // 水平：AppHeader 眼睛左緣 = Screen 水平留白 + AppHeader 水平留白 = 2×horizontalPadding，
-  // Drawer 內容左緣為 0，故左內距補 2×horizontalPadding 即等距。
-  const eyeLeft = horizontalPadding * 2;
+  // DrawerContentScrollView 預設會自己加 12 + insets.top；但 App 根層 SafeAreaWrapper 已扣過安全區，
+  // 沿用它就會多推一個瀏海高度（先前 Drawer 眼睛偏低的主因），故整個蓋掉、改用與首頁相同的 topPadding。
+  //
+  // 平板上首頁內容會限寬置中，eyeLeft 可能超出抽屜寬度（例如 iPad 橫向），此時貼齊抽屜右界內縮，
+  // 避免眼睛被切掉。
+  const clampedEyeLeft = Math.min(
+    eyeLeft,
+    Math.max(0, drawerWidth - iconSize - rowPaddingHorizontal)
+  );
 
   return (
     <DrawerContentScrollView
       {...props}
       contentContainerStyle={{
-        paddingTop: topOffset,
+        paddingTop: topPadding,
         paddingStart: 0,
         paddingEnd: 0,
       }}
     >
-      <View style={{ height: headerHeight, justifyContent: "center" }}>
+      <View style={{ height: rowHeight, justifyContent: "center" }}>
         <Pressable
           onPress={() => props.navigation.navigate(routes.HOME)}
           hitSlop={8}
-          style={{ alignSelf: "flex-start", paddingLeft: eyeLeft }}
+          style={{ alignSelf: "flex-start", paddingLeft: clampedEyeLeft }}
         >
           <Image
-            style={{ width: eyeSize, height: eyeSize }}
+            style={{ width: iconSize, height: iconSize }}
+            resizeMode="contain"
             source={require("../../assets/blueeye.png")}
           />
         </Pressable>
@@ -179,7 +179,9 @@ export default function AppNavigator() {
       }}
     >
       <Drawer.Navigator
-        drawerContent={(props) => <CustomDrawerContent {...props} />}
+        drawerContent={(props) => (
+          <CustomDrawerContent {...props} drawerWidth={drawerWidth} />
+        )}
         screenOptions={{
           headerShown: false,
           drawerStyle: {

@@ -15,7 +15,7 @@ import { showAlert } from "../components/CustomAlert";
 import { translate } from "../i18n/i18n";
 import { registerWithXStory, resentRegisterMail, ResentRegisterMailRequest } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
-import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
+import HeaderEyeLogo from "../components/HeaderEyeLogo";
 
 // Email 格式驗證（與忘記密碼/登入共用同一規則）
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -83,17 +83,14 @@ export function RegisterXStoryScreen({ onCancel, onSuccess }: Props) {
     }
   };
 
-  const { isTablet, maxContentWidth, ms } = useResponsive();
-  const headerIconSize = ms(HEADER_ICON_BASE_SIZE);
+  const { isTablet, maxContentWidth } = useResponsive();
 
   return (
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.logoContainer}>
-        <Image style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]} source={require("../../assets/blueeye.png")} />
-      </View>
+      <HeaderEyeLogo />
 
       <ScrollView
         contentContainerStyle={[styles.scrollContent, isTablet && { paddingHorizontal: 24 }]}
@@ -341,8 +338,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 20,
   },
-  imgIcon: { resizeMode: "contain" },
-  logoContainer: { position: "absolute", top: 20, left: 20, zIndex: 10 },
 
   passwordInputWrapper: {
     width: "100%",

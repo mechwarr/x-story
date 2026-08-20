@@ -41,6 +41,53 @@ import { storeSkuMatchesBackendProductId } from '../utils/iapCatalog';
  */
 export type ProductId = string;
 
+/**
+ * 剝掉 Google Play title 尾端的「應用程式名稱」。
+ * Play 的 title 格式固定是「商品名稱 (應用程式名稱)」，App 尚未過審時應用程式名稱會是
+ * 「com.rueiyang.story (unreviewed)」，直接顯示就會把套件名帶到畫面上。
+ * 只有尾端括號看起來像套件名／未上架標記時才剝除，避免砍掉商品名本身的括號
+ * （例如 "Premium Pack ($9.99)"）。
+ */
+function stripStoreAppNameSuffix(title: string): string {
+  const text = String(title ?? '').trim();
+  if (!text.endsWith(')')) return text;
+
+  // 由尾端往前找出配對的左括號（應用程式名稱本身可能再含一層括號）
+  let depth = 0;
+  let start = -1;
+  for (let i = text.length - 1; i >= 0; i--) {
+    const ch = text[i];
+    if (ch === ')') {
+      depth++;
+    } else if (ch === '(') {
+      depth--;
+      if (depth === 0) {
+        start = i;
+        break;
+      }
+    }
+  }
+  if (start <= 0) return text;
+
+  const suffix = text.slice(start + 1, -1).trim();
+  const looksLikeAppName = /unreviewed/i.test(suffix) || /^[a-z0-9_]+(\.[a-z0-9_]+)+/i.test(suffix);
+  if (!looksLikeAppName) return text;
+
+  return text.slice(0, start).trim() || text;
+}
+
+/**
+ * 取商店商品的「純商品名稱」。
+ * Android 的 name／iOS 的 displayName 是不含應用程式名的商品名，優先使用；
+ * 兩者都缺時才退回 title，並剝掉應用程式名稱尾綴。
+ */
+function resolveStoreProductName(product: Product): string {
+  const raw = product as any;
+  const clean = String(raw.name ?? raw.displayName ?? '').trim();
+  if (clean) return clean;
+  return stripStoreAppNameSuffix(String(raw.title ?? ''));
+}
+
 class IAPService {
   private purchaseUpdateSubscription: any = null;
   private purchaseErrorSubscription: any = null;
@@ -1185,7 +1232,9 @@ class IAPService {
    */
   getProductName(productId: string): string {
     // 僅回傳平台顯示名稱，不使用本地硬編碼名稱
-    return this.findCachedProduct(productId)?.title ?? productId;
+    const product = this.findCachedProduct(productId);
+    if (!product) return productId;
+    return resolveStoreProductName(product) || productId;
   }
 
   /**
@@ -1341,7 +1390,8 @@ class IAPService {
       // 僅從緩存的平台產品列表取得產品名稱（iOS 可能為 item_01，與後端 item_001 並存）
       const cachedProduct =
         this.findCachedProduct(storeProductId) ?? this.findCachedProduct(productIdForBackend);
-      const productName = cachedProduct?.title ?? storeProductId ?? '商品';
+      const productName =
+        (cachedProduct ? resolveStoreProductName(cachedProduct) : '') || storeProductId || '商品';
       
       console.log('[iapService] 商品名稱（從平台取得）:', productName);
       console.log('[iapService] ============================================');

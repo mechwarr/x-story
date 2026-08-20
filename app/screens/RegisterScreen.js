@@ -11,7 +11,7 @@ import {
 import { translate, getCurrentLang } from "../i18n/i18n";
 import RichText from "../components/RichText";
 import useResponsive from "../hook/useResponsive";
-import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
+import HeaderEyeLogo from "../components/HeaderEyeLogo";
 
 const loginOptions = [
   {
@@ -44,10 +44,9 @@ const loginOptions = [
 
 export default function RegisterScreen(props) {
   const [agreeChecked, setAgreeChecked] = useState(false);
-  const { contentWidth, isTablet, maxContentWidth, ms } = useResponsive();
+  const { contentWidth, isTablet, maxContentWidth } = useResponsive();
   const isEn = getCurrentLang() === "en";
   const buttonWidth = Math.min(420, Math.max(260, Math.round(contentWidth * 0.82)));
-  const headerIconSize = ms(HEADER_ICON_BASE_SIZE);
 
   // 量測「最長按鈕內容」的自然寬度，再用 minWidth 把所有內層容器拉齊到它
   // → 最長按鈕看起來置中、其餘 icon 對齊它，整塊視覺即置中（不再用比例猜）
@@ -78,12 +77,7 @@ export default function RegisterScreen(props) {
     <View style={{ flex: 1, backgroundColor: "#39393B" }}>
 
       {/* 左上角 Logo */}
-      <View style={styles.logoContainer}>
-        <Image
-          style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]}
-          source={require('../../assets/blueeye.png')}
-        />
-      </View>
+      <HeaderEyeLogo />
 
 
       <View style={[styles.container, isTablet && styles.containerTablet]}>
@@ -322,14 +316,5 @@ const styles = StyleSheet.create({
   linkText: {
     color: "#0abab5",
     textDecorationLine: "underline",
-  },
-  imgIcon: {
-    resizeMode: "contain",
-  },
-  logoContainer: {
-    position: "absolute",
-    top: 20,
-    left: 20,
-    zIndex: 10,
   },
 });

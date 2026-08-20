@@ -22,6 +22,7 @@ import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempo
 import { translate, matchesCurrentStoryLang, coinCountLabel } from '../i18n/i18n';
 import colors from '../config/colors';
 import storage from '../storage/storage';
+import { recordCoinOrderBook } from '../storage/coinOrderBooks';
 import { canAccessChapter } from '../services/bookAccessService';
 import useResponsive from '../hook/useResponsive';
 import { toAlertTextStyle } from '../config/foolproofStyle';
@@ -96,6 +97,9 @@ const ChapterItem = (props) => {
   }, [navigation, storyId, id, storyName, author, storyData, nochapter, read_range_end, free_open]);
 
   const handlePurchaseStory = useCallback(() => {
+    // 購買相關視窗一律顯示「主選單書名」main_menu_name；用 || 而非 ??，
+    // 連空字串也擋掉（CMS 該語系列缺值時退回 storyName，源頭同為主選單書名）。
+    const bookTitle = storyData?.main_menu_name || storyName;
     if (!storyId) {
       showAlert(translate('genericErrorTitle'), translate('storyIdNotFound'));
       return;
@@ -123,7 +127,7 @@ const ChapterItem = (props) => {
     }
     showAlert(
       translate('confirmPurchase'),
-      translate('confirmPurchaseMessage', { price: priceCoins, name: storyData?.main_menu_name ?? storyName }),
+      translate('confirmPurchaseMessage', { price: priceCoins, name: bookTitle }),
       [
         { text: translate('cancel'), style: 'cancel' },
         {
@@ -139,11 +143,13 @@ const ChapterItem = (props) => {
                 await clearIdempotencyKey(storyId);
                 await refreshCoins?.();
                 await storage.addLocalPurchasedStoryId(storyId);
+                // 記下訂單↔書籍對照：金幣紀錄只拿得到 ORDER 編號，只有此刻知道它對應哪本書
+                await recordCoinOrderBook(result.orderId, result.storyListId ?? storyId);
                 onPurchaseSuccess?.();
                 setShowPurchaseModal(false);
                 showAlert(
                   translate('unlockSuccessTitle'),
-                  translate('purchaseSuccessMessage', { name: storyData?.main_menu_name ?? storyName, coins: result.coinsSpent || priceCoins }),
+                  translate('purchaseSuccessMessage', { name: bookTitle, coins: result.coinsSpent || priceCoins }),
                   [{ text: translate('startReading') }]
                 );
               } else {
@@ -177,7 +183,8 @@ const ChapterItem = (props) => {
           ),
         },
         {
-          text: translate('ok'),
+          // 右按鈕字詞同樣來自後端章節欄位 window_btn_right，後台缺值時才退回內建 OK
+          text: window_btn_right || translate('ok'),
           onPress: onConfirm,
           textStyle: toAlertTextStyle(
             toastConfig?.chapter_foolproof_stroy_item2_size,
@@ -200,7 +207,7 @@ const ChapterItem = (props) => {
         ),
       }
     );
-  }, [window_title, chapter_infor, window_btn_left, toastConfig]);
+  }, [window_title, chapter_infor, window_btn_left, window_btn_right, toastConfig]);
 
   const onPress = () => {
     if (canView) {
@@ -209,12 +216,8 @@ const ChapterItem = (props) => {
         showAlert(translate('genericErrorTitle'), translate('trialRangeNotSet'));
         return;
       }
-      if (isFreeOpen) {
-        // 可讀的試閱章節：先出章節介紹彈窗，確認無誤後才進入章節
-        showChapterIntro(navigateToStory);
-      } else {
-        navigateToStory();
-      }
+      // 可讀章節（試閱或已購買/已解鎖）一律先出章節介紹彈窗，確認後才進入章節
+      showChapterIntro(navigateToStory);
     } else {
       // 付費且未購買的章節：一樣先出章節介紹彈窗，使用者按確認後才跳出解鎖列（不再直接彈解鎖）
       showChapterIntro(() => setShowPurchaseModal(true));

@@ -15,7 +15,7 @@ import { showAlert as showCustomAlert } from "../components/CustomAlert";
 import { translate } from "../i18n/i18n";
 import { resetXStoryPassword } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
-import { HEADER_ICON_BASE_SIZE } from "../config/responsive";
+import HeaderEyeLogo from "../components/HeaderEyeLogo";
 
 // 密碼政策：與註冊一致 — 8-20 字、至少一個大寫、一個小寫、一個數字
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,20}$/;
@@ -94,17 +94,14 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
     };
 
 
-    const { isTablet, maxContentWidth, ms } = useResponsive();
-    const headerIconSize = ms(HEADER_ICON_BASE_SIZE);
+    const { isTablet, maxContentWidth } = useResponsive();
 
     return (
         <KeyboardAvoidingView
             style={styles.flex}
             behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-            <View style={styles.logoContainer}>
-                <Image style={[styles.imgIcon, { width: headerIconSize, height: headerIconSize }]} source={require("../../assets/blueeye.png")} />
-            </View>
+            <HeaderEyeLogo />
 
             <ScrollView
                 contentContainerStyle={[styles.scrollContent, isTablet && { paddingHorizontal: 24 }]}
@@ -238,15 +235,6 @@ const styles = StyleSheet.create({
     },
     formWrap: {
         width: "100%",
-    },
-    logoContainer: {
-        position: "absolute",
-        top: 20,
-        left: 20,
-        zIndex: 10,
-    },
-    imgIcon: {
-        resizeMode: "contain",
     },
     // 與 Email 登入頁（XStoryLogin）的標題一致：字級、粗細、置中、下方間距
     title: {

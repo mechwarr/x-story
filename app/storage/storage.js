@@ -9,6 +9,10 @@ import tokenStorage from '../auth/Storage';
 // SecureStore；未登入／取不到時退回裝置層級的匿名命名空間（__anon__），自我修復於下次取得 id。
 
 const READING_KEY_PREFIXES = ['continueStory', 'finishStory'];
+
+// 登出時「不」清除的鍵前綴：閱讀紀錄，以及金幣紀錄用的訂單↔書籍對照
+// （對照表是購買當下才拿得到的事實，清掉就再也還原不了，見 storage/coinOrderBooks）。
+const PRESERVED_KEY_PREFIXES = [...READING_KEY_PREFIXES, 'coinOrderBooks'];
 const ANON_ACCOUNT_ID = '__anon__';
 
 // 目前帳號 id 的記憶體快取：避免每次讀寫都打 SecureStore／profile。登出時由 resetAccountScope() 清除。
@@ -42,6 +46,20 @@ const resolveAccountId = async () => {
   return ANON_ACCOUNT_ID;
 };
 
+// 閱讀紀錄的合法儲存值一律是「JSON 陣列」。最初版 deleteStory 沒有防護，會在空鍵上
+// JSON.stringify(null) 寫入字串 "null"——這種壞值一旦存在，舊版 storeStory 解析後對 null
+// 取值就永遠丟例外（被 catch 吞掉），閱讀紀錄從此完全寫不進去。此工具把字串解析回陣列，
+// 非陣列（"null"、"{}"、壞 JSON…）一律視為無資料，供各讀寫入口自我修復。
+const parseStoryArray = (raw) => {
+  if (raw == null) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (_e) {
+    return null;
+  }
+};
+
 // 一次性搬遷：把舊版「全域鍵」（未分帳號）資料歸給目前帳號的命名空間鍵，再移除全域鍵，
 // 避免升級後既有使用者的閱讀進度遺失、也避免舊全域資料被其他帳號沿用。每個 baseKey 每次啟動最多跑一次。
 const _migratedBaseKeys = new Set();
@@ -51,11 +69,16 @@ const migrateLegacyKey = async (baseKey, namespacedKey) => {
   try {
     const legacy = await AsyncStorage.getItem(baseKey); // 舊全域鍵
     if (legacy == null) return;
-    const existing = await AsyncStorage.getItem(namespacedKey);
-    if (existing == null) {
-      await AsyncStorage.setItem(namespacedKey, legacy); // 舊進度歸給目前帳號
+    // 只搬「非空陣列」的合法資料；壞值（如舊版 deleteStory 殘留的 "null"）不搬——
+    // 否則會把壞值種進帳號命名空間鍵，讓該帳號之後所有存檔永久失敗。
+    const parsed = parseStoryArray(legacy);
+    if (parsed && parsed.length) {
+      const existing = await AsyncStorage.getItem(namespacedKey);
+      if (existing == null) {
+        await AsyncStorage.setItem(namespacedKey, legacy); // 舊進度歸給目前帳號
+      }
     }
-    await AsyncStorage.removeItem(baseKey); // 移除全域鍵，避免再被其他帳號沿用
+    await AsyncStorage.removeItem(baseKey); // 移除全域鍵（含壞值），避免再被其他帳號沿用
   } catch (_e) {
     // 搬遷失敗不阻斷正常讀寫
   }
@@ -96,15 +119,18 @@ const storeStory = async (story, storeKey) => {
     // 避免每次更新進度都對另一清單多做一次 I/O。
     let isNewEntry = true;
 
+    // 解析成陣列；壞值（如舊版 deleteStory 殘留的 "null"）視同空值，
+    // 直接以新陣列覆寫自我修復——否則對 null 取值會丟例外，存檔永久失敗。
+    const _value = parseStoryArray(value);
+
     // 第一次開啟app的時候會得到空值
-    if (!value || value === null) {
+    if (!_value) {
       console.log('空值');
       // 如果是空值就存一個array進去
       await AsyncStorage.setItem(storeKey, JSON.stringify([story]));
     } else {
       // 找到故事名稱一樣的index
-      let _value = JSON.parse(value);
-      const idx = _value?.findIndex((v) => v.storyId === story.storyId);
+      const idx = _value.findIndex((v) => v.storyId === story.storyId);
       // 如果沒找到就是還沒有存這個故事，所以要push
       if (idx === -1) {
         _value.push(story);
@@ -132,8 +158,14 @@ const getStorys = async (storeKey) => {
   try {
     storeKey = await getNamespacedKey(storeKey);
     const value = await AsyncStorage.getItem(storeKey);
-    // console.log("@@@@@@@", JSON.parse(value));
-    return value !== null ? JSON.parse(value) : null;
+    if (value === null) return null;
+    const parsed = parseStoryArray(value);
+    if (!parsed) {
+      // 壞值（非陣列）：順手移除讓下一次寫入重建，避免壞鍵一直卡住
+      await AsyncStorage.removeItem(storeKey);
+      return null;
+    }
+    return parsed;
   } catch (error) {
     console.log(error);
   }
@@ -145,8 +177,12 @@ const deleteStory = async (story, storeKey) => {
     const value = await AsyncStorage.getItem(storeKey);
     if (!value) return; // 清單本就是空的：無事可刪
     // 找到故事名稱一樣的index
-    let _value = JSON.parse(value);
-    if (!Array.isArray(_value)) return;
+    const _value = parseStoryArray(value);
+    if (!_value) {
+      // 壞值（非陣列）：移除讓下一次寫入重建，避免壞鍵一直卡住
+      await AsyncStorage.removeItem(storeKey);
+      return;
+    }
     const idx = _value.findIndex((v) => v.storyId === story.storyId);
 
     // 不在清單中（idx === -1）：直接返回。
@@ -164,13 +200,14 @@ const deleteStory = async (story, storeKey) => {
 
 // 登出時清除本機資料，但「保留」各帳號的閱讀紀錄（continueStory@* / finishStory@*，以及尚未
 // 搬遷的舊全域鍵），讓同帳號重新登入仍能讀回自己的進度（需求：依帳號永久保留）。
+// 金幣紀錄的訂單↔書籍對照（coinOrderBooks@*）同樣保留，理由見 PRESERVED_KEY_PREFIXES。
 // 同時重置帳號命名空間的記憶體快取，避免下一位登入者沿用上一帳號 id。
 const deleteAllStorage = async () => {
   try {
     const keys = await AsyncStorage.getAllKeys();
-    const isReadingKey = (k) =>
-      READING_KEY_PREFIXES.some((p) => k === p || k.startsWith(`${p}@`));
-    const toRemove = keys.filter((k) => !isReadingKey(k));
+    const isPreservedKey = (k) =>
+      PRESERVED_KEY_PREFIXES.some((p) => k === p || k.startsWith(`${p}@`));
+    const toRemove = keys.filter((k) => !isPreservedKey(k));
     if (toRemove.length) await AsyncStorage.multiRemove(toRemove);
   } catch (error) {
     console.log('[storage] deleteAllStorage 失敗，退回僅清除非閱讀鍵前的保底：', error);
@@ -212,6 +249,7 @@ export default {
   deleteStory,
   deleteAllStorage,
   resetAccountScope,
+  getNamespacedKey,
   getLocalPurchasedStoryIds,
   addLocalPurchasedStoryId,
 };

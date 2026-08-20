@@ -21,6 +21,7 @@ import StoryHeader from '../components/StoryHeader';
 import ScreeningSwitcher from '../components/ScreeningSwitcher';
 import Chat from '../components/chat/Chat';
 import storage from '../storage/storage';
+import { recordCoinOrderBook } from '../storage/coinOrderBooks';
 import Storage, { DEFAULT_AUTO_PLAY_SECONDS } from '../auth/Storage';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import _ from 'lodash';
@@ -453,7 +454,11 @@ function StoryScreen({ route }) {
   // 不帶 idx（null/空字串）→ 點畫面任意處推進到下一段
   const onPressOption = (idx) => {
     // 試閱播畢鎖：覆蓋層跳出後，封鎖所有推進（點畫面 / 選項），只保留 FlatList 可滑動回看。
-    if (storyLockedRef.current) return;
+    // 被鎖狀態下的點擊改為重新召回解鎖列（而非靜默吞掉），讓關閉後仍有再購買的入口。
+    if (storyLockedRef.current) {
+      setShowPurchaseOverlay(true);
+      return;
+    }
     if (idx === null || idx === undefined || idx === '') {
       // 點畫面推進：若目前是「選項段」卻未點任何選項就點畫面 → 預設選第一個選項。
       const current = index.story != null ? queryInfo.content?.[index.story] : null;
@@ -803,6 +808,9 @@ function StoryScreen({ route }) {
   }, []);
 
   const handlePurchaseStory = useCallback(() => {
+    // 購買相關視窗一律顯示「主選單書名」main_menu_name；用 || 而非 ??，
+    // 連空字串也擋掉（CMS 該語系列缺值時退回導覽帶入的 name，源頭同為主選單書名）。
+    const bookTitle = storyData?.main_menu_name || name;
     if (!storyId) {
       showAlert(translate('genericErrorTitle'), translate('storyIdNotFound'));
       return;
@@ -830,7 +838,7 @@ function StoryScreen({ route }) {
     }
     showAlert(
       translate('confirmPurchase'),
-      translate('confirmPurchaseMessage', { price: priceCoins, name: storyData?.main_menu_name ?? name }),
+      translate('confirmPurchaseMessage', { price: priceCoins, name: bookTitle }),
       [
         { text: translate('cancel'), style: 'cancel' },
         {
@@ -846,12 +854,14 @@ function StoryScreen({ route }) {
                 await clearIdempotencyKey(storyId);
                 await refreshCoins?.();
                 await storage.addLocalPurchasedStoryId(storyId);
+                // 記下訂單↔書籍對照：金幣紀錄只拿得到 ORDER 編號，只有此刻知道它對應哪本書
+                await recordCoinOrderBook(result.orderId, result.storyListId ?? storyId);
                 await syncPurchasedStoryIds();
                 setIsBookPurchased(true);
                 setShowPurchaseOverlay(false);
                 showAlert(
                   translate('unlockSuccessTitle'),
-                  translate('purchaseSuccessMessage', { name: storyData?.main_menu_name ?? name, coins: result.coinsSpent || priceCoins }),
+                  translate('purchaseSuccessMessage', { name: bookTitle, coins: result.coinsSpent || priceCoins }),
                   [
                     {
                       text: translate('startReading'),
@@ -1067,35 +1077,45 @@ function StoryScreen({ route }) {
   }, [story]);
 
   // 捲動控制：
-  //  - 還原階段（pendingScrollOffset != null）：一律定位到「最後一段（上次閱讀的最後一行）」。
-  //    story 已依造訪路徑重建、其最後一段即離開前讀到的那一句，故用 scrollToIndex(最後一段) 定位；
-  //    這比沿用存檔的像素 offset(scrollToOffset) 可靠——內容含圖片/影片，還原當下多半尚未載入完成，
-  //    此時整體高度小於存檔時，scrollToOffset 會被夾到較小的最大值而「停在上方」，使用者得再手動下捲
-  //    才會看到上次位置（即本次修復的症狀）。scrollToIndex 會按索引重新量測，配合 onScrollToIndexFailed
-  //    重試，圖片/影片載入後也能穩定落在最後一段；再補一次延遲捲動吸收晚到媒體造成的版面位移。
+  //  - 還原階段（pendingScrollOffset != null）：事件驅動的「釘底」——目標語意是「最後一段
+  //    （上次閱讀的最後一行）貼齊視窗底」，等同 scrollToEnd。不用 scrollToIndex：虛擬化下
+  //    最後一段多半尚未掛載/量測，對未量測 index 呼叫會直接失敗（停在上方）；也不用固定延遲
+  //    計時器：圖片/影片載入時間不可控，計時器到點後高度仍在變就會「浮在中間」且不再修正。
+  //    改由 FlatList onContentSizeChange 於每次內容尺寸變化（項目掛載、媒體載入撐高）時
+  //    重新 scrollToEnd 貼底，直到高度穩定（RESTORE_SETTLE_MS 內無變化）或使用者開始拖曳
+  //    （onScrollBeginDrag）才結束還原，天然收斂、不猜時序。
   //  - 一般新增段落：自動捲到最新一段
+  const RESTORE_SETTLE_MS = 500;
+  const restoreSettleTimerRef = useRef(null);
+  // 重置「高度穩定」計時器：每次貼底後重新起算，RESTORE_SETTLE_MS 內沒有再變化即結束還原。
+  const scheduleRestoreSettle = () => {
+    if (restoreSettleTimerRef.current) clearTimeout(restoreSettleTimerRef.current);
+    restoreSettleTimerRef.current = setTimeout(() => {
+      restoreSettleTimerRef.current = null;
+      console.log('還原捲動位置 → 貼底完成（高度已穩定），story.len=', storyRef.current.length);
+      setPendingScrollOffset(null);
+    }, RESTORE_SETTLE_MS);
+  };
+  // 立即結束還原釘底（使用者開始拖曳時呼叫，避免與手勢打架）。
+  const finishRestore = () => {
+    if (restoreSettleTimerRef.current) {
+      clearTimeout(restoreSettleTimerRef.current);
+      restoreSettleTimerRef.current = null;
+    }
+    setPendingScrollOffset(null);
+  };
   useEffect(() => {
     if (pendingScrollOffset != null) {
       prevStoryLength.current = story.length; // 先對齊，避免還原後誤判為「新增段落」又捲一次
-      const scrollToLast = () => {
-        if (flatlistRef.current && story.length > 0) {
-          flatlistRef.current.scrollToIndex({
-            index: story.length - 1,
-            animated: false,
-            viewPosition: 1, // 讓最後一段貼齊視窗底部，如同離開前停下的閱讀位置
-          });
-        }
-      };
-      const t1 = setTimeout(scrollToLast, 250);
-      // 再補一次：吸收圖片/影片等媒體晚載入造成的高度變化，確保最終仍停在最後一段。
-      const t2 = setTimeout(() => {
-        scrollToLast();
-        console.log('還原捲動位置 → 最後一段 index:', story.length - 1);
-        setPendingScrollOffset(null);
-      }, 700);
+      // 先貼一次底並啟動穩定計時器：涵蓋「版面已就緒、之後不再有尺寸變化」的情形；
+      // 其餘變化（掛載/媒體載入）由 onContentSizeChange 續貼並重置計時器。
+      flatlistRef.current?.scrollToEnd({ animated: false });
+      scheduleRestoreSettle();
       return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
+        if (restoreSettleTimerRef.current) {
+          clearTimeout(restoreSettleTimerRef.current);
+          restoreSettleTimerRef.current = null;
+        }
       };
     }
 
@@ -1333,17 +1353,35 @@ function StoryScreen({ route }) {
               // 即時記錄目前捲動位置，供翻頁即存與離開保底存檔寫入（不還原到舊位置覆蓋當下）
               scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
             }}
-            onScrollToIndexFailed={({ index }) => {
+            onContentSizeChange={() => {
+              // 還原釘底：每次內容尺寸變化（虛擬化補掛項目、圖片/影片載入撐高）都重新貼底，
+              // 並重置穩定計時器；高度不再變化即由計時器結束還原。
+              if (pendingScrollOffset != null) {
+                flatlistRef.current?.scrollToEnd({ animated: false });
+                scheduleRestoreSettle();
+              }
+            }}
+            onScrollBeginDrag={() => {
+              // 使用者開始拖曳 → 立即解除還原釘底，把捲動主導權還給手勢。
+              if (pendingScrollOffset != null) finishRestore();
+            }}
+            onScrollToIndexFailed={({ index, averageItemLength }) => {
               // 夾住到目前資料範圍內，避免用越界索引一再重試而卡死
               const safeIndex = Math.min(Math.max(index, 0), story.length - 1);
               if (safeIndex < 0) return;
+              // 失敗代表目標 index 尚未掛載/量測（虛擬化）：先用平均高度估算 offset 推近目標，
+              // 讓 FlatList 把遠端項目掛載進來，再重試 scrollToIndex（RN 官方建議作法）。
+              flatlistRef.current?.scrollToOffset({
+                offset: Math.max(0, (averageItemLength || 0) * safeIndex),
+                animated: false,
+              });
               setTimeout(() => {
                 flatlistRef.current?.scrollToIndex({
                   index: safeIndex,
                   animated: true,
                   viewPosition: 0.5,
                 });
-              }, 50);
+              }, 100);
             }}
             renderItem={({ item, index }) =>
               item?.contentPresent === '對話' ? (

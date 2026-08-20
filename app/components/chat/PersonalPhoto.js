@@ -33,11 +33,13 @@ function PersonalPhoto(props) {
           // 故事角色-防呆視窗：標題/內文/按鈕字樣來自 setup-story-role-foolproof 參數表
           // （roleFoolproofConf，已於 StoryScreen 依語系挑列）。未設定的欄位自動略過、沿用預設。
           showAlert(
-            role_foolproof_title,
+            role_foolproof_title?.trim(),
             role_infor,
             [
               {
-                text: translate('ok'),
+                // 按鈕字詞來自角色表 role_foolproof_content（後台資料常帶尾端空白，需 trim）；
+                // 後台缺值時才退回內建 OK
+                text: role_foolproof_content?.trim() || translate('ok'),
                 cancelable: true,
                 textStyle: toAlertTextStyle(
                   roleFoolproofConf?.setup_story_role_foolproof_size,
