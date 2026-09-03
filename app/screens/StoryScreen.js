@@ -32,7 +32,7 @@ import { canSwitchScreening, canPreviewAll } from '../config/roles';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
 import { useCoins } from '../store/coinContext';
 import { translate, matchesCurrentStoryLang, getCurrentLang, pickConfigByLang, coinCountLabel } from '../i18n/i18n';
-import { syncPurchasedStoryIds, getAuthoritativeOwnedStoryIds, canAccessChapter } from '../services/bookAccessService';
+import { syncPurchasedStoryIds, resolveOwnedStoryIds, canAccessChapter } from '../services/bookAccessService';
 import mediaPlayer from '../services/mediaPlayer';
 import useResponsive from '../hook/useResponsive';
 
@@ -163,6 +163,34 @@ function StoryScreen({ route }) {
     story: initialStoryIndex,
     screen: cachedIndex?.screen ?? 0,
   });
+  // 入口簽章：Drawer 未設 unmountOnBlur，切到別的選單頁時 STORY 會一直留在 HOME 這個 Stack。
+  // 此時再從「繼續觀看／首頁」navigate(HOME, { screen: STORY }) 進來，React Navigation 會回到
+  // 這個既有實例、只更新 route.params——但 storyId / cachedIndex 只在掛載當下被讀進 state 與 ref
+  //（initialStoryIndex、restoreRef、scrollOffsetRef 皆是初始值），於是畫面停在舊書、舊位置，
+  // 看起來就像「閱讀紀錄沒存到」。閱讀完畢不受影響：finishToHome 會 navigate(MAIN) 把 STORY
+  // 移出 stack，下次是全新掛載。
+  // 對策：偵測到「換了一次新的入口參數」就原地 replace 重掛，讓新的還原點真正生效。
+  // 內部流程（換章／跨場次跳轉／購買後重掛）本來就是 replace ＝ 新實例，簽章於掛載時初始化，
+  // 不會再被此處判定為變更，故不會連鎖重掛。
+  const entrySignature = [
+    storyId,
+    chapterId,
+    cachedIndex?.screen ?? '-',
+    cachedIndex?.story ?? '-',
+    Array.isArray(cachedIndex?.path) ? cachedIndex.path.length : '-',
+    cachedIndex?.scrollOffset ?? '-',
+    targetScreeningId ?? '-',
+    targetDialogId ?? '-',
+  ].join('|');
+  const mountedEntryRef = useRef(entrySignature);
+  useEffect(() => {
+    if (mountedEntryRef.current === entrySignature) return;
+    mountedEntryRef.current = entrySignature;
+    console.log('[StoryScreen] 收到新的入口參數（舊實例仍在 stack）→ 原地重掛套用新還原點:', entrySignature);
+    // replace 會先觸發舊實例的 beforeRemove（保底存檔寫回「離開時」的進度）再重新掛載。
+    rawNavigation.replace(routes.STORY, router.params);
+  }, [entrySignature, rawNavigation, router.params]);
+
 
   const [story, setStory] = useState([]);
   const [queryInfo, setQueryInfo] = useState({
@@ -216,7 +244,7 @@ function StoryScreen({ route }) {
   const { coins, refreshCoins } = useCoins();
   const priceCoins = storyData?.priceCoins ?? 0;
 
-  // 場次快速切換器：取得使用者權限級別（role >= 9 才顯示）。
+  // 場次快速切換器：取得使用者權限級別（role > 1 才顯示，見 roles.ts SCREENING_SWITCH_MIN_LEVEL）。
   // roleChecked：角色是否已解析完成。roleLevel 初值 0 與「一般用戶」同值、無法區分
   // 「尚未載入」與「確為非 Admin」，故另立此旗標；供試閱安全網等待角色確認後再判斷，
   // 避免 Admin 在角色載入前被誤判為一般用戶而遭安全網彈回。
@@ -273,7 +301,10 @@ function StoryScreen({ route }) {
       if (targetScreen < 0 || targetScreen >= screeningList.length) return;
       if (targetScreen === index.screen) return;
       choseRef.current = false;
-      storyLockedRef.current = false; // 主動換場次（管理者切換器）→ 解除試閱播畢鎖
+      // 主動換場次（場次切換器）→ 解除試閱播畢鎖。試閱用戶（role 2~4 無 canPreviewAll）
+      // 的可選清單已被 fetchData 截到試閱範圍內，故解鎖僅允許「重播試閱內容」，
+      // 播到底仍會重新觸發購買提示，不會外洩付費場次。
+      storyLockedRef.current = false;
       hasRecordedReadRef.current = false; // 換場次重新計一次閱讀
       scrollOffsetRef.current = 0; // 換場次重置捲動基準，避免沿用上一場次的 offset
       setStory([]);
@@ -381,6 +412,10 @@ function StoryScreen({ route }) {
   const persistProgress = useCallback(() => {
     if (skipPersistRef.current) return;
     if (index.story === null) return;
+    // 還原尚未完成就離開（restoreRef 未消費、或造訪路徑還沒重建出來）→ 不存。
+    // 此時 storyRef 仍是空的，寫下去會把存檔裡的 path（含分歧選擇）洗成空陣列，
+    // 下次回來只剩線性還原。本來就沒有新進度可存，跳過即可。
+    if (restoreRef.current || storyRef.current.length === 0) return;
     storage.storeStory(buildPayload(), 'continueStory');
   }, [buildPayload, index.story]);
 
@@ -400,9 +435,16 @@ function StoryScreen({ route }) {
     const unsubBeforeRemove = rawNavigation.addListener('beforeRemove', () => {
       persistProgressRef.current();
     });
+    // 從側邊選單切到別的 Drawer 畫面（繼續觀看／我的書籍…）時，本畫面「不會卸載、也不會
+    // beforeRemove、App 仍是 active」——三個保底時機一個都不會發生，只捲動沒翻頁、或剛跨場次
+    // 就切走的進度會整段遺失。blur 是這條路唯一的訊號，故一併補存。
+    const unsubBlur = rawNavigation.addListener('blur', () => {
+      persistProgressRef.current();
+    });
     return () => {
       sub.remove();
       unsubBeforeRemove();
+      unsubBlur();
       persistProgressRef.current();
       mediaPlayer.release(); // 離開劇情頁：釋放目前播放對象與記憶體
     };
@@ -718,16 +760,21 @@ function StoryScreen({ route }) {
   // 避免一開始就未持有（正在試閱）者被誤跳。
   const wasOwnedRef = useRef(false);
   const verifyOwnership = useCallback(async () => {
-    const ids = await getAuthoritativeOwnedStoryIds();
-    const owned = ids.includes(Number(storyId));
+    const { ids, authoritative } = await resolveOwnedStoryIds();
+    const ownedByList = ids.includes(Number(storyId));
+    // 持有狀態「未知」（entitlements 取不到：離線／逾時／非 2xx）時不把已知的「已持有」
+    // 降級成未持有——否則一次網路失敗就會把已購買者當成試閱者：場次被 read_range_end 截斷、
+    // 存檔落點被夾回試閱範圍尾，並跳出購買覆蓋層。
+    const owned = ownedByList || (!authoritative && wasOwnedRef.current);
     // 診斷用：確認「重新取得持有權」是否生效、以及為何未攔截。
     // canPreview=true（role>=5）代表預覽者、刻意繞過持有判斷；owned=true 代表後端 entitlements 仍回傳此書。
     console.log('[StoryScreen] 持有權確認 →', {
-      storyId: Number(storyId), owned, canPreview, roleLevel, priceCoins: Number(priceCoins), ownedIds: ids,
+      storyId: Number(storyId), owned, authoritative, canPreview, roleLevel, priceCoins: Number(priceCoins), ownedIds: ids,
     });
     setIsBookPurchased(owned);
     setPurchaseChecked(true);
-    if (wasOwnedRef.current && !owned && !canPreview && Number(priceCoins) > 0) {
+    // 主動跳購買提示僅在「權威確認被撤銷」時觸發，狀態未知不打擾閱讀。
+    if (authoritative && wasOwnedRef.current && !owned && !canPreview && Number(priceCoins) > 0) {
       // 閱讀途中被移除書單：鎖住推進並跳出購買提示（沿用現有購買覆蓋層）。
       storyLockedRef.current = true;
       setShowPurchaseOverlay(true);
@@ -1254,6 +1301,17 @@ function StoryScreen({ route }) {
         let landingScreen = screeningsList.length
           ? Math.min(Math.max(cachedIndex?.screen ?? 0, 0), screeningsList.length - 1)
           : 0;
+        // 存檔落點被「往回夾」（存檔場次超過目前可讀的場次數，多半是授權被撤銷後場次被試閱截斷、
+        // 或整本上鎖成 0 場次）→ 本次不寫入 continueStory。否則使用者在被夾回的淺位置點一下推進，
+        // 翻頁即存就會把較深的真實進度覆寫掉；日後重新購買也回不去了。
+        const savedScreen = Number(cachedIndex?.screen);
+        if (Number.isFinite(savedScreen) && savedScreen > Math.max(screeningsList.length - 1, 0)) {
+          skipPersistRef.current = true;
+          console.warn(
+            '[StoryScreen] 存檔落點超出目前可讀場次（存檔 screen=', savedScreen,
+            '、可讀場次數=', screeningsList.length, '）→ 本次不覆寫繼續觀看進度'
+          );
+        }
         // 跨章節／試閱解鎖後跳轉落點：targetScreeningId 來自 choiceNext 的「場次順序 order」
         // （非主鍵 id），需以 order 比對才能對到實際場次（對齊 resolveScreeningIndexByOrder /
         // CMS screeningIdByOrder）。此處 screeningsList 為本地剛組好的清單，故就地比對 order。

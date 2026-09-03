@@ -34,6 +34,11 @@
         "zh-CN": "尚未解锁任何书籍",
         "en": "You haven't unlocked any stories yet."
     },
+    "myBooksLoadFailed": {
+        "zh-TW": "無法取得已解鎖的書籍，\n請確認網路後重試。",
+        "zh-CN": "无法获取已解锁的书籍，\n请确认网络后重试。",
+        "en": "Couldn't load your unlocked stories.\nCheck your connection and try again."
+    },
     "menuReviewAgain": {
         "zh-TW": "再次回味",
         "zh-CN": "再次回味",
@@ -403,6 +408,11 @@
         "zh-TW": "此書籍已下架，無法繼續閱讀。",
         "zh-CN": "此书籍已下架，无法继续阅读。",
         "en": "This book is no longer available."
+    },
+    "bookNeedsUnlock": {
+        "zh-TW": "此書籍尚未解鎖或授權已失效，\n無法從上次的進度繼續，請重新解鎖。",
+        "zh-CN": "此书籍尚未解锁或授权已失效，\n无法从上次的进度继续，请重新解锁。",
+        "en": "This story isn't unlocked (or your access has expired), so it can't resume from your last position. Please unlock it again."
     },
     "trialRangeNotSet": {
         "zh-TW": "尚未設定試閱範圍，\n試閱長度須大於 0",
@@ -898,6 +908,11 @@
         "zh-TW": "載入購買記錄失敗",
         "zh-CN": "加载购买记录失败",
         "en": "Failed to load purchase records"
+    },
+    "coinHistoryBookNamesUnavailable": {
+        "zh-TW": "部分書籍資料載入失敗，書名可能顯示為訂單編號。",
+        "zh-CN": "部分书籍数据加载失败，书名可能显示为订单编号。",
+        "en": "Some book data failed to load; names may appear as order IDs."
     },
     "orderId": {
         "zh-TW": "訂單編號",

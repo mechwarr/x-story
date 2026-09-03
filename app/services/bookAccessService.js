@@ -23,6 +23,12 @@ async function fetchAllEntitlementStoryIds() {
 
   while (true) {
     const res = await getEntitlements(page, ENTITLEMENTS_PAGE_SIZE, { bypassCache: true });
+    // 取不到（網路異常／逾時／非 2xx／格式不正確）：getEntitlements 一律回空清單並標記 failed。
+    // 這裡必須拋出，讓呼叫端的 catch 走「未知」分支（退回本地快取／fail-open）；
+    // 否則「取不到」會被當成「一本都沒買」，付費書全部被判未持有而遭閘門誤擋。
+    if (res?.failed) {
+      throw new Error('entitlements 取得失敗（狀態未知）');
+    }
     const items = Array.isArray(res?.items) ? res.items : [];
     for (const item of items) {
       if (item?.storyListId !== undefined) {
@@ -74,10 +80,21 @@ export function canAccessChapter({ freeOpen, isBookPurchased, canPreview = false
  *  - 線上失敗（離線／錯誤）→ 退回本地快取，避免誤擋合法持有者。
  */
 export async function getAuthoritativeOwnedStoryIds() {
+  return (await resolveOwnedStoryIds()).ids;
+}
+
+/**
+ * 同 getAuthoritativeOwnedStoryIds，但額外回報「這份清單是否為權威結果」：
+ *  - { ids, authoritative: true }  → 伺服器回覆成功，ids 即目前實際持有（可反映撤銷授權）。
+ *  - { ids, authoritative: false } → 取不到（離線／逾時／錯誤），ids 只是本地樂觀快取，
+ *    「不在 ids 內」不代表未持有。閱讀閘門遇此情形應 fail-open（不誤擋），
+ *    與「在架清單取不到就不誤擋」的既有原則一致。
+ */
+export async function resolveOwnedStoryIds() {
   try {
-    return await fetchAllEntitlementStoryIds();
+    return { ids: await fetchAllEntitlementStoryIds(), authoritative: true };
   } catch (error) {
-    console.warn('[bookAccessService] 取得權威持有清單失敗，退回本地快取:', error);
-    return uniqueIds(await storage.getLocalPurchasedStoryIds());
+    console.warn('[bookAccessService] 取得權威持有清單失敗，退回本地快取（狀態未知）:', error);
+    return { ids: uniqueIds(await storage.getLocalPurchasedStoryIds()), authoritative: false };
   }
 }

@@ -37,12 +37,15 @@ const resolveAccountId = async () => {
     const id =
       profile?.id != null ? String(profile.id) : profile?.email ? String(profile.email) : null;
     if (id) {
+      console.log('[storage] 帳號命名空間：SecureStore 無 id，已回查 profile 取得');
       _cachedAccountId = id;
       return id;
     }
   } catch (_e) {
     // 忽略，退回匿名命名空間
   }
+  // 走到這裡代表閱讀紀錄會讀寫匿名命名空間：真實帳號的既有紀錄此刻讀不到
+  console.warn('[storage] 帳號命名空間：無 SecureStore id 且 profile 取不到，退回匿名(__anon__)');
   return ANON_ACCOUNT_ID;
 };
 

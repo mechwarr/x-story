@@ -1,7 +1,8 @@
 // RootLayout.tsx
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { ActivityIndicator, StyleSheet, AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus } from 'react-native';
 import SafeAreaWrapper from './components/SafeAreaWrapper';
+import BootScreen from './components/BootScreen';
 import AppNavigator from './navigations/AppNavigator';
 import LoginContainer from './auth/LoginContainer';
 import { LoadingProvider, useLoading } from './screens/LoadingContext';
@@ -322,10 +323,12 @@ function RootLayoutContent() {
     setIsLoggedIn(false);
   };
 
+  // token 檢查期間與後續的「初始落點判定」（AppNavigator）共用同一張過場畫面
+  // （App 底色＋進度圈），啟動全程不落白畫面、不先誤入任何頁面。
   if (checking) {
     return (
-      <SafeAreaWrapper style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
+      <SafeAreaWrapper style={{ flex: 1 }}>
+        <BootScreen />
       </SafeAreaWrapper>
     );
   }
@@ -381,9 +384,3 @@ export default function RootLayout() {
   );
 }
 
-const styles = StyleSheet.create({
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});

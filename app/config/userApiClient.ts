@@ -51,9 +51,12 @@ export type GetBookstoreListResponse = BookstoreItem[];
 
 /**
  * 獲取書店列表
- * @returns Promise<BookstoreItem[]> 書店列表
+ * @returns Promise<BookstoreItem[] | null> 書店列表；取不到（網路異常／格式不正確）時回傳 null。
+ * 呼叫端必須區分 null（狀態未知，勿當成「沒有上架書」）與 []（後端明確回覆沒有上架書）——
+ * 早期失敗回 [] 曾讓「在架與否」的判斷把網路失敗誤判成全部下架（冷啟動落點永遠進不了繼續觀看、
+ * 繼續觀看／回味清單被整頁清空）。
  */
-export async function getBookstoreList(): Promise<BookstoreItem[]> {
+export async function getBookstoreList(): Promise<BookstoreItem[] | null> {
   try {
     const endpoint = "api/bookstorelist";
     const res = await userApi.get<GetBookstoreListResponse>(endpoint);
@@ -63,11 +66,11 @@ export async function getBookstoreList(): Promise<BookstoreItem[]> {
       return res;
     } else {
       console.warn("[userApiClient] ✗ 獲取書店列表失敗，響應格式不正確:", res);
-      return [];
+      return null;
     }
   } catch (error) {
     console.error("[userApiClient] 獲取書店列表時發生錯誤:", error);
-    return [];
+    return null;
   }
 }
 
@@ -248,6 +251,13 @@ export interface GetEntitlementsResponse {
   total: number;
   page: number;
   limit: number;
+  /**
+   * 本次「取不到」（網路異常／逾時／非 2xx／格式不正確）時為 true。
+   * 呼叫端必須區分 failed（狀態未知）與 items: []（後端明確回覆「沒有任何已購買書籍」）——
+   * 兩者都回空清單，若混為一談，一次網路失敗就會讓所有付費書被判為「未持有」，
+   * 使用者會被閱讀閘門誤擋（繼續觀看被導去章節選單、閱讀中被彈購買視窗）。
+   */
+  failed?: boolean;
 }
 
 interface GetEntitlementsOptions {
@@ -316,10 +326,10 @@ export async function getEntitlements(
       return data;
     }
     console.warn("[userApiClient] ✗ 獲取 entitlements 失敗，響應格式不正確:", res);
-    return { items: [], total: 0, page, limit };
+    return { items: [], total: 0, page, limit, failed: true };
   } catch (error) {
     console.error("[userApiClient] 獲取 entitlements 時發生錯誤:", error);
-    return { items: [], total: 0, page, limit };
+    return { items: [], total: 0, page, limit, failed: true };
   }
 }
 
@@ -384,7 +394,20 @@ export interface GetUserProfileResponse {
  * 獲取當前登入使用者的個人資訊
  * @returns Promise<UserProfile | null> 用戶資料，失敗時返回 null
  */
-export async function getUserProfile(): Promise<UserProfile | null> {
+// 進行中的 api/users/me 請求（in-flight 去重）：冷啟動時「停權檢查」「閱讀紀錄帳號命名空間解析」
+// 「roleLevel 快取回填」會在同一瞬間各自需要 profile；去重讓併發呼叫共用同一發請求，
+// 避免序列化等待多次網路逾時（啟動落點判定曾因此呆滯十幾秒）。完成後即清除，不做結果快取。
+let _profileInFlight: Promise<UserProfile | null> | null = null;
+
+export function getUserProfile(): Promise<UserProfile | null> {
+  if (_profileInFlight) return _profileInFlight;
+  _profileInFlight = fetchUserProfileOnce().finally(() => {
+    _profileInFlight = null;
+  });
+  return _profileInFlight;
+}
+
+async function fetchUserProfileOnce(): Promise<UserProfile | null> {
   try {
     const endpoint = "api/users/me";
     

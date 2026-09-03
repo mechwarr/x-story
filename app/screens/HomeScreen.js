@@ -84,22 +84,16 @@ function HomeScreen() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const config = await axios.get(
-          url + 'api/v1/admin/menu'
-        );
-        // 主選單-防呆視窗參數表：用於替 Book 開書時的簡介彈窗（main_menu_title/content/btn）套字樣。
-        const menuFoolproof = await axios.get(
-          url + 'api/v1/admin/menu-foolproof'
-        );
-        const newsData = await axios.get(
-          url + 'api/v1/admin/news'
-        );
-        const type = await axios.get(
-          url + 'api/v1/admin/story-type'
-        );
-        const nochapter = await axios.get(
-          url + `api/v1/admin/nochapter`
-        );
+        // 首屏參數 API 一次平行抓取（原本 5 支序列 await，首頁載入時間為五者「相加」；
+        // 平行後為五者「取最大」）。menuFoolproof 為主選單-防呆視窗參數表：
+        // 用於替 Book 開書時的簡介彈窗（main_menu_title/content/btn）套字樣。
+        const [config, menuFoolproof, newsData, type, nochapter] = await Promise.all([
+          axios.get(url + 'api/v1/admin/menu'),
+          axios.get(url + 'api/v1/admin/menu-foolproof'),
+          axios.get(url + 'api/v1/admin/news'),
+          axios.get(url + 'api/v1/admin/story-type'),
+          axios.get(url + 'api/v1/admin/nochapter'),
+        ]);
 
         // 可見性門檻：roleLevel >= 5（小編以上）可看見未上架/未開放書籍（門檻定義於 config/roles.ts）。
         // getEffectiveRoleLevel 會優先讀本地快取，避免每次聚焦都打 api/users/me。
@@ -117,7 +111,22 @@ function HomeScreen() {
         // role >= 5 的未上架可見性改由 story-list 直接提供（它本就含全部書籍），
         // 不再打管理員專用端點 GET api/admin/bookstores，故不需 Bearer token、
         // 也不會發生 401/403（原 admin API 分流與強制刷新退場邏輯已整段移除）。
-        const bookstoreList = await getBookstoreList();
+        let bookstoreList = await getBookstoreList();
+
+        // 取不到書店清單（網路異常，回 null）≠ 空清單（後端真的沒有上架書）。
+        // 取不到時退回上次成功保存的 AsyncStorage 快照（欄位足夠：合併只用
+        // priceCoins / currency / isActive），維持上次已知的在架與價格狀態，
+        // 避免一般用戶（依 inBookstore 過濾）在一次網路失敗後整個首頁被清空。
+        if (!bookstoreList) {
+          try {
+            const raw = await AsyncStorage.getItem('bookstoreList');
+            const cached = raw ? JSON.parse(raw) : null;
+            bookstoreList = Array.isArray(cached) ? cached : [];
+            console.warn('[HomeScreen] 書店清單取不到，退回快照，筆數:', bookstoreList.length);
+          } catch (_e) {
+            bookstoreList = [];
+          }
+        }
 
         const originalStoryList = await storyListPromise;
         

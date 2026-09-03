@@ -301,7 +301,8 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
       const [logsRes, entitlementsRes, bookstore, savedOrderBooks] = await Promise.all([
         getCoinLedger(),
         getEntitlements(1, ENTITLEMENTS_PAGE_SIZE, { bypassCache: true }),
-        getBookstoreList().catch(() => []),
+        // 取不到（回 null）就當空清單：這裡書店清單只是配對書名的輔助，帳務紀錄照常顯示
+        getBookstoreList().then((list) => list ?? []),
         getCoinOrderBookMap().catch(() => ({})),
       ]);
 
@@ -318,6 +319,10 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
       setBookCatalog(catalogByStoryId);
       setOrderBookMap(savedOrderBooks);
 
+      // entitlements 取不到（failed）≠ 沒買過任何書：兩者都回空清單，但前者只是這次查不到。
+      // 帳務紀錄本身照常顯示（書名配對是輔助），故不擋畫面，只在上方掛一則說明，
+      // 讓「書名變成訂單編號」有原因可循，而不是看起來像資料錯亂。
+      let entitlementsIncomplete = Boolean(entitlementsRes.failed);
       const allEntitlements = [...(entitlementsRes.items ?? [])];
       const total = Number(entitlementsRes.total ?? allEntitlements.length);
       const totalPages = Math.min(
@@ -326,7 +331,11 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
       );
       for (let page = 2; page <= totalPages; page++) {
         const res = await getEntitlements(page, ENTITLEMENTS_PAGE_SIZE, { bypassCache: true });
+        if (res.failed) entitlementsIncomplete = true;
         allEntitlements.push(...(res.items ?? []));
+      }
+      if (entitlementsIncomplete) {
+        setError(translate('coinHistoryBookNamesUnavailable'));
       }
 
       setLogs(logsRes);

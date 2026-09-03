@@ -32,9 +32,10 @@ export const PREVIEW_ALL_MIN_LEVEL = ROLE.EDITOR;
 
 /**
  * 可使用「場次快速切換器」（播放頭部把手切換場次）的最低權限級別。
- * 需求：role >= 9（僅 Admin）。此為編務用工具，與預覽權限刻意分離、各自獨立。
+ * 需求：role > 1（普通用戶以上皆可）。與預覽權限（>= 5）刻意分離、各自獨立：
+ * role 2~4 沒有 canPreviewAll，可選場次仍受試閱截斷／購買閘門限制，跳不進付費內容。
  */
-export const SCREENING_SWITCH_MIN_LEVEL = 9;
+export const SCREENING_SWITCH_MIN_LEVEL = 2;
 
 /**
  * 是否為 Admin（roleLevel >= 9）。
@@ -52,7 +53,7 @@ export function canPreviewAll(roleLevel: number | null | undefined): boolean {
 }
 
 /**
- * 是否可使用場次快速切換器（roleLevel >= 9，僅 Admin）。
+ * 是否可使用場次快速切換器（roleLevel > 1，普通用戶以上）。
  * null / undefined / 非數值一律視為無權限。
  */
 export function canSwitchScreening(roleLevel: number | null | undefined): boolean {

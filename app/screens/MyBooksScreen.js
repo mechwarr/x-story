@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, FlatList, View } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { StyleSheet, FlatList, View, Pressable } from 'react-native';
 import axios from 'axios';
 import { useIsFocused } from '@react-navigation/native';
 import { isEmpty } from 'lodash';
@@ -12,14 +12,14 @@ import Book from '../components/Book/Book';
 import colors from '../config/colors';
 import storage from '../storage/storage';
 import { bookDataBaseUrl } from '../config/apiClient';
-import { getAuthoritativeOwnedStoryIds } from '../services/bookAccessService';
+import { resolveOwnedStoryIds } from '../services/bookAccessService';
 import { translate, pickConfigByLang } from '../i18n/i18n';
 import { compareBookByOrder } from '../utils/bookOrder';
 
 // 書籍資料端點統一走 bookDataBaseUrl（與 HomeScreen 同源），固定走正式站、不隨 __DEV__ 切換。
 const url = bookDataBaseUrl;
 
-// 「我的書籍」：以伺服器 entitlements（getAuthoritativeOwnedStoryIds）為權威來源，
+// 「我的書籍」：以伺服器 entitlements（resolveOwnedStoryIds）為權威來源，
 // 取出使用者實際持有的書，並與 story-list（含完整 storyData）交集後呈現。
 // 呈現「所有購買過的書」，不依語系過濾——各語言版本皆會顯示，方便用戶查找。
 // 排版與「繼續觀看」一致（2 欄 Book 網格）；點擊沿用 Book 一般變體邏輯，
@@ -28,6 +28,12 @@ function MyBooksScreen() {
   const isFocus = useIsFocused();
 
   const [ownedIds, setOwnedIds] = useState([]);
+  // 持有清單「取不到」（離線／逾時／非 2xx）時為 true：此時的 ownedIds 只是本地樂觀快取，
+  // 空清單不代表「沒買過書」。用來把「真的沒解鎖任何書」與「這次查不到」分開呈現，
+  // 避免一次網路失敗就顯示成空書櫃（使用者會以為購買紀錄消失）。
+  const [ownedUnknown, setOwnedUnknown] = useState(false);
+  // 重試計數：使用者按「重試」時 +1，觸發下方的資料 effect 重跑。
+  const [reloadTick, setReloadTick] = useState(0);
   const [storyList, setStoryList] = useState([]);
   const [menuFoolproofConfig, setMenuFoolproofConfig] = useState({});
   const [nochapter, setNochapter] = useState([]);
@@ -36,15 +42,18 @@ function MyBooksScreen() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 權威持有清單（自動翻頁、bypassCache；線上失敗時退回本地快取）。
-        const owned = await getAuthoritativeOwnedStoryIds();
+        // 權威持有清單（自動翻頁、bypassCache；線上失敗時退回本地快取並標記為「未知」）。
+        const { ids: owned, authoritative } = await resolveOwnedStoryIds();
         setOwnedIds(owned);
+        setOwnedUnknown(!authoritative);
 
         // story-list 公開 API：含每本書完整 storyData（main_menu_* / open / chapter_type / lang），
-        // 供簡介彈窗與排版，與大廳同源。
+        // 供簡介彈窗與排版，與大廳同源。取不到時同樣標記為「未知」——持有清單查得到、
+        // 但書單查不到，交集一樣是空的，此時仍不可說「尚未解鎖任何書籍」。
         const storyRes = await axios
           .get(url + 'api/v1/admin/story-list')
-          .catch(() => ({ data: [] }));
+          .catch(() => null);
+        if (!storyRes) setOwnedUnknown(true);
         setStoryList(storyRes?.data ?? []);
 
         // 主選單-防呆視窗參數：簡介彈窗的標題／內文／按鈕字樣，依語系挑列（與 HomeScreen 一致）。
@@ -70,7 +79,9 @@ function MyBooksScreen() {
     }
     fetchData();
     getStories();
-  }, [isFocus]);
+  }, [isFocus, reloadTick]);
+
+  const retry = useCallback(() => setReloadTick((n) => n + 1), []);
 
   // 持有 ∩ 書單。書櫃需呈現「所有購買過的書」（含各語言版本），不依語系過濾，
   // 方便用戶查找所有購買過的語言版本（各語言版本為各自獨立的 story，非重複資料）。
@@ -88,7 +99,16 @@ function MyBooksScreen() {
       <AppHeader />
       <Content>
         <View style={styles.books}>
-          {isEmpty(myBooks) ? (
+          {isEmpty(myBooks) && ownedUnknown ? (
+            // 查不到持有清單且沒有任何可顯示的書：明講「載入失敗」並提供重試，
+            // 不可沿用「尚未解鎖任何書籍」——那會把網路異常誤說成使用者沒買過書。
+            <View>
+              <AppText style={styles.noBooks}>{translate('myBooksLoadFailed')}</AppText>
+              <Pressable onPress={retry} hitSlop={12}>
+                <AppText style={styles.retry}>{translate('retry')}</AppText>
+              </Pressable>
+            </View>
+          ) : isEmpty(myBooks) ? (
             <AppText style={styles.noBooks}>{translate('noMyBooks')}</AppText>
           ) : (
             <FlatList
@@ -118,6 +138,12 @@ const styles = StyleSheet.create({
   noBooks: {
     color: colors.white,
     fontSize: 20,
+  },
+  retry: {
+    color: colors.white,
+    fontSize: 20,
+    marginTop: 12,
+    textDecorationLine: 'underline',
   },
 });
 

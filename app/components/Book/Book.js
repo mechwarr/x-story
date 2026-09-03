@@ -7,6 +7,7 @@ import {
   Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import { showAlert } from '../CustomAlert';
 import routes from '../../navigations/routes';
 import AppText from '../AppText';
@@ -18,7 +19,7 @@ import { toColor, toFontWeight } from '../../config/normalizeStyle';
 import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins, getEffectiveRoleLevel } from '../../config/userApiClient';
 import { canPreviewAll } from '../../config/roles';
-import { getAuthoritativeOwnedStoryIds } from '../../services/bookAccessService';
+import { resolveOwnedStoryIds } from '../../services/bookAccessService';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../../config/idempotencyKeyCache';
 import { useCoins } from '../../store/coinContext';
 import storage from '../../storage/storage';
@@ -146,12 +147,49 @@ function Book(props) {
     });
   };
 
+  // 存檔落點「現在」是否仍在免費試閱範圍內。一律以後端現況的章節設定判斷，不採信存檔裡的
+  // free_open / read_range_end——那是存檔當下寫的，後台之後可能把該章關閉。
+  // 為什麼非查不可：分章節書的付費保護全靠章節選單的鎖頭，故事頁的「整本上鎖」分支帶
+  // !isChapterBook，對「已關閉試閱的章節」不會截斷也不會上鎖。若放行一筆指向已關閉章節的
+  // 舊存檔，那一章就會整章免費讀完。
+  // 取不到資料時回 false（保守擋下）：此處守的是付費內容，未知不可放行。
+  const isSavedSpotStillFree = async (record) => {
+    const savedChapterId = record?.chapterId;
+    const savedScreen = Number(record?.cachedIndex?.screen);
+    if (savedChapterId == null || !Number.isFinite(savedScreen)) return false;
+    try {
+      const res = await axios.get(
+        `${apiclient.currentBaseUrl()}api/v1/admin/chapter/${props.storyId ?? id}`
+      );
+      const row = (Array.isArray(res?.data) ? res.data : []).find(
+        (c) => Number(c?.id) === Number(savedChapterId)
+      );
+      if (!row) return false; // 章節已不存在
+      if (row.free_open !== '開放') return false; // 該章現在不開放試閱
+      const rangeEnd = Number(row.read_range_end);
+      if (!Number.isFinite(rangeEnd) || rangeEnd <= 0) return false; // 沒設定試閱長度＝沒有免費範圍
+      // 場次索引為 0 起算：read_range_end = 4 代表可讀 screen 0~3。
+      const stillFree = savedScreen < rangeEnd;
+      console.log('[Book] 試閱範圍比對 →', {
+        chapterId: savedChapterId, savedScreen, free_open: row.free_open, read_range_end: row.read_range_end, stillFree,
+      });
+      return stillFree;
+    } catch (e) {
+      console.warn('[Book] 章節現況取不到，續讀保守擋下:', e?.message ?? e);
+      return false;
+    }
+  };
+
   // 繼續觀看／再次回味的守門（需求 4、10）：
   //  4. 書籍下架／刪除 → 一律不能再看（堵住一般用戶用本地存檔繞過閘門續看的漏洞）。
-  // 10. 付費書但已被移除書單（伺服器撤銷授權）→ 需重新購買，不能靠存檔續看；導回一般入口走購買閘門。
+  // 10. 付費書但已被移除書單（伺服器撤銷授權）→ 不能靠存檔續看「付費內容」；跳提示後走購買閘門。
   // role >= 5（小編／管理員）預覽者不受限，一律放行。
   // 回傳 true 表示可續看／回味；false 表示已擋下（本函式已負責提示或改導向）。
-  const canContinueOwned = async () => {
+  // proceed：呼叫端「放行後要做的導向」。未持有時本函式會先跳提示，由「確認」接手執行
+  //（不分章節書＝照常還原進度、由 StoryScreen 上鎖），故此時回傳 false、呼叫端不要再導一次。
+  // savedRecord：這次要還原的存檔（繼續觀看＝props、首頁防呆右鍵＝storyCache 那筆、
+  //   再次回味＝null，已讀完的書沒有落點）。用來判斷未持有時「落點是否仍在免費範圍內」。
+  const canContinueOwned = async (proceed, savedRecord) => {
     const roleLevel = await getEffectiveRoleLevel();
     if (canPreviewAll(roleLevel)) return true; // 預覽者不受限
 
@@ -179,11 +217,42 @@ function Book(props) {
     // 付費書：以伺服器 entitlements 權威判斷持有；被移除書單者需重新購買。
     const isPaid = Number(entry.priceCoins) > 0;
     if (isPaid) {
-      const ownedIds = await getAuthoritativeOwnedStoryIds();
+      const { ids: ownedIds, authoritative } = await resolveOwnedStoryIds();
       const owned = ownedIds.map(Number).includes(Number(bookId));
+      // 持有狀態「未知」（entitlements 取不到：離線／逾時／非 2xx）時不誤擋——與上方
+      // 「在架快照為空即放行」同一原則。少了這道判斷，一次網路失敗就會讓所有付費書
+      // 被當成未持有，「繼續觀看」永遠靜默導去章節選單、回不到最後的閱讀進度。
+      if (!owned && !authoritative) {
+        console.warn('[Book] 持有狀態未知（entitlements 取不到），放行續看：', bookId);
+        return true;
+      }
       if (!owned) {
-        goToStart(); // 導回一般入口，套用購買閘門（有章節→章節列表；無章節→故事頁）
-        return false;
+        // 權威確認「確實未持有」。此時的判斷依據不是「有沒有買」，而是
+        // 「要還原的那個位置，現在還在免費試閱範圍內嗎」——試閱讀者本來就讀得到那一段，
+        // 沒有理由每次都被踢回章節選單重找。超出範圍（或該章已關閉試閱）才走購買閘門。
+        if (hasChapter && (await isSavedSpotStillFree(savedRecord))) {
+          console.log('[Book] 未持有但存檔落點仍在試閱範圍內 → 照常還原：', bookId);
+          return true;
+        }
+        console.log('[Book] 付費書未持有且落點不在免費範圍 → 套用購買閘門：', bookId, '有章節:', hasChapter, '已持有清單:', ownedIds);
+        // 先明講原因再導向：靜默轉場會讓使用者以為「閱讀紀錄壞了」（實際是尚未解鎖／授權失效）。
+        showAlert(translate('noticeTitle'), translate('bookNeedsUnlock'), [
+          {
+            text: translate('ok'),
+            onPress: () => {
+              if (hasChapter) {
+                goToStart(); // 章節選單本身就是購買閘門（每章顯示鎖頭），且不會動到存檔
+                return;
+              }
+              // 不分章節書：goToStart 會進 StoryScreen 但不帶 cachedIndex ＝ 從第一場次重播，
+              // 使用者只要點一下推進，翻頁即存就把 continueStory 覆寫成開頭、原進度永久消失。
+              // 改為照常還原存檔位置，閘門交給 StoryScreen 施加（試閱截斷／整本上鎖／解鎖列），
+              // 未持有者一樣看不到非試閱內容，但進度不會被摧毀。
+              proceed?.();
+            },
+          },
+        ]);
+        return false; // 導向已由上方提示的「確認」接手，呼叫端不要再導一次
       }
     }
     return true;
@@ -235,8 +304,9 @@ function Book(props) {
           onPress: async () => {
             const saved = storyStatus.read;
             if (saved?.cachedIndex) {
-              // 與繼續觀看入口同一守門：下架不能看、付費書被移除書單則導回購買閘門。
-              if (await canContinueOwned()) goToContinue(saved);
+              // 與繼續觀看入口同一守門：下架不能看、付費書未解鎖則跳提示後走購買閘門。
+              const proceed = () => goToContinue(saved);
+              if (await canContinueOwned(proceed, saved)) proceed();
               return;
             }
             navigation.navigate(routes.CONTINUE);
@@ -404,12 +474,12 @@ function Book(props) {
 
           if (showIcon) {
             // 繼續觀看：先驗證仍在架＋（付費書）仍持有，再回到最後存檔的章節/場次/對話順序
-            if (await canContinueOwned()) {
-              goToContinue();
-            }
+            const proceed = () => goToContinue();
+            // 繼續觀看頁：存檔 item 已由 ContinueScreen 展開成 props，props 本身就是那筆存檔。
+            if (await canContinueOwned(proceed, props)) proceed();
           } else if (showReviewIcon) {
             // 再次回味：同樣先驗證仍在架＋仍持有
-            if (await canContinueOwned()) {
+            const proceed = () => {
               if (hasChapter) {
                 navigation.navigate(routes.HOME, {
                   screen: routes.CHAPTER,
@@ -426,7 +496,9 @@ function Book(props) {
                   params: storyPayload,
                 });
               }
-            }
+            };
+            // 再次回味＝已讀完的書，finishStory 不存落點 → 無免費範圍可比對，維持購買閘門。
+            if (await canContinueOwned(proceed, null)) proceed();
           } else {
             // 一般選項：每次點擊都跳出簡介彈窗（showMenuIntro），讓使用者選擇。
             showMenuIntro();
