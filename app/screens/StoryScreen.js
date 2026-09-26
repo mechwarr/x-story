@@ -35,6 +35,7 @@ import { translate, matchesCurrentStoryLang, getCurrentLang, pickConfigByLang, c
 import { syncPurchasedStoryIds, resolveOwnedStoryIds, canAccessChapter } from '../services/bookAccessService';
 import mediaPlayer from '../services/mediaPlayer';
 import useResponsive from '../hook/useResponsive';
+import { sortChaptersByOrder, sortScreeningsByOrder } from '../utils/chapterOrder';
 
 const domain = apiclient.currentBaseUrl() + 'images/update/';
 const initStoryIdx = null;
@@ -275,8 +276,11 @@ function StoryScreen({ route }) {
         const res = await axios.get(
           apiclient.currentBaseUrl() + `api/v1/admin/chapter/${storyId}`
         );
-        const list = (Array.isArray(res?.data) ? res.data : []).filter((c) =>
-          matchesCurrentStoryLang(c?.lang)
+        // 與章節頁同一套順序（依 order），getNextChapter 的「下一章」才會與畫面一致。
+        const list = sortChaptersByOrder(
+          (Array.isArray(res?.data) ? res.data : []).filter((c) =>
+            matchesCurrentStoryLang(c?.lang)
+          )
         );
         if (mounted) chapterListRef.current = list;
       } catch (error) {
@@ -1277,7 +1281,9 @@ function StoryScreen({ route }) {
         // 故事角色-防呆視窗參數表：用於替點角色頭像跳出的角色簡介彈窗套字樣。
         const roleFoolproofConf = await axios.get(URL + `api/v1/admin/setup-story-role-foolproof`);
 
-        const rawScreenings = Array.isArray(screenings?.data) ? screenings.data : [];
+        // 依後端 order（"01"、"02"…）由小到大；API 原序是 id 遞增、與 order 無關。
+        // 須在此處（截斷試閱範圍、夾住存檔落點之前）就排好：後續一律以排序後的陣列位置當場次索引。
+        const rawScreenings = sortScreeningsByOrder(screenings?.data);
         // 僅「試閱中且未購買」才依 read_range_end（試閱場次範圍尾）截斷；
         // 已購買或非試閱書應看到完整場次。先確保是陣列再 slice，避免 undefined.slice() 例外。
         // role >= 9（Admin）亦視為完整內容、不截斷（供預覽／校對，看到全部場次）。

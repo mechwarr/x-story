@@ -236,12 +236,13 @@ const styles = StyleSheet.create({
     formWrap: {
         width: "100%",
     },
-    // 與 Email 登入頁（XStoryLogin）的標題一致：字級、粗細、置中、下方間距
+    // 字級、粗細、置中與 Email 登入頁（XStoryLogin）一致；
+    // 下方間距改小，避免標題與緊接的密碼規則說明離太遠
     title: {
         fontSize: 24,
         fontWeight: "bold",
         color: "white",
-        marginBottom: 40,
+        marginBottom: 16,
         textAlign: "center",
     },
     policyHint: {

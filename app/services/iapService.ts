@@ -32,6 +32,7 @@ import {
 } from '../utils/iapDebugLogger';
 import { appStoreSkuToBackendProductId } from '../utils/iosIapSkuMapping';
 import { storeSkuMatchesBackendProductId } from '../utils/iapCatalog';
+import { formatStorePrice } from '../utils/priceFormat';
 
 /**
  * 商店／後端商品 ID。
@@ -1238,7 +1239,7 @@ class IAPService {
   }
 
   /**
-   * 根據產品 ID 取得平台顯示價格（含正確幣別符號，例如 "NT$170"、"$5.99"）。
+   * 根據產品 ID 取得平台顯示價格（含幣別符號、已去地區前綴，例如 "$170"、"$5.99"）。
    * 從雙平台（App Store / Google Play）回傳的商品資料取得，找不到時回傳空字串。
    * @param productId - 產品 ID
    * @returns 平台顯示價格字串，找不到則回傳空字串
@@ -1248,8 +1249,10 @@ class IAPService {
     if (!product) {
       return '';
     }
-    // 優先使用 displayPrice（商店原始價格字串，含幣別符號）；否則退回 price
-    return (product as any).displayPrice ?? (product as any).price ?? '';
+    // 優先使用 displayPrice（商店原始價格字串，含幣別符號）；否則退回 price。
+    // 與商城卡片共用同一套顯示整理（去地區前綴、零小數幣別去 .00），兩個畫面才會一致。
+    const raw = (product as any).displayPrice ?? (product as any).price ?? '';
+    return formatStorePrice(String(raw), (product as any).currency) ?? '';
   }
 
   /**

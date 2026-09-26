@@ -27,6 +27,7 @@ import { getUserProfile } from '../config/userApiClient';
 import { setPendingProfileRedirect, setProfileIncompletePersisted } from './firstLoginRedirect';
 import { setPendingSocialName, deriveGoogleDisplayName } from './pendingSocialName';
 import { subscribeVerifyRedirect } from './verifyRedirect';
+import { hasValidBirthday } from '../utils/birthday';
 
 export default function LoginContainer({ onLoginSuccess }) {
   const { refreshCoins } = useCoins();
@@ -100,11 +101,17 @@ export default function LoginContainer({ onLoginSuccess }) {
       await tokenStorage.setUserRoleLevel(Number(userData?.roleLevel) || 0);
 
       if (userData) {
-        const hasBirthday = !!(userData.birthDate && String(userData.birthDate).trim());
+        // 不可只看欄位非空：後端對未填生日可能回佔位值（0000-00-00、1900-01-01 等），見 utils/birthday
+        const hasBirthday = hasValidBirthday(userData.birthDate);
         const hasGender = userData.gender === 1 || userData.gender === 2;
         // 生日 + 性別皆齊全才算完成；任一缺 → 本次登入導向 ProfileScreen，
         // 並記在持久化旗標，讓資料補齊前的每次冷啟動（自動登入）也先進 ProfileScreen。
         const incomplete = !(hasBirthday && hasGender);
+        console.log('[LoginContainer] 導向資料頁判定:', {
+          birthDate: userData.birthDate ?? null,
+          gender: userData.gender ?? null,
+          incomplete,
+        });
         setPendingProfileRedirect(incomplete);
         await setProfileIncompletePersisted(incomplete);
       } else {
@@ -378,7 +385,10 @@ export default function LoginContainer({ onLoginSuccess }) {
           // App 端 best-effort 解出 Google 暱稱（name → givenName → email 前綴 → idToken → id），
           // 暫存供 Profile 於後端 name 為空時預填（按「更新」才存回後端）
           const googleName = deriveGoogleDisplayName(res);
-          console.log('[Google Login] best-effort 暱稱:', googleName);
+          console.log('[Google Login] best-effort 暱稱:', googleName, {
+            userKeys: res?.user ? Object.keys(res.user) : [],
+            innerUserKeys: res?.user?.user ? Object.keys(res.user.user) : [],
+          });
           setPendingSocialName(googleName);
           handleLoginSuccess();
         } else {
@@ -591,12 +601,14 @@ export default function LoginContainer({ onLoginSuccess }) {
     setShowEmailVerification(true);
   };
 
+  // 官網條款頁的 ?lang= 只接受 en / zh（zh 為繁中，網站暫無簡中版，zh-CN 先對應 zh）。
+  // 中文也必須明確帶 lang=zh：頁面會把語言記在 localStorage，不帶參數時會沿用上次的 en。
+  const getLegalPageLang = () => (getCurrentLang() === 'en' ? 'en' : 'zh');
+
   // 開啟服務條款（在 App 內瀏覽器）
   const handleOpenTOS = async () => {
     try {
-      const termsUrl = getCurrentLang() === 'en'
-        ? 'https://xstoryline.com/terms.html?lang=en'
-        : 'https://xstoryline.com/terms.html';
+      const termsUrl = `https://xstoryline.com/terms.html?lang=${getLegalPageLang()}`;
       await WebBrowser.openBrowserAsync(termsUrl, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
         controlsColor: '#0abab5', // 使用品牌色作為控制項顏色
@@ -611,9 +623,7 @@ export default function LoginContainer({ onLoginSuccess }) {
   // 開啟隱私政策（在 App 內瀏覽器）
   const handleOpenPP = async () => {
     try {
-      const privacyUrl = getCurrentLang() === 'en'
-        ? 'https://xstoryline.com/privacy.html?lang=en'
-        : 'https://xstoryline.com/privacy.html';
+      const privacyUrl = `https://xstoryline.com/privacy.html?lang=${getLegalPageLang()}`;
       await WebBrowser.openBrowserAsync(privacyUrl, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
         controlsColor: '#0abab5', // 使用品牌色作為控制項顏色

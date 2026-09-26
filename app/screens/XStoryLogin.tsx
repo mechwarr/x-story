@@ -14,9 +14,8 @@ import { translate } from "../i18n/i18n";
 import { loginWithXStory, LoginTokenResult } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
 import HeaderEyeLogo from "../components/HeaderEyeLogo";
+import { EMAIL_REGEX } from "../utils/email";
 
-// Email 格式驗證（與註冊/忘記密碼共用同一規則）
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // 密碼長度需求：8-20 字元（與註冊政策一致）
 const PASSWORD_MIN = 8;
 const PASSWORD_MAX = 20;

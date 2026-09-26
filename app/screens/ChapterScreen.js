@@ -13,6 +13,7 @@ import { canPreviewAll } from '../config/roles';
 import { pickConfigByLang } from '../i18n/i18n';
 import { toColor } from '../config/normalizeStyle';
 import { useLanguage } from '../i18n/LanguageContext';
+import { sortChaptersByOrder } from '../utils/chapterOrder';
 
 const ChapterScreen = () => {
   const [queryInfo, setQueryInfo] = useState({
@@ -114,7 +115,8 @@ const ChapterScreen = () => {
         // 依目前 App 語系挑出相符的那一筆參數（取代原本寫死的 data[0]/data[1]），
         // 否則切換語系後樣式仍套用固定第一筆、不會跟著語系更新。
         setQueryInfo({
-          listData: chapterList?.data ?? [],
+          // 依後端 order（"01"、"02"…）由小到大；API 原序是 id 遞增、與 order 無關。
+          listData: sortChaptersByOrder(chapterList?.data),
           toastConfig: pickConfigByLang(toastConfig?.data) ?? {},
           uiConfig: pickConfigByLang(uiConfig?.data) ?? {},
           storyConfig: pickConfigByLang(storyConfig?.data) ?? {},

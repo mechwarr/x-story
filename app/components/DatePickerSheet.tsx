@@ -12,9 +12,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { translate, getCurrentLang } from '../i18n/i18n';
 import useResponsive from '../hook/useResponsive';
 import WheelPicker, { type WheelItem } from './WheelPicker';
+import { BIRTHDAY_YEAR_SPAN } from '../utils/birthday';
 
-/** 年份下限（沒給 minimumDate 時，往前推的年數） */
-const DEFAULT_YEAR_SPAN = 120;
+/** 年份下限（沒給 minimumDate 時，往前推的年數）；與生日有效性判定共用，見 utils/birthday */
+const DEFAULT_YEAR_SPAN = BIRTHDAY_YEAR_SPAN;
 
 const EN_MONTH_LABELS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -67,14 +68,24 @@ export default function DatePickerSheet({
   const [month, setMonth] = useState<number>(1);
   const [day, setDay] = useState<number>(1);
 
-  // 每次開啟都以現有值（或預設值）重新定位，避免沿用上一次未確定的暫存
+  // 每次開啟都以現有值（或預設值）重新定位，避免沿用上一次未確定的暫存。
+  // 先夾回可選範圍：後端若回清單外的生日（如 1900-01-01、未來日期），年份滾輪找不到該值
+  // 只會停在第一列，但內部 year 仍是清單外的值 → 只調月／日按確定會送出範圍外的日期，
+  // 且 maximumDate 的月／日上限（以 year === maxYear 判斷）也會失效。
+  // 依賴只放 visible：只在「開啟的那一刻」定位，開啟期間呼叫端重新 render
+  // （value／上下界換了新的 Date 物件）不應把使用者滾到一半的值重設回去。
   useEffect(() => {
     if (!visible) return;
-    const base = value ?? defaultValue;
+    const lower = minimumDate ?? new Date(minYear, 0, 1);
+    const upper = maximumDate ?? new Date(maxYear, 11, 31);
+    let base = value ?? defaultValue;
+    if (base.getTime() < lower.getTime()) base = lower;
+    else if (base.getTime() > upper.getTime()) base = upper;
     setYear(base.getFullYear());
     setMonth(base.getMonth() + 1);
     setDay(base.getDate());
-  }, [visible, value, defaultValue]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   // 可選月份：碰到上下界那一年時要收斂，才不會選出超過 maximumDate 的日期
   const monthFrom = minimumDate && year === minYear ? minimumDate.getMonth() + 1 : 1;

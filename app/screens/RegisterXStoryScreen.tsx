@@ -16,9 +16,8 @@ import { translate } from "../i18n/i18n";
 import { registerWithXStory, resentRegisterMail, ResentRegisterMailRequest } from "../config/authApiClient";
 import useResponsive from "../hook/useResponsive";
 import HeaderEyeLogo from "../components/HeaderEyeLogo";
+import { EMAIL_REGEX } from "../utils/email";
 
-// Email 格式驗證（與忘記密碼/登入共用同一規則）
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // 密碼政策：8-20 字、至少一個大寫、一個小寫、一個數字
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,20}$/;
 

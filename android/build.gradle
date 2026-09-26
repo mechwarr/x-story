@@ -3,6 +3,11 @@
 def KOTLIN_VERSION = (findProperty("KOTLIN_VERSION") ?: "2.1.20") as String
 def AGP_VERSION    = (findProperty("AGP_VERSION")    ?: "8.8.2")  as String
 
+// 必須在 apply "expo-root-project" 之前設定：該外掛只在 ext 尚未定義時才套用預設值（35）
+ext.compileSdkVersion = (findProperty("COMPILE_SDK_VERSION") ?: "36") as Integer
+ext.targetSdkVersion  = (findProperty("TARGET_SDK_VERSION")  ?: "36") as Integer
+ext.buildToolsVersion = (findProperty("BUILD_TOOLS_VERSION") ?: "36.0.0") as String
+
 buildscript {
   repositories {
     google()

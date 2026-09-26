@@ -1,7 +1,7 @@
 // app/screens/ShopScreen.tsx
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import {
-  SafeAreaView, View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator, Platform,
+  SafeAreaView, View, Text, StyleSheet, Image, ScrollView, ActivityIndicator, Platform,
 } from 'react-native';
 import { showAlert } from "../components/CustomAlert";
 import { useNavigation } from '@react-navigation/native';
@@ -11,10 +11,19 @@ import PackCard, {
   PRICE_BOX_WIDTH,
   PRICE_BOX_PADDING,
   PRICE_LETTER_SPACING,
+  PRICE_MAX_FONT,
+  COINS_FONT_SIZE,
+  COINS_DIGIT_WIDTH_RATIO,
+  DEFAULT_COINS_WIDTH,
+  TITLE_MAX_FONT,
+  TITLE_MIN_FONT,
+  TITLE_LETTER_SPACING,
+  TITLE_ROW_FIXED_WIDTH,
 } from '../components/Purchase/PackCard';
 import { useIAP } from '../hook/useIAP';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
+import NoDataRetryView from '../components/NoDataRetryView';
 import { type ProductId } from '../services/iapService';
 import { useCoins } from '../store/coinContext';
 import {
@@ -23,32 +32,11 @@ import {
   storeSkuMatchesBackendProductId,
 } from '../utils/iapCatalog';
 import { extractProductName } from '../utils/productName';
+import { formatStorePrice } from '../utils/priceFormat';
 import { translate } from '../i18n/i18n';
 
 const RIGHT_COLORS = ['#F2D4AE', '#F4B86F', '#F3A55D', '#F18F52', '#EF7D47', '#EA6A3E'];
 
-// 這些幣別的最小單位即為整數（無小數），商店回傳的價格字串若帶 .00 應去除
-const zeroDecimalCurrencies = [
-  'TWD', 'JPY', 'KRW', 'VND', 'CLP', 'PYG',
-  'BIF', 'DJF', 'GNF', 'ISK', 'KMF', 'RWF',
-  'UGX', 'VUV', 'XAF', 'XOF', 'XPF',
-];
-
-// 針對零小數幣別，去掉價格字串尾端的 .00（例：NT$150.00 -> NT$150）
-function formatDisplayPrice(
-  formattedPrice: string | undefined,
-  currencyCode: string | undefined
-): string | undefined {
-  if (!formattedPrice) return formattedPrice;
-  if (currencyCode && zeroDecimalCurrencies.includes(currencyCode.toUpperCase())) {
-    // 僅去除「整數 .00 / ,00」尾綴（含歐式逗號小數）；若小數非全為 0（如 .50）則保留。
-    // 後綴需為非數字到字串結尾，避免誤刪千分位（如 "1,000" 不受影響）。
-    return formattedPrice.replace(/[.,]00(?=\D*$)/, '');
-  }
-  return formattedPrice;
-}
-
-const PRICE_MAX_FONT = 24;
 const PRICE_MIN_FONT = 12;
 
 // 粗估字串寬度（相對字級的倍率）：粗體數字約 0.6em、標點窄、大寫字母寬。
@@ -79,6 +67,47 @@ function sharedPriceFontSize(prices: string[]): number {
     size = Math.min(size, fit);
   }
   return Math.max(PRICE_MIN_FONT, size);
+}
+
+// 金幣數量欄共用寬度：以同批最多位數估算，後台新增更大面額時自動加寬
+function sharedCoinsWidth(coinsList: number[]): number {
+  const maxDigits = coinsList.reduce((m, c) => Math.max(m, String(Math.trunc(c)).length), 0);
+  if (maxDigits <= 0) return DEFAULT_COINS_WIDTH;
+  return Math.ceil(maxDigits * COINS_FONT_SIZE * COINS_DIGIT_WIDTH_RATIO);
+}
+
+const LIST_PADDING_HORIZONTAL = 12;
+
+// 粗估商品名稱寬度（相對字級的倍率，粗體 800）：中日韓全形字 1em、emoji 略寬、
+// 拉丁字母依大小寫與窄字分級。寧可略為高估——低估會讓單張卡被保險用的縮字再縮一次，字級又不一致。
+function estimateTitleWidthRatio(text: string): number {
+  let ratio = 0;
+  for (const ch of text) {
+    const cp = ch.codePointAt(0) ?? 0;
+    if (cp >= 0x1f000 || (cp >= 0x2600 && cp <= 0x27bf)) ratio += 1.3;          // emoji
+    else if (cp >= 0x2e80) ratio += 1.0;                                          // CJK／全形
+    else if (ch === ' ') ratio += 0.28;
+    else if (/[iljI.,'!:;|]/.test(ch)) ratio += 0.32;
+    else if (/[mwMW]/.test(ch)) ratio += 0.9;
+    else if (ch >= 'A' && ch <= 'Z') ratio += 0.7;
+    else if (ch >= '0' && ch <= '9') ratio += 0.6;
+    else ratio += 0.58;                                                           // 小寫與其他
+  }
+  return ratio * 1.04;
+}
+
+// 依同批名稱中「估算最寬」的那筆決定共用字級：各語系（繁中／簡中／英文）的名稱長度不同，
+// 但同一畫面內六張卡一律同字級，最長的那筆也塞得進名稱欄。
+function sharedTitleFontSize(names: string[], titleWidth: number): number {
+  if (titleWidth <= 0) return TITLE_MAX_FONT;
+  let size = TITLE_MAX_FONT;
+  for (const name of names) {
+    const ratio = estimateTitleWidthRatio(name);
+    if (ratio <= 0) continue;
+    const fit = Math.floor((titleWidth - [...name].length * TITLE_LETTER_SPACING) / ratio);
+    size = Math.min(size, fit);
+  }
+  return Math.max(TITLE_MIN_FONT, size);
 }
 
 export default function ShopScreen() {
@@ -174,7 +203,7 @@ export default function ShopScreen() {
       }
 
       const pid = productIdKey(product);
-      // 價格與幣別一律取自商店（displayPrice 優先）；零小數幣別（如 TWD/JPY）去掉尾端 .00
+      // 價格與幣別一律取自商店（displayPrice 優先）；顯示前經 formatStorePrice 去地區前綴（NT$ -> $）與零小數幣別的 .00
       const price = product.displayPrice
         ? parseFloat(product.displayPrice.replace(/[^0-9.]/g, ''))
         : (product.price || 0);
@@ -190,7 +219,7 @@ export default function ShopScreen() {
         coins,                 // 後端
         bonus,                 // 後端
         priceUsd: price,       // 商店（僅供數值用途）
-        displayPrice: formatDisplayPrice(product.displayPrice ?? undefined, currencyCode), // 商店
+        displayPrice: formatStorePrice(product.displayPrice, currencyCode), // 商店
         currencyCode,          // 商店
         productId: pid as ProductId, // 商店 SKU，購買時要用這個
         isAvailable: true,
@@ -226,6 +255,20 @@ export default function ShopScreen() {
     () => sharedPriceFontSize(packsWithPrice.map((p) => p.displayPrice || String(p.priceUsd))),
     [packsWithPrice],
   );
+
+  // 同批各卡共用金幣數量欄寬（收到最小）：金幣圖示排成一直線，數字靠左緊接圖示
+  const coinsWidth = useMemo(
+    () => sharedCoinsWidth(packsWithPrice.map((p) => p.coins)),
+    [packsWithPrice],
+  );
+
+  // 同批各卡共用名稱字級：名稱欄寬 = 清單實際寬度 − 清單左右內距 − 卡片內其餘固定寬度
+  const [listWidth, setListWidth] = useState(0);
+  const titleFontSize = useMemo(() => {
+    if (listWidth <= 0) return TITLE_MAX_FONT;
+    const titleWidth = listWidth - LIST_PADDING_HORIZONTAL * 2 - TITLE_ROW_FIXED_WIDTH - coinsWidth;
+    return sharedTitleFontSize(packsWithPrice.map((p) => p.name || p.title), titleWidth);
+  }, [packsWithPrice, listWidth, coinsWidth]);
 
   // 無商品時顯示原因（iOS／Android 同一套文案結構）：依 階段 1 後端 → 階段 2 商店 → 階段 3 合併 逐層說明
   const emptyReason = useMemo(() => {
@@ -282,7 +325,7 @@ export default function ShopScreen() {
 
   // 無商品時寫入一筆流程 log，方便對照
   useEffect(() => {
-    if (!isShopLoading && !error && packsWithPrice.length === 0 && emptyReason) {
+    if (!isShopLoading && packsWithPrice.length === 0 && emptyReason) {
       console.log('[ShopScreen] 暫無可用商品 — 原因：', emptyReason.replace(/\n/g, ' | '));
     }
   }, [isShopLoading, error, packsWithPrice.length, emptyReason]);
@@ -312,6 +355,25 @@ export default function ShopScreen() {
 
   const { isTablet, maxContentWidth, horizontalPadding } = useResponsive();
 
+  // 沒有任何可顯示的商品：不畫完整版面（標題、餘額、診斷文字），改用共用「沒有資料」整頁狀態，
+  // 內文依問題種類顯示：後端取不到金幣包 → 商店連不上／查不到價格 → 兩邊都正常但合併後 0 筆。
+  // 只看「有沒有資料」而不看 error：購買失敗也會寫入 error，但清單還在，不該被整頁蓋掉。
+  // 詳細的階段診斷（emptyReason）只留在 console。
+  if (!isShopLoading && packsWithPrice.length === 0) {
+    const message = coinPacksError
+      ? translate('shopLoadFailedMessage')
+      : error
+      ? translate('shopStoreUnavailableMessage', { store: platformName })
+      : translate('shopEmptyMessage');
+    return (
+      <NoDataRetryView
+        message={message}
+        onRetry={refreshProducts}
+        onEyePress={() => navigation.navigate(routes.MAIN as never)}
+      />
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScreenTopBar
@@ -333,52 +395,12 @@ export default function ShopScreen() {
           <ActivityIndicator size="large" color="#f0ad57" />
           <Text style={styles.loadingText}>{translate('loadingProducts')}</Text>
         </View>
-      ) : error ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>{translate('loadProductsFailed')}</Text>
-          <Text style={styles.errorMessage}>{error.message}</Text>
-          <Text style={styles.errorHint}>
-            {error.message.includes('模擬器')
-              ? Platform.OS === 'ios'
-                ? translate('iapHintSimulatorIOS')
-                : translate('iapHintSimulatorAndroid')
-              : error.message.includes('Google Play 服務')
-              ? translate('iapHintGooglePlayService')
-              : error.message.includes('App Store') || error.message.includes('App Store Connect')
-              ? Platform.OS === 'ios'
-                ? translate('iapHintAppStore')
-                : translate('iapHintNetwork')
-              : error.message.includes('無法從伺服器獲取')
-              ? translate('iapHintNetwork')
-              : translate('iapHintGeneric')}
-          </Text>
-          <Pressable
-            onPress={refreshProducts}
-            style={styles.retryButton}
-          >
-            <Text style={styles.retryButtonText}>{translate('reload')}</Text>
-          </Pressable>
-          <Text style={styles.errorDebug}>
-            詳細錯誤請查看控制台日誌（搜尋 [useIAP] 或 [iapService]）
-          </Text>
-        </View>
-      ) : packsWithPrice.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>{translate('noProductsAvailable')}</Text>
-          <Text style={styles.emptyReasonTitle}>目前沒有資料的階段：</Text>
-          <Text style={styles.emptyReasonText}>{emptyReason ?? '—'}</Text>
-          <Pressable
-            onPress={refreshProducts}
-            style={styles.retryButton}
-          >
-            <Text style={styles.retryButtonText}>{translate('reload')}</Text>
-          </Pressable>
-          <Text style={styles.errorDebug}>
-            控制台關鍵字：[ShopScreen]、[useIAP]、[iapService]
-          </Text>
-        </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          onLayout={(e) => setListWidth(e.nativeEvent.layout.width)}
+        >
           {packsWithPrice.map((p, i) => (
             <PackCard
               key={p.id}
@@ -387,6 +409,8 @@ export default function ShopScreen() {
               rightColor={RIGHT_COLORS[i % RIGHT_COLORS.length]}
               disabled={isPurchasing || !p.isAvailable}
               priceFontSize={priceFontSize}
+              coinsWidth={coinsWidth}
+              titleFontSize={titleFontSize}
             />
           ))}
         </ScrollView>
@@ -413,7 +437,7 @@ const styles = StyleSheet.create({
   coin: { width: 18, height: 18 },
   balanceText: {color: "#f0ad57", fontWeight: '700' },
 
-  list: { paddingHorizontal: 12, paddingBottom: 24, gap: 16 },
+  list: { paddingHorizontal: LIST_PADDING_HORIZONTAL, paddingBottom: 24, gap: 16 },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -428,64 +452,5 @@ const styles = StyleSheet.create({
     color: '#a0a0a0',
     fontSize: 14,
     marginTop: 8,
-  },
-  emptyReasonTitle: {
-    color: '#f0ad57',
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  emptyReasonText: {
-    color: '#e7eef6',
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginTop: 8,
-    paddingHorizontal: 16,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    gap: 12,
-  },
-  errorTitle: {
-    color: '#ff6b6b',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  errorMessage: {
-    color: '#e7eef6',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  errorHint: {
-    color: '#a0a0a0',
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  errorDebug: {
-    color: '#888',
-    fontSize: 11,
-    textAlign: 'center',
-    marginTop: 16,
-    fontStyle: 'italic',
-  },
-  retryButton: {
-    marginTop: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: '#f0ad57',
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
   },
 });

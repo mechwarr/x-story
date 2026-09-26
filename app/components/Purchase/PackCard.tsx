@@ -17,6 +17,30 @@ export type PackItem = {
 export const PRICE_BOX_WIDTH = 100;
 export const PRICE_BOX_PADDING = 6;
 export const PRICE_LETTER_SPACING = 0.3;
+export const PRICE_MAX_FONT = 22;
+
+// 金幣數量欄：同批各卡共用同一寬度（以最多位數那筆為準），
+// 金幣圖示才會排成一直線；欄寬收到最小，整組貼齊 Bonus，數字靠左緊接金幣圖示。
+export const COINS_FONT_SIZE = 19;
+export const COINS_DIGIT_WIDTH_RATIO = 0.6;   // 粗體數字約 0.6em
+export const DEFAULT_COINS_WIDTH = 46;         // 4 位數
+
+// 商品名稱：同批各卡共用同一字級（以最長名稱塞得下的字級為準），
+// 不讓各卡各自縮字造成大小不一。名稱欄吃剩餘寬度，外層需知道左半其餘元件佔掉多少。
+export const TITLE_MAX_FONT = 19;
+export const TITLE_MIN_FONT = 13;
+export const TITLE_LETTER_SPACING = 0.3;
+const LEFT_PADDING_LEFT = 12;
+const LEFT_PADDING_RIGHT = 4;
+const TITLE_MARGIN_RIGHT = 4;
+const COIN_ICON_SIZE = 24;
+const COIN_ICON_MARGIN_RIGHT = 3;
+const COINS_MARGIN_RIGHT = 2;
+const BONUS_WIDTH = 48;
+// 卡片寬度扣掉這個值與 coinsWidth，就是名稱欄可用寬度
+export const TITLE_ROW_FIXED_WIDTH =
+  PRICE_BOX_WIDTH + LEFT_PADDING_LEFT + LEFT_PADDING_RIGHT + TITLE_MARGIN_RIGHT +
+  COIN_ICON_SIZE + COIN_ICON_MARGIN_RIGHT + COINS_MARGIN_RIGHT + BONUS_WIDTH;
 
 type Props = {
   data: PackItem;
@@ -25,9 +49,11 @@ type Props = {
   style?: ViewStyle;
   disabled?: boolean;          // 是否禁用
   priceFontSize?: number;      // 價格字級（由外層依同批最長價格算出，讓同幣別各卡字級一致）
+  coinsWidth?: number;         // 金幣數量欄寬（由外層依同批最多位數算出，讓金幣圖示對齊成一直線）
+  titleFontSize?: number;      // 名稱字級（由外層依同批最長名稱算出，讓各卡名稱字級一致）
 };
 
-export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style, disabled = false, priceFontSize = 24 }: Props) {
+export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style, disabled = false, priceFontSize = PRICE_MAX_FONT, coinsWidth = DEFAULT_COINS_WIDTH, titleFontSize = TITLE_MAX_FONT }: Props) {
   const { name, title, priceUsd, displayPrice } = data;
   // 優先使用 name，如果沒有則使用 title
   const displayName = name || title;
@@ -52,13 +78,14 @@ export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style,
       <View style={styles.left}>
         {/* 單行：標題 + 金幣icon + 數量 + bonus */}
         <View style={styles.contentRow}>
-          {/* 商品名稱 - 固定寬度 */}
+          {/* 商品名稱 - 吃滿剩餘寬度 */}
           <View style={styles.titleContainer}>
             <Text 
               numberOfLines={1} 
+              // 字級已由外層依最長名稱算好；這裡只是保險，避免估算誤差造成尾端被「…」截掉
               adjustsFontSizeToFit
-              minimumFontScale={0.7}
-              style={styles.title}
+              minimumFontScale={0.85}
+              style={[styles.title, { fontSize: titleFontSize }]}
             >
               {displayName}
             </Text>
@@ -67,12 +94,12 @@ export default function PackCard({ data, onPress, rightColor = '#F7BA7E', style,
           {/* 金幣圖標 */}
           <Image style={styles.titleCoin} source={require('../../../assets/coin.png')} />
           
-          {/* 金幣數量 - 固定寬度 */}
-          <View style={styles.coinsContainer}>
-            <Text style={styles.coins}>{coins}</Text>
+          {/* 金幣數量 - 同批共用最小寬度，數字靠左緊接金幣圖示 */}
+          <View style={[styles.coinsContainer, { width: coinsWidth }]}>
+            <Text style={styles.coins} numberOfLines={1}>{coins}</Text>
           </View>
           
-          {/* BONUS 組件 - 固定寬度，上下排版 */}
+          {/* BONUS 組件 - 固定寬度；+值與紅底上下堆疊，整組在卡片高度內垂直置中 */}
           {typeof bonus === 'number' && bonus > 0 && (
             <View style={styles.bonusContainer}>
               <Text style={styles.bonusPlus}>+{bonus}</Text>
@@ -115,6 +142,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#F4E6D6',          // 卡片底（左半）
+    minHeight: 80,                       // 垂直空間由卡片高度控制（左半不再設垂直內距）
   },
   pressed: { transform: [{ scale: 0.995 }] },
   disabled: { opacity: 0.5 },
@@ -122,48 +150,50 @@ const styles = StyleSheet.create({
   // 左半
   left: {
     flex: 1,
-    paddingHorizontal: 12,              // 略縮左右內距，換取放大後的水平空間
-    paddingVertical: 14,
-    justifyContent: 'center',
+    paddingLeft: LEFT_PADDING_LEFT,
+    paddingRight: LEFT_PADDING_RIGHT,   // 右側收窄，讓 Bonus 貼近價格區塊
   },
   contentRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
   },
-  // 商品名稱 - 固定寬度
+  // 商品名稱 - 吃滿剩餘寬度
   titleContainer: {
-    width: 96,                          // 固定寬度，統一排版
+    flex: 1,
+    minWidth: 0,
+    marginRight: TITLE_MARGIN_RIGHT,
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
   title: {
     color: '#171717',
-    fontSize: 19,                       // 放大商品名稱
+    fontSize: TITLE_MAX_FONT,
     fontWeight: '800',
-    letterSpacing: 0.3,
+    letterSpacing: TITLE_LETTER_SPACING,
   },
   titleCoin: {
-    width: 24,                          // 放大金幣圖標
-    height: 24,
+    width: COIN_ICON_SIZE,
+    height: COIN_ICON_SIZE,
+    marginRight: COIN_ICON_MARGIN_RIGHT,
   },
-  // 金幣數量 - 固定寬度
+  // 金幣數量 - 寬度由 coinsWidth 決定
   coinsContainer: {
-    width: 64,                          // 固定寬度，統一排版
-    alignItems: 'flex-start',
+    marginRight: COINS_MARGIN_RIGHT,    // 緊貼 Bonus
+    alignItems: 'flex-start',           // 數字靠左緊接金幣圖示
     justifyContent: 'center',
   },
   coins: {
     color: '#222',
-    fontSize: 19,                       // 放大金幣數量，與標題一致
+    fontSize: COINS_FONT_SIZE,          // 與標題一致
     fontWeight: '800',
   },
-  // BONUS 組件 - 固定寬度，上下排版
+  // BONUS 組件 - 固定寬度
   bonusContainer: {
-    width: 56,                          // 固定寬度，統一排版
+    width: BONUS_WIDTH,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,                             // 上下間距
+    justifyContent: 'center',           // +值與紅底整組垂直置中於卡片
+    gap: 2,
   },
   bonusPlus: {
     color: '#E5413B',
@@ -172,13 +202,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   bonusPill: {
+    alignSelf: 'stretch',               // 填滿 Bonus 欄寬
     backgroundColor: '#E53935',
     borderRadius: 6,
-    paddingHorizontal: 4,               // 內距收窄，讓 Bonus 在固定寬度內排得下一行
-    paddingVertical: 4,
+    paddingHorizontal: 2,               // 內距收窄，讓 Bonus 在固定寬度內排得下一行
+    paddingVertical: 3,
     alignItems: 'center',
     justifyContent: 'center',
-    width: '100%',                      // 填滿容器寬度
   },
   bonusPillText: {
     color: '#fff',
@@ -199,7 +229,7 @@ const styles = StyleSheet.create({
   },
   price: {
     color: '#0E4C44',
-    fontSize: 24,                      // 稍微縮小價格文字，與整體協調
+    fontSize: PRICE_MAX_FONT,
     fontWeight: '900',
     letterSpacing: PRICE_LETTER_SPACING,
     textAlign: 'center',

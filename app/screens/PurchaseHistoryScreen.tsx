@@ -15,7 +15,7 @@ import { formatServerDateTime, toEpochMillis } from '../utils/datetime';
 
 type Purchase = {
   id: string;          // 收據編號
-  priceText: string;   // 交易金額（平台顯示價格，含幣別符號，例如 "NT$170"）
+  priceText: string;   // 交易金額（平台顯示價格，含幣別符號、已去地區前綴，例如 "$170"）
   productName: string; // 交易商品名稱
   purchasedAt: string; // 交易時間（yyyy.MM.dd HH:mm）
   totalCoins: number;  // 總金幣數

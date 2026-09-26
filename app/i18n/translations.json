@@ -5,14 +5,14 @@
         "en": "Settings"
     },
     "selectLanguage": {
-        "zh-TW": "選擇語言",
-        "zh-CN": "选择语言",
+        "zh-TW": "語言",
+        "zh-CN": "语言",
         "en": "Language"
     },
     "autoPlaySpeed": {
         "zh-TW": "自動播放速度",
         "zh-CN": "自动播放速度",
-        "en": "Auto-play Speed"
+        "en": "Auto-Play Speed"
     },
     "autoPlaySecondsUnit": {
         "zh-TW": "{n} 秒",
@@ -30,14 +30,14 @@
         "en": "My Library"
     },
     "noMyBooks": {
-        "zh-TW": "尚未解鎖任何書籍",
-        "zh-CN": "尚未解锁任何书籍",
+        "zh-TW": "尚未解鎖任何故事",
+        "zh-CN": "尚未解锁任何故事",
         "en": "You haven't unlocked any stories yet."
     },
     "myBooksLoadFailed": {
-        "zh-TW": "無法取得已解鎖的書籍，\n請確認網路後重試。",
-        "zh-CN": "无法获取已解锁的书籍，\n请确认网络后重试。",
-        "en": "Couldn't load your unlocked stories.\nCheck your connection and try again."
+        "zh-TW": "無法取得已解鎖的故事，\n請稍後再試",
+        "zh-CN": "无法获取已解锁的故事，\n请稍后重试",
+        "en": "Couldn't load your unlocked stories.\nPlease try again later."
     },
     "menuReviewAgain": {
         "zh-TW": "再次回味",
@@ -72,7 +72,7 @@
     "registerEmailPlaceholder": {
         "zh-TW": "請輸入您的 Email",
         "zh-CN": "请输入邮箱",
-        "en": "Enter your email"
+        "en": "Add your email"
     },
     "resendEmailPlaceholder": {
         "zh-TW": "請輸入您的 Email",
@@ -150,9 +150,9 @@
         "en": "Resend failed"
     },
     "registerFailedMessage": {
-        "zh-TW": "註冊失敗，請稍後再試",
-        "zh-CN": "注册失败，请稍后再试",
-        "en": "Registration failed. Please try again later."
+        "zh-TW": "註冊失敗，\n請稍後再試",
+        "zh-CN": "注册失败，\n请稍后重试",
+        "en": "Registration failed.\nPlease try again later."
     },
     "emailAlreadyRegistered": {
         "zh-TW": "Email已註冊",
@@ -170,12 +170,12 @@
         "en": "We've resent the verification email.\nPlease check your inbox."
     },
     "resendMailFailedMessage": {
-        "zh-TW": "重發驗證信失敗，請稍後再試",
-        "zh-CN": "重发验证信失败，请稍后再试",
-        "en": "Failed to resend verification email. Please try again later."
+        "zh-TW": "重發驗證信失敗，\n請稍後再試",
+        "zh-CN": "重发验证信失败，\n请稍后重试",
+        "en": "Failed to resend verification email.\nPlease try again later."
     },
     "resendMailNotFoundOrVerified": {
-        "zh-TW": "帳號不存在或此Email已驗證",
+        "zh-TW": "帳號不存在或此Email已完成驗證",
         "zh-CN": "帐号不存在或此邮箱已完成验证",
         "en": "Account not found or this email is already verified."
     },
@@ -185,9 +185,9 @@
         "en": "Verification link invalid or expired.\nPlease register again or resend the verification email."
     },
     "forgotPasswordFailedMessage": {
-        "zh-TW": "重設密碼寄信失敗，請稍後再試",
-        "zh-CN": "重设密码寄信失败，请稍后再试",
-        "en": "Failed to send the reset email. Please try again later."
+        "zh-TW": "密碼重設信寄送失敗，\n請稍後再試",
+        "zh-CN": "密码重置邮件发送失败，\n请稍后重试",
+        "en": "Failed to send the password reset email.\nPlease try again later."
     },
     "cancel": {
         "zh-TW": "取消",
@@ -245,8 +245,8 @@
         "en": "Enter "
     },
     "deleteAccountMessageAfter": {
-        "zh-TW": " 以確認刪除帳號，\n此操作無法復原",
-        "zh-CN": " 以确认删除账号，\n此操作无法恢复",
+        "zh-TW": " 已確認刪除帳號，\n此操作無法復原",
+        "zh-CN": " 已确认删除账号，\n此操作无法恢复",
         "en": " to confirm account deletion."
     },
     "deleteAccountInputPlaceholder": {
@@ -260,8 +260,8 @@
         "en": "Error"
     },
     "deleteAccountInputErrorMessage": {
-        "zh-TW": "請輸入 'DELETE' 以確認刪除帳號",
-        "zh-CN": "请输入 'DELETE' 以确认删除账号",
+        "zh-TW": "請輸入 'DELETE' 以確認永久刪除帳號",
+        "zh-CN": "请输入 'DELETE' 以确认永久删除账号",
         "en": "Enter DELETE to confirm account deletion."
     },
     "deleteAccountFailedTitle": {
@@ -270,9 +270,9 @@
         "en": "Deletion Failed"
     },
     "deleteAccountFailedMessage": {
-        "zh-TW": "無法刪除帳號，請稍後再試。",
-        "zh-CN": "无法删除帐号，请稍后再试。",
-        "en": "Unable to delete account. Please try again later."
+        "zh-TW": "無法刪除帳號，\n請稍後再試",
+        "zh-CN": "无法删除账号，\n请稍后重试",
+        "en": "Unable to delete account.\nPlease try again later."
     },
     "deleteAccountErrorTitle": {
         "zh-TW": "錯誤",
@@ -280,9 +280,9 @@
         "en": "Error"
     },
     "deleteAccountErrorMessage": {
-        "zh-TW": "刪除帳號時發生錯誤。",
-        "zh-CN": "删除帐号时发生错误。",
-        "en": "An error occurred while deleting your account."
+        "zh-TW": "刪除帳號時發生錯誤\n請稍後再試",
+        "zh-CN": "删除帐号时发生错误\n请稍后重试",
+        "en": "An error occurred while deleting your account.\nPlease try again later."
     },
     "confirmPurchase": {
         "zh-TW": "確認解鎖",
@@ -320,9 +320,9 @@
         "en": "Account not found."
     },
     "loginFailedMessage": {
-        "zh-TW": "登入失敗，請稍後再試",
-        "zh-CN": "登录失败，请稍后再试",
-        "en": "Login failed. Please try again later."
+        "zh-TW": "登入失敗，\n請稍後再試",
+        "zh-CN": "登录失败，\n请稍后重试",
+        "en": "Login failed.\nPlease try again later."
     },
     "socialLoginErrorTitle": {
         "zh-TW": "{provider} 登入錯誤",
@@ -330,19 +330,19 @@
         "en": "{provider} Login Error"
     },
     "socialLoginTokenMissingMessage": {
-        "zh-TW": "未取得有效的登入憑證，請重試",
-        "zh-CN": "未获取有效的登录凭证，请重试",
-        "en": "Could not obtain a valid login credential. Please try again."
+        "zh-TW": "登入憑證無效，\n請重新登入",
+        "zh-CN": "登录凭证无效，\n请重新登录",
+        "en": "Invalid login credentials.\nPlease log in again."
     },
     "accountSuspendedTitle": {
         "zh-TW": "帳號已停權",
-        "zh-CN": "账号已停权",
+        "zh-CN": "账号已停用",
         "en": "Account Suspended"
     },
     "accountSuspendedMessage": {
-        "zh-TW": "您的帳號已被停權，無法登入使用。如有疑問請聯繫客服。",
-        "zh-CN": "您的账号已被停权，无法登录使用。如有疑问请联系客服。",
-        "en": "Your account has been suspended and cannot be used to log in. Please contact support if you have any questions."
+        "zh-TW": "我們已停用您的帳號，\n如有疑問，\n請聯繫客服",
+        "zh-CN": "我们已停用您的账号，\n如有疑问，\n请联系客服",
+        "en": "We have disabled your account.\nIf you have any questions,\nplease contact customer support."
     },
     "sessionExpiredTitle": {
         "zh-TW": "登入已過期",
@@ -362,7 +362,7 @@
     "authExpiredMessage": {
         "zh-TW": "您的登入權限已過期，\n請重新登入",
         "zh-CN": "您的登录权限已过期，\n请重新登录",
-        "en": "Your session has expired. Please sign in again."
+        "en": "Your session has expired.\nPlease sign in again."
     },
     "networkErrorTitle": {
         "zh-TW": "網路異常",
@@ -370,9 +370,9 @@
         "en": "Network Error"
     },
     "networkErrorMessage": {
-        "zh-TW": "無法連線更新登入狀態，\n請檢查網路後再試。\n您可繼續使用，下次回到 App 時會再嘗試更新。",
-        "zh-CN": "无法连接以更新登录状态，\n请检查网络后再试。\n您可继续使用，下次回到 App 时会再尝试更新。",
-        "en": "Couldn't update your session. Please check your connection and try again.\nYou can keep using the app; we'll retry the next time you open it."
+        "zh-TW": "無法更新登入狀態，\n請檢查網路連線後再試。\n您仍可繼續使用，\n下次開啟 App 時會再次嘗試",
+        "zh-CN": "无法更新登录状态，\n请检查网络连接后再试。\n您仍可继续使用，\n下次打开 App 时会再次尝试",
+        "en": "Couldn't update your session.\nPlease check your connection and try again.\nYou can keep using the app;\nwe'll retry the next time you open it."
     },
     "wechatInitFailedTitle": {
         "zh-TW": "微信功能初始化失敗",
@@ -380,14 +380,14 @@
         "en": "WeChat Setup Failed"
     },
     "wechatInitFailedMessage": {
-        "zh-TW": "微信登入功能可能無法使用，\n若問題持續請聯繫客服",
-        "zh-CN": "微信登录功能可能无法使用，\n若问题持续请联系客服",
+        "zh-TW": "微信登入可能暫時無法使用，\n若問題持續，\n請聯絡客服",
+        "zh-CN": "微信登录可能暂时无法使用，\n若问题持续，\n请联系客服",
         "en": "WeChat sign-in may be unavailable.\nPlease contact support if the problem persists."
     },
     "storyOrderParseErrorMessage": {
-        "zh-TW": "劇情資料有誤（順序無法解析），將返回首頁。",
-        "zh-CN": "剧情数据有误（顺序无法解析），将返回首页。",
-        "en": "The story data is invalid (unparseable order). Returning to home."
+        "zh-TW": "劇情資料有誤（順序無法解析），\n將返回首頁",
+        "zh-CN": "剧情数据有误（顺序无法解析），\n将返回首页",
+        "en": "The story data is invalid (unparseable order).\nReturning to home."
     },
     "noticeTitle": {
         "zh-TW": "提示",
@@ -405,14 +405,14 @@
         "en": "Stay tuned!"
     },
     "bookUnavailable": {
-        "zh-TW": "此書籍已下架，無法繼續閱讀。",
-        "zh-CN": "此书籍已下架，无法继续阅读。",
-        "en": "This book is no longer available."
+        "zh-TW": "此故事已下架，\n無法繼續閱讀",
+        "zh-CN": "此故事已下架，\n无法继续阅读",
+        "en": "This story is no longer available."
     },
     "bookNeedsUnlock": {
-        "zh-TW": "此書籍尚未解鎖或授權已失效，\n無法從上次的進度繼續，請重新解鎖。",
-        "zh-CN": "此书籍尚未解锁或授权已失效，\n无法从上次的进度继续，请重新解锁。",
-        "en": "This story isn't unlocked (or your access has expired), so it can't resume from your last position. Please unlock it again."
+        "zh-TW": "此故事尚未解鎖或授權已失效，\n請重新解鎖",
+        "zh-CN": "此故事尚未解锁或授权已失效，\n请重新解锁",
+        "en": "This story isn’t unlocked,\nor your access has expired.\nPlease unlock it again."
     },
     "trialRangeNotSet": {
         "zh-TW": "尚未設定試閱範圍，\n試閱長度須大於 0",
@@ -422,12 +422,12 @@
     "storyIdNotFound": {
         "zh-TW": "找不到故事 ID",
         "zh-CN": "找不到故事 ID",
-        "en": "Story ID not found"
+        "en": "Story ID not found."
     },
     "storyNotPurchasable": {
         "zh-TW": "此故事無法購買",
         "zh-CN": "此故事无法购买",
-        "en": "This story cannot be purchased"
+        "en": "This story cannot be purchased."
     },
     "coinsInsufficientTitle": {
         "zh-TW": "金幣不足",
@@ -437,7 +437,7 @@
     "coinsInsufficientMessage": {
         "zh-TW": "解鎖此故事需要 {priceLabel}，\n您目前有 {coinsLabel}。\n請前往商城購買更多金幣",
         "zh-CN": "解锁此故事需要 {priceLabel}，\n您目前有 {coinsLabel}。\n请前往商城购买更多金币",
-        "en": "This story requires {priceLabel} to unlock. \nYou currently have {coinsLabel}. \nPlease visit the Coin Store to get more coins."
+        "en": "This story requires {priceLabel} to unlock.\nYou currently have {coinsLabel}.\nPlease visit the Coin Store to get more coins."
     },
     "goToShop": {
         "zh-TW": "前往商城",
@@ -471,18 +471,18 @@
     },
     "purchaseFailedRetry": {
         "zh-TW": "請稍後再試",
-        "zh-CN": "请稍后再试",
+        "zh-CN": "请稍后重试",
         "en": "Please try again later"
     },
     "purchaseErrorGeneric": {
-        "zh-TW": "發生錯誤，請稍後再試",
-        "zh-CN": "发生错误，请稍后再试",
-        "en": "Something went wrong. Please try again later."
+        "zh-TW": "發生錯誤，\n請稍後再試",
+        "zh-CN": "发生错误，\n请稍后重试",
+        "en": "Something went wrong.\nPlease try again later."
     },
     "iapPurchaseSuccessMessage": {
         "zh-TW": "您已購買 {product}！\n獲得 {coins} 金幣！",
         "zh-CN": "您已购买 {product}！\n获得 {coins} 金币！",
-        "en": "You've successfully purchased the {product}!\n Received {coins} coins!"
+        "en": "You've successfully purchased the {product}!\nReceived {coins} coins!"
     },
     "restorePurchaseTitle": {
         "zh-TW": "恢復購買",
@@ -490,12 +490,12 @@
         "en": "Restore Purchases"
     },
     "restorePurchaseNone": {
-        "zh-TW": "沒有找到可恢復的購買記錄",
-        "zh-CN": "没有找到可恢复的购买记录",
+        "zh-TW": "找不到可恢復的購買紀錄",
+        "zh-CN": "找不到可恢复的购买记录",
         "en": "No purchases available to restore."
     },
     "restorePurchaseSuccessMessage": {
-        "zh-TW": "已恢復 {count} 筆購買記錄",
+        "zh-TW": "已恢復 {count} 筆購買紀錄",
         "zh-CN": "已恢复 {count} 笔购买记录",
         "en": "Restored {count} purchase(s)."
     },
@@ -512,7 +512,7 @@
     "newPassword": {
         "zh-TW": "請輸入新密碼",
         "zh-CN": "请输入新密码",
-        "en": "New Password"
+        "en": "New password"
     },
     "confirmPassword": {
         "zh-TW": "請再次輸入密碼",
@@ -605,9 +605,9 @@
         "en": "Sign up with Wechat"
     },
     "termsAgreement": {
-        "zh-TW": "我已閱讀並同意X Stories 的 [c=tos]《服務條款》[/c]及[c=pp]《隱私政策》[/c]。",
-        "zh-CN": "我已阅读并同意X Stories 的 [c=tos]《服务条款》[/c]及[c=pp]《隐私政策》[/c]。",
-        "en": "By creating an account, I accept X Stories’ [c=tos]‹Terms of Service›[/c] and confirm that I have read X Stories’ [c=pp]‹Privacy Policy›[/c]."
+        "zh-TW": "我已閱讀並同意[c=tos]X Stories 的《服務條款》[/c]及[c=pp]《隱私政策》[/c]。",
+        "zh-CN": "我已阅读并同意[c=tos]X Stories 的《服务条款》[/c]及[c=pp]《隐私政策》[/c]。",
+        "en": "By creating an account, I accept [c=tos]X Stories’ ‹Terms of Service›[/c] and confirm that I have read [c=pp]X Stories’ ‹Privacy Policy›[/c]."
     },
     "alreadyHaveAccount": {
         "zh-TW": "已有帳號？",
@@ -682,12 +682,12 @@
     "passwordUpdatedMessage": {
         "zh-TW": "您的密碼已成功更新，\n請使用新密碼登入",
         "zh-CN": "您的密码已成功更新，\n请使用新密码登录",
-        "en": "Your password has been updated.\nPlease sign in with your new password"
+        "en": "Your password has been updated.\nPlease sign in with your new password."
     },
     "passwordUpdateFailedMessage": {
         "zh-TW": "密碼更新失敗，\n請稍後再試或重新取得密碼重設連結",
         "zh-CN": "密码更新失败，\n请稍后重试或重新获取密码重置链接",
-        "en": "Password update failed. Please try again later or request a new reset link."
+        "en": "Password update failed.\nPlease try again later or request a new reset link."
     },
     "passwordUpdateErrorTitle": {
         "zh-TW": "發生錯誤",
@@ -695,9 +695,9 @@
         "en": "Error"
     },
     "passwordUpdateErrorMessage": {
-        "zh-TW": "處理請求時發生錯誤，請稍後再試。",
-        "zh-CN": "处理请求时发生错误，请稍后再试。",
-        "en": "An error occurred while processing your request. Please try again later."
+        "zh-TW": "處理請求時發生錯誤，\n請稍後再試",
+        "zh-CN": "处理请求时发生错误，\n请稍后重试",
+        "en": "An error occurred while processing your request.\nPlease try again later."
     },
     "registerAccount": {
         "zh-TW": "註冊帳號",
@@ -757,22 +757,22 @@
     "profileRewardClaimFailedTitle": {
         "zh-TW": "領取獎勵失敗",
         "zh-CN": "领取奖励失败",
-        "en": "Could not claim reward"
+        "en": "Could Not Claim Reward"
     },
     "profileRewardClaimFailedMessage": {
-        "zh-TW": "個人資料已更新，但領取獎勵時發生錯誤。請稍後再試。",
-        "zh-CN": "个人资料已更新，但领取奖励时发生错误。请稍后再试。",
-        "en": "Your profile was updated, but the reward could not be claimed. Please try again later."
+        "zh-TW": "個人資料已更新，\n但領取獎勵時發生錯誤。\n請稍後再試",
+        "zh-CN": "个人资料已更新，\n但领取奖励时发生错误。\n请稍后重试",
+        "en": "Your profile was updated,\nbut the reward could not be claimed.\nPlease try again later."
     },
     "profileSelectGenderForBonus": {
-        "zh-TW": "請先選擇性別以完成個人資料並領取獎勵。",
-        "zh-CN": "请先选择性别以完成个人资料并领取奖励。",
+        "zh-TW": "請先選擇性別，\n完成個人資料即可領取獎勵",
+        "zh-CN": "请先选择性别，\n完成个人资料即可领取奖励",
         "en": "Please select your gender to complete your profile and claim the reward."
     },
     "profileLoadFailedMessage": {
         "zh-TW": "無法取得個人資料，\n請稍後再試",
         "zh-CN": "无法获取个人信息，\n请稍后重试",
-        "en": "We couldn't load your profile.\n Please try again."
+        "en": "We couldn't load your profile.\nPlease try again."
     },
     "retry": {
         "zh-TW": "重試",
@@ -875,9 +875,9 @@
         "en": "Expired"
     },
     "coinTypeBookPurchase": {
-        "zh-TW": "書籍購買",
-        "zh-CN": "书籍购买",
-        "en": "Book Purchase"
+        "zh-TW": "故事解鎖",
+        "zh-CN": "故事解锁",
+        "en": "Story Unlocked"
     },
     "coinTypeAdminGrant": {
         "zh-TW": "管理員授權",
@@ -892,7 +892,7 @@
     "coinHistoryEmpty": {
         "zh-TW": "尚無金幣紀錄",
         "zh-CN": "暂无金币记录",
-        "en": "No transaction history yet."
+        "en": "No coin history yet."
     },
     "purchaseHistoryTitle": {
         "zh-TW": "交易紀錄",
@@ -900,19 +900,19 @@
         "en": "Transaction History"
     },
     "purchaseHistoryEmpty": {
-        "zh-TW": "暫無購買記錄",
-        "zh-CN": "暂无购买记录",
+        "zh-TW": "尚無交易紀錄",
+        "zh-CN": "暂无交易记录",
         "en": "No transaction history yet."
     },
     "loadPurchaseHistoryFailed": {
-        "zh-TW": "載入購買記錄失敗",
-        "zh-CN": "加载购买记录失败",
-        "en": "Failed to load purchase records"
+        "zh-TW": "載入交易記錄失敗",
+        "zh-CN": "加载交易记录失败",
+        "en": "Failed to load transaction history."
     },
     "coinHistoryBookNamesUnavailable": {
-        "zh-TW": "部分書籍資料載入失敗，書名可能顯示為訂單編號。",
-        "zh-CN": "部分书籍数据加载失败，书名可能显示为订单编号。",
-        "en": "Some book data failed to load; names may appear as order IDs."
+        "zh-TW": "部分故事資料載入失敗，\n故事名稱可能顯示為訂單編號",
+        "zh-CN": "部分故事数据加载失败，\n故事名称可能显示为订单编号",
+        "en": "Some story data failed to load;\nnames may appear as order IDs."
     },
     "orderId": {
         "zh-TW": "訂單編號",
@@ -982,42 +982,42 @@
     "cannotPurchaseTitle": {
         "zh-TW": "無法購買",
         "zh-CN": "无法购买",
-        "en": "Cannot Purchase"
+        "en": "Unable to Purchase"
     },
     "productNotLoadedMessage": {
         "zh-TW": "商品尚未載入或不可用",
         "zh-CN": "商品尚未加载或不可用",
-        "en": "The product is not loaded or unavailable."
+        "en": "The product is unavailable or could not be loaded."
     },
     "iapHintSimulatorIOS": {
-        "zh-TW": "請在真實設備上測試 App Store 內購功能",
+        "zh-TW": "請在實體裝置上測試 App Store 內購功能",
         "zh-CN": "请在真实设备上测试 App Store 内购功能",
-        "en": "Please test App Store in-app purchases on a real device"
+        "en": "Please test App Store in-app purchases on a real device."
     },
     "iapHintSimulatorAndroid": {
-        "zh-TW": "請在真實設備上測試 Google Play 內購功能",
+        "zh-TW": "請在實體裝置上測試 Google Play 內購功能",
         "zh-CN": "请在真实设备上测试 Google Play 内购功能",
-        "en": "Please test Google Play in-app purchases on a real device"
+        "en": "Please test Google Play in-app purchases on a real device."
     },
     "iapHintGooglePlayService": {
-        "zh-TW": "請確保設備已安裝並更新 Google Play 服務",
+        "zh-TW": "請確認裝置已安裝並更新 Google Play 服務",
         "zh-CN": "请确保设备已安装并更新 Google Play 服务",
-        "en": "Please make sure Google Play services is installed and up to date"
+        "en": "Please make sure Google Play services is installed and up to date."
     },
     "iapHintAppStore": {
-        "zh-TW": "請確保已登入 App Store 帳號並檢查 App Store Connect 配置",
-        "zh-CN": "请确保已登录 App Store 账号并检查 App Store Connect 配置",
-        "en": "Please make sure you're signed in to App Store and check the App Store Connect configuration"
+        "zh-TW": "請確保已登入 App Store 帳號，\n並檢查 App Store Connect 設定",
+        "zh-CN": "请确保已登录 App Store 账号，\n并检查 App Store Connect 配置",
+        "en": "Please make sure you're signed in to the App Store and check your App Store Connect configuration."
     },
     "iapHintNetwork": {
-        "zh-TW": "請檢查網絡連接和 API 服務器狀態",
+        "zh-TW": "請檢查網絡連線和 API 伺服器狀態",
         "zh-CN": "请检查网络连接和 API 服务器状态",
-        "en": "Please check your network connection and API server status"
+        "en": "Please check your network connection and API server status."
     },
     "iapHintGeneric": {
-        "zh-TW": "請查看控制台日誌獲取詳細錯誤資訊",
+        "zh-TW": "請查看控制台日誌取得詳細錯誤資訊",
         "zh-CN": "请查看控制台日志获取详细错误信息",
-        "en": "Please check the console logs for detailed error info"
+        "en": "Please check the console logs for detailed error info."
     },
     "noBooksViewed": {
         "zh-TW": "尚未閱讀任何故事",

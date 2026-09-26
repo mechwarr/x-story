@@ -100,6 +100,8 @@ export async function registerWithXStory(
   } catch (error) {
     // 後端「Email 已註冊」回 HTTP 401（見 Swagger）；此情境改用 i18n 內文，
     // 讓簡中／英文正確顯示翻譯，其餘錯誤維持後端／原始訊息。
+    // 400 為後端欄位驗證失敗（Email 格式不正確、密碼長度不足等），直接顯示後端 message，
+    // 讓使用者知道是哪個欄位不合格；其餘錯誤維持原始訊息。
     const message =
       extractStatusCode(error) === 401
         ? translate("emailAlreadyRegistered")
@@ -152,11 +154,15 @@ export async function resentRegisterMail(
   } catch (error) {
     // 記錄原始錯誤，對使用者一律顯示內建翻譯，避免亂碼
     console.error("重發驗證信時發生錯誤:", error);
+    // 400 為欄位驗證失敗（例如「請輸入有效的電子郵件地址」），直接顯示後端 message；
     // 後端無法細分，401 統一代表「找不到該 email 使用者或信箱已驗證」；其餘走通用失敗
+    const status = extractStatusCode(error);
     const message =
-      extractStatusCode(error) === 401
-        ? translate("resendMailNotFoundOrVerified")
-        : translate("resendMailFailedMessage");
+      status === 400
+        ? extractErrorMessage(error)
+        : translate(
+            status === 401 ? "resendMailNotFoundOrVerified" : "resendMailFailedMessage"
+          );
     showAlert(translate("genericErrorTitle"), message);
     return false;
   }
@@ -168,14 +174,16 @@ export async function resentRegisterMail(
  *   「帳號不存在」          → accountNotFoundMessage
  *   「請先完成 Email 驗證」  → emailNotVerifiedMessage（先驗證信箱才會檢查密碼）
  *   「密碼錯誤」            → incorrectPasswordMessage
- * 以關鍵字比對，避免後端微幅調整字串就失效；其餘（含網路／逾時錯誤）走通用失敗訊息。
+ * 以關鍵字比對，避免後端微幅調整字串就失效；上述三種標題統一「錯誤」。
+ * 其餘（含網路／逾時錯誤）無法歸因，改用標題「登入失敗」＋內文「請稍後再試」。
  */
-function resolveLoginErrorMessage(raw: string | undefined | null): string {
+function resolveLoginError(raw: string | undefined | null): { title: string; message: string } {
   const msg = raw ?? "";
-  if (msg.includes("驗證")) return translate("emailNotVerifiedMessage");
-  if (msg.includes("密碼")) return translate("incorrectPasswordMessage");
-  if (msg.includes("不存在")) return translate("accountNotFoundMessage");
-  return translate("loginFailedMessage");
+  const title = translate("genericErrorTitle");
+  if (msg.includes("驗證")) return { title, message: translate("emailNotVerifiedMessage") };
+  if (msg.includes("密碼")) return { title, message: translate("incorrectPasswordMessage") };
+  if (msg.includes("不存在")) return { title, message: translate("accountNotFoundMessage") };
+  return { title: translate("loginFailedTitle"), message: translate("loginFailedMessage") };
 }
 
 /**
@@ -200,15 +208,23 @@ export async function loginWithXStory(
         refreshToken: res.refreshToken,
       };
     } else {
-      // 標題統一「錯誤」，內文依語系翻譯（HTTP 200 但 success:false 的保險路徑）
+      // 標題／內文依語系翻譯（HTTP 200 但 success:false 的保險路徑）
       console.warn("登入失敗:", res?.message);
-      showAlert(translate("genericErrorTitle"), resolveLoginErrorMessage(res?.message));
+      const { title, message } = resolveLoginError(res?.message);
+      showAlert(title, message);
       return null;
     }
   } catch (error) {
-    // 登入失敗多為 HTTP 401（走此 catch），依後端 message 對應到 i18n 內文
+    // 登入失敗多為 HTTP 401（走此 catch），依後端 message 對應到 i18n 內文；
+    // 400 屬欄位驗證失敗，直接顯示後端 message，不做關鍵字對應
+    //（否則「密碼長度不可少於 6 個字元」會被誤判成「密碼錯誤」）。
     console.error("登入發生錯誤:", error);
-    showAlert(translate("genericErrorTitle"), resolveLoginErrorMessage(extractErrorMessage(error)));
+    const raw = extractErrorMessage(error);
+    const { title, message } =
+      extractStatusCode(error) === 400
+        ? { title: translate("genericErrorTitle"), message: raw }
+        : resolveLoginError(raw);
+    showAlert(title, message);
     return null;
   }
 }
@@ -413,8 +429,19 @@ function extractErrorMessage(err: unknown): string {
       const match = err.message.match(/\{.*\}/);
       if (match) {
         const parsed = JSON.parse(match[0]);
-        if (parsed && typeof parsed.message === "string") {
-          return parsed.message;
+        if (parsed) {
+          // HTTP 400（NestJS ValidationPipe）的 message 是字串陣列，例如
+          // ["Email 格式不正確", "密碼長度不可少於 6 個字元"]，需逐條併成多行；
+          // 其餘狀態（401 等）的 message 則是單一字串。
+          // 沒處理陣列時會掉到下面 return err.message，把 `HTTP 400: {...}` 原始 JSON 彈給使用者。
+          if (Array.isArray(parsed.message)) {
+            const lines = parsed.message.filter(
+              (m: unknown): m is string => typeof m === "string" && m.trim().length > 0
+            );
+            if (lines.length > 0) return lines.join("\n");
+          } else if (typeof parsed.message === "string") {
+            return parsed.message;
+          }
         }
       }
     } catch (_) {

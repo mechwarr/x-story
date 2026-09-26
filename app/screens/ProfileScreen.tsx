@@ -1,5 +1,5 @@
 // app/screens/ProfileScreen.tsx
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,16 +29,18 @@ import {
 } from '../config/userApiClient';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
+import NoDataRetryView from '../components/NoDataRetryView';
 import DropdownArrow, {
   DROPDOWN_ARROW_WIDTH,
   DROPDOWN_ARROW_HEIGHT,
 } from '../components/DropdownArrow';
 import { translate, getCurrentLang } from '../i18n/i18n';
-import { peekPendingSocialName, clearPendingSocialName } from '../auth/pendingSocialName';
+import { resolvePendingSocialName, clearPendingSocialName } from '../auth/pendingSocialName';
 import { setProfileIncompletePersisted } from '../auth/firstLoginRedirect';
 import { walletActionFontSize, walletRecordsFontSize } from '../utils/walletFont';
 
 import DatePickerSheet from '../components/DatePickerSheet';
+import { parseValidBirthday } from '../utils/birthday';
 import { Picker } from '@react-native-picker/picker';
 
 /**
@@ -57,37 +59,6 @@ const FIELD_PADDING_H = 20;
  * 不用「今天」或某個實際生日（原為 1995/8/5），避免看起來像已經幫使用者填好值。
  */
 const DEFAULT_BIRTHDAY_PICKER_DATE = new Date(2001, 0, 1);
-
-/**
- * 容錯解析後端生日 → 本地 Date（解析不出來回 null）。
- * Hermes 的 new Date() 只吃嚴格 ISO，後端若回 "YYYY-MM-DD HH:mm:ss"（空格）、
- * "YYYY/MM/DD"、含時區位移（+08:00 / Z）、Unix 時間戳等格式都要能還原，
- * 故優先用正則從字串中擷取年月日，並以本地時間 new Date(y, m-1, d) 建構，
- * 避免 UTC 午夜在不同時區造成差一天。
- */
-function parseBirthdayString(raw?: string | number | null): Date | null {
-  if (raw === null || raw === undefined) return null;
-
-  // Unix 時間戳（數字或純數字字串）：10 位視為秒、13 位視為毫秒
-  if (typeof raw === 'number' || /^\d{10,13}$/.test(String(raw).trim())) {
-    const n = Number(raw);
-    const dt = new Date(n < 1e12 ? n * 1000 : n);
-    return isNaN(dt.getTime()) ? null : dt;
-  }
-
-  const s = String(raw).trim();
-  if (!s) return null;
-
-  // 從字串任意位置擷取第一段 YYYY-MM-DD / YYYY/MM/DD（涵蓋帶時間、時區、空格分隔等）
-  const m = s.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (m) {
-    const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-    if (!isNaN(dt.getTime())) return dt;
-  }
-
-  const fallback = new Date(s); // 退路：完整 ISO 交給原生解析
-  return isNaN(fallback.getTime()) ? null : fallback;
-}
 
 /** Date → "YYYY-MM-DD"（以本地日期欄位輸出，避免 toISOString 的時區位移） */
 function formatDateLocal(d: Date): string {
@@ -120,10 +91,19 @@ export default function ProfileScreen() {
   /** 個人資料未完成（生日或性別任一缺）時，顯示「完成並領取」任務獎勵按鈕；
    *  生日與性別皆齊全 → 視為已完成，顯示「更新個人資訊」 */
   const [showCompleteProfileClaimCta, setShowCompleteProfileClaimCta] = useState<boolean>(false);
+  /** 表單有尚未送出的修改。此頁每次取得焦點都會重抓後端資料，若不保留，
+   *  選好生日後去「加值／查看紀錄」再回來，生日會被後端舊值蓋掉（看起來像沒切換成功）。 */
+  const isDirtyRef = useRef(false);
+  /** 目前表單內容所屬的帳號（id，退回 email）；換帳號時未送出的修改一律丟棄 */
+  const loadedAccountRef = useRef<string | null>(null);
   const { contentWidth, isTablet, maxContentWidth, horizontalPadding, ms } = useResponsive();
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const modalBoxMaxWidth = Math.min(340, windowWidth - 32);
+  // 輸入框／主要按鈕寬度：與 LoginScreen / RegisterScreen 的按鈕同一條公式。
+  // 圓角 25 + 高 50 相同但滿版時，膠囊會顯得又長又扁；寬度一致弧形比例才一致。
+  const fieldWidth = Math.min(420, Math.max(260, Math.round(contentWidth * 0.82)));
+  const fieldWidthStyle = { width: fieldWidth, maxWidth: '100%' as const, alignSelf: 'center' as const };
   const titleFontSize = ms(20);
   const bodyFontSize = ms(17);
   const labelFontSize = ms(14);
@@ -133,7 +113,7 @@ export default function ProfileScreen() {
   const isEn = getCurrentLang() === 'en';
   // 加值鈕字級：與 HistoryScreen 的「加值」共用同一組數值（見 utils/walletFont）
   const walletFontSize = walletActionFontSize(ms);
-  // 「查看紀錄 / Coin History」：中文同上，英文再大一級
+  // 「查看紀錄 / Coin History」：與加值鈕同級
   const recordsFontSize = walletRecordsFontSize(ms);
   // 「更新個人資訊 / Update Profile」按鈕：三語同字級（英文原本放大到 20，比中文明顯大一截）
   const updateFontSize = ms(16);
@@ -159,37 +139,50 @@ export default function ProfileScreen() {
     try {
       setIsLoading(true);
       setLoadFailed(false);
-      // 先清空顯示，避免在請求完成前短暫顯示上一帳號資料
-      setName('');
-      setBirthday(null);
-      setGender(0);
+      // 載入中整個畫面會換成載入畫面（選擇器被卸載）→ 一併收起，避免載入完自己再彈出來
+      setShowDatePicker(false);
+      setShowGenderPicker(false);
+      // 先清空顯示，避免在請求完成前短暫顯示上一帳號資料；有未送出的修改時先留著，
+      // 等拿到後端資料、確認仍是同一帳號後再決定保留或覆蓋
+      if (!isDirtyRef.current) {
+        setName('');
+        setBirthday(null);
+        setGender(0);
+      }
 
       const userData = await getUserProfile();
 
       if (userData) {
-        if (userData.name && String(userData.name).trim()) {
-          setName(userData.name);
-        } else {
-          // 後端暱稱為空 → 以社群登入 best-effort 暱稱預填（僅顯示於輸入框，按「更新」才存回後端）
-          const socialName = peekPendingSocialName();
-          if (socialName) setName(socialName);
-        }
-        // 後端欄位名為 birthDate（非 birthday）
-        if (userData.birthDate) {
-          const birthdayDate = parseBirthdayString(userData.birthDate);
-          if (birthdayDate) {
-            setBirthday(birthdayDate);
+        const accountId =
+          userData.id != null ? String(userData.id) : userData.email ? String(userData.email) : null;
+        const keepEdits =
+          isDirtyRef.current && accountId !== null && accountId === loadedAccountRef.current;
+        loadedAccountRef.current = accountId;
+
+        if (!keepEdits) {
+          isDirtyRef.current = false;
+          if (userData.name && String(userData.name).trim()) {
+            setName(userData.name);
           } else {
-            // 後端有回生日但格式無法解析 → 留意 log 中的原始值，避免誤判為「無資料」
-            console.warn('[ProfileScreen] 生日資料無法解析，暫顯示占位字串。原始值:', userData.birthDate);
+            // 後端暱稱為空 → 以社群登入 best-effort 暱稱預填（僅顯示於輸入框，按「更新」才存回後端）
+            // 記憶體暫存 → 持久化值（冷啟動）→ Google SDK 目前登入者（email 相符才用）
+            setName((await resolvePendingSocialName(userData.email)) || '');
+          }
+          // 後端欄位名為 birthDate（非 birthday）
+          // 佔位值（0000-00-00、1900-01-01…）、未來日期、無法解析者一律視為未填，見 utils/birthday
+          const birthdayDate = parseValidBirthday(userData.birthDate);
+          if (userData.birthDate && !birthdayDate) {
+            console.warn('[ProfileScreen] 生日資料無效或無法解析，視為未填。原始值:', userData.birthDate);
+          }
+          setBirthday(birthdayDate);
+          if (typeof userData.gender === 'number' && (userData.gender === 1 || userData.gender === 2)) {
+            setGender(userData.gender);
+          } else {
+            setGender(0);
           }
         }
-        if (typeof userData.gender === 'number' && (userData.gender === 1 || userData.gender === 2)) {
-          setGender(userData.gender);
-        } else {
-          setGender(0);
-        }
-        const hasBirthday = !!(userData.birthDate && String(userData.birthDate).trim());
+        // 與 LoginContainer 的導向判定共用同一規則
+        const hasBirthday = parseValidBirthday(userData.birthDate) !== null;
         const hasGender = userData.gender === 1 || userData.gender === 2;
         // 生日 + 性別皆齊全 = 已完成個人資料；任一缺 → 仍顯示任務獎勵 CTA
         const profileComplete = hasBirthday && hasGender;
@@ -221,6 +214,7 @@ export default function ProfileScreen() {
   // ---- 事件：生日 ----
   // DatePickerSheet 自行管理滾輪暫存值，按「確定」才回拋日期；「取消」則完全不改動 birthday。
   const confirmBirthday = (date: Date) => {
+    isDirtyRef.current = true;
     setBirthday(date);
     setShowDatePicker(false);
   };
@@ -228,6 +222,17 @@ export default function ProfileScreen() {
   const birthdayText = birthday
     ? `${birthday.getFullYear()}/${birthday.getMonth() + 1}/${birthday.getDate()}`
     : 'yyyy/mm/dd';
+
+  const changeName = (text: string) => {
+    isDirtyRef.current = true;
+    setName(text);
+  };
+  const changeGender = (g: GenderCode) => {
+    // Android 的 Picker 在選項增減（移除「請選擇」）時可能回拋相同值，不算使用者修改
+    if (g === gender) return;
+    isDirtyRef.current = true;
+    setGender(g);
+  };
 
   const genderDisplayLabel = (g: GenderCode) => {
     if (g === 1) return translate('genderMale');
@@ -251,6 +256,7 @@ export default function ProfileScreen() {
       });
 
       if (result.success !== false) {
+        isDirtyRef.current = false;
         // 已存回後端 → 清除社群暱稱暫存，避免下次載入殘留
         clearPendingSocialName();
         // 依這次送出的內容重算完成度並同步旗標（不必等下次載入才清）
@@ -292,6 +298,7 @@ export default function ProfileScreen() {
         showAlert(translate('passwordUpdateErrorTitle'), result.message || translate('passwordUpdateErrorMessage'));
         return;
       }
+      isDirtyRef.current = false;
       // 已存回後端 → 清除社群暱稱暫存，避免下次載入殘留
       clearPendingSocialName();
       // 依這次送出的內容重算完成度並同步旗標（獎勵領取成功與否都不影響資料已完成的事實）
@@ -379,20 +386,14 @@ export default function ProfileScreen() {
     );
   }
 
-  // 抓取失敗：不猜按鈕樣式，顯示錯誤訊息與重試
+  // 抓取失敗：不猜按鈕樣式，也不顯示完整資料版面 → 共用「沒有資料」整頁狀態
   if (loadFailed) {
     return (
-      <View style={styles.safe}>
-        <ScreenTopBar onEyePress={goHome} />
-        <View style={[styles.container, styles.loadingContainer, { paddingHorizontal: horizontalPadding }]}>
-          <Text style={[styles.loadingText, { fontSize: bodyFontSize, textAlign: 'center', marginTop: 0 }]}>
-            {translate('profileLoadFailedMessage')}
-          </Text>
-          <Pressable style={styles.retryBtn} onPress={loadUserProfile}>
-            <Text style={[styles.retryBtnText, { fontSize: submitFontSize }]}>{translate('retry')}</Text>
-          </Pressable>
-        </View>
-      </View>
+      <NoDataRetryView
+        message={translate('profileLoadFailedMessage')}
+        onRetry={loadUserProfile}
+        onEyePress={goHome}
+      />
     );
   }
 
@@ -445,8 +446,8 @@ export default function ProfileScreen() {
                   <Image style={[styles.coin, { width: coinIconSmall, height: coinIconSmall }]} source={require('../../assets/coin.png')} />
                   <Text style={[styles.balanceText, { fontSize: bodyFontSize }]} numberOfLines={1}>{coins}</Text>
                 </View>
-                <View style={[styles.walletRow, styles.walletRowRight]}>
-                  <Pressable style={styles.chargeBtn} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
+                <View style={[styles.walletRow, styles.walletRowRight, isEn && styles.walletRowEn]}>
+                  <Pressable style={[styles.chargeBtn, isEn && styles.chargeBtnEn]} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
                     <Text
                       style={[styles.chargeText, { fontSize: walletFontSize }]}
                       numberOfLines={1}
@@ -467,11 +468,11 @@ export default function ProfileScreen() {
               </View>
 
               {/* 暱稱 */}
-              <View style={styles.inputRow}>
+              <View style={[styles.inputRow, fieldWidthStyle]}>
                 <Text style={[styles.label, { fontSize: labelFontSize }]}>{translate('profileNicknameLabel')}</Text>
                 <TextInput
                   value={name}
-                  onChangeText={setName}
+                  onChangeText={changeName}
                   placeholder={translate('profileNicknamePlaceholder')}
                   placeholderTextColor="#9aa3ad"
                   selectionColor="#009688"
@@ -480,7 +481,7 @@ export default function ProfileScreen() {
               </View>
 
               {/* 生日 */}
-              <Pressable style={styles.inputRow} onPress={() => setShowDatePicker(true)}>
+              <Pressable style={[styles.inputRow, fieldWidthStyle]} onPress={() => setShowDatePicker(true)}>
                 <Text style={[styles.label, { fontSize: labelFontSize }]}>{translate('profileBirthdayLabel')}</Text>
                 <View style={styles.valueBox}>
                   <Text
@@ -499,7 +500,7 @@ export default function ProfileScreen() {
 
               {/* 性別（0=未選，1=男，2=女）：iOS 固定列 + 底部選單；Android 維持內嵌 Picker */}
               {Platform.OS === 'ios' ? (
-                <Pressable style={styles.inputRow} onPress={() => setShowGenderPicker(true)}>
+                <Pressable style={[styles.inputRow, fieldWidthStyle]} onPress={() => setShowGenderPicker(true)}>
                   <Text style={[styles.label, { fontSize: labelFontSize }]}>{translate('profileGenderLabel')}</Text>
                   <View style={styles.valueBox}>
                     <Text
@@ -516,26 +517,34 @@ export default function ProfileScreen() {
                   </View>
                 </Pressable>
               ) : (
-                <View style={styles.inputRow}>
+                <View style={[styles.inputRow, fieldWidthStyle]}>
                   <Text style={[styles.label, { fontSize: labelFontSize }]}>{translate('profileGenderLabel')}</Text>
-                  <View style={styles.pickerBox}>
+                  {/* 顯示層與生日列共用 valueBox / valueText：提示文字的左距、字級、顏色才會完全一致。
+                      原生 Picker 自帶左內距且「請選擇」無法單獨上 placeholder 色 →
+                      改為透明疊在上層，只負責接收點擊並開啟原生選單。 */}
+                  <View style={styles.valueBox}>
+                    <Text
+                      style={[
+                        styles.valueText,
+                        { fontSize: bodyFontSize },
+                        gender === 0 && styles.valueTextPlaceholder,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {genderDisplayLabel(gender)}
+                    </Text>
+                    <DropdownArrow width={arrowWidth} height={arrowHeight} />
                     <Picker
                       selectedValue={gender}
-                      onValueChange={(v) => setGender(v as GenderCode)}
-                      // 原生下拉箭頭大小由 OS 固定（約 24dp），與生日列的三角形不一致 →
-                      // 隱藏它，改在右側疊上與其他下拉列同尺寸的 DropdownArrow
+                      onValueChange={(v) => changeGender(v as GenderCode)}
                       dropdownIconColor="transparent"
-                      style={styles.picker}
-                      itemStyle={{ color: '#e7eef6', fontSize: bodyFontSize }}
+                      style={styles.pickerOverlay}
                     >
                       {/* 已選過性別（1/2）後不再提供「請選擇」→ 無法改回 0，避免重複出現領取 CTA 與統計失準 */}
                       {gender === 0 && <Picker.Item label={translate('genderPleaseSelect')} value={0} />}
                       <Picker.Item label={translate('genderMale')} value={1} />
                       <Picker.Item label={translate('genderFemale')} value={2} />
                     </Picker>
-                    <View style={styles.pickerArrow} pointerEvents="none">
-                      <DropdownArrow width={arrowWidth} height={arrowHeight} />
-                    </View>
                   </View>
                 </View>
               )}
@@ -546,6 +555,7 @@ export default function ProfileScreen() {
                 <Pressable
                   style={[
                     styles.submitBtn,
+                    fieldWidthStyle,
                     isProfileIncomplete && styles.submitBtnLocked,
                     isSubmitting && styles.submitBtnDisabled,
                   ]}
@@ -674,7 +684,7 @@ export default function ProfileScreen() {
               <View style={styles.genderPickerWrap}>
                 <Picker
                   selectedValue={gender}
-                  onValueChange={(v) => setGender(v as GenderCode)}
+                  onValueChange={(v) => changeGender(v as GenderCode)}
                   itemStyle={{ color: '#e7eef6', fontSize: bodyFontSize }}
                   style={styles.genderPickerIOS}
                 >
@@ -751,6 +761,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  // 英文字串較長：縮小欄距與按鈕內距，讓整組按鈕與中文版約略等寬，
+  // 金幣餘額才會落在與中文版相同的位置（不被推離中線）
+  walletRowEn: { gap: 8 },
+  chargeBtnEn: { paddingHorizontal: 10 },
   chargeBtn: {
     backgroundColor: '#ff3344',
     paddingHorizontal: 18,
@@ -772,22 +786,22 @@ const styles = StyleSheet.create({
   },
 
   // ---- 表單 ----
+  // 不畫外框底色／內距：原本那圈（底色與頁面幾乎同色）只是看不見的留白，
+  // 會讓最後一個輸入框與下方按鈕的距離比註冊／登入頁的等距節奏（15）多出一截。
   inputRow: {
-    backgroundColor: '#2c2f34',
-    borderRadius: 25,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 14,
+    marginBottom: 15,
   },
-  label: { color: '#9aa3ad', marginBottom: 6 },
+  // 左距對齊輸入框內文字（FIELD_PADDING_H）
+  label: { color: '#9aa3ad', marginBottom: 6, paddingLeft: FIELD_PADDING_H },
   input: {
     color: '#e7eef6',
     backgroundColor: '#1f2226',
     borderRadius: FIELD_RADIUS,
-    minHeight: FIELD_HEIGHT,
+    height: FIELD_HEIGHT,
     paddingHorizontal: FIELD_PADDING_H,
-    // 高度改由 minHeight 決定；Android 的 TextInput 有原生預設內距，歸零才不會疊加
+    // 高度固定 50（同登入頁）；Android 的 TextInput 有原生預設內距，歸零才不會疊加
     paddingVertical: 0,
+    includeFontPadding: false,
     textAlignVertical: 'center',
   },
 
@@ -795,7 +809,7 @@ const styles = StyleSheet.create({
   valueBox: {
     backgroundColor: '#1f2226',
     borderRadius: FIELD_RADIUS,
-    minHeight: FIELD_HEIGHT,
+    height: FIELD_HEIGHT,
     paddingHorizontal: FIELD_PADDING_H,
     paddingVertical: 0,
     flexDirection: 'row',
@@ -805,22 +819,16 @@ const styles = StyleSheet.create({
   valueText: { color: '#e7eef6', flexShrink: 1 },
   valueTextPlaceholder: { color: '#9aa3ad' },
 
-  // ---- 性別選單 ----
-  pickerBox: {
-    backgroundColor: '#1f2226',
-    borderRadius: FIELD_RADIUS,
-    minHeight: FIELD_HEIGHT,
-    justifyContent: 'center',
-  },
-  /** Android：自繪箭頭疊在原生 Picker 右側，right 對齊輸入框的水平內距 */
-  pickerArrow: {
+  // ---- 性別選單（Android）----
+  /** 透明的原生 Picker，鋪滿 valueBox 只負責接收點擊；顯示交給底下的 Text */
+  pickerOverlay: {
     position: 'absolute',
-    right: FIELD_PADDING_H,
+    left: 0,
+    right: 0,
     top: 0,
     bottom: 0,
-    justifyContent: 'center',
+    opacity: 0,
   },
-  picker: { color: '#e7eef6', minHeight: FIELD_HEIGHT, paddingVertical: 0 },
 
   // ---- CTA ----
   submitBtn: {
@@ -839,9 +847,11 @@ const styles = StyleSheet.create({
   submitBtnDisabled: {
     opacity: 0.6,
   },
-  // 首次資料未填妥：白字灰底、不可按
+  // 首次資料未填妥：暗綠色、不可按 —— 與 ResetPasswordScreen「密碼更新」鈕未填完時同一寫法
+  // （#0ABAB5 + opacity 0.6）
   submitBtnLocked: {
-    backgroundColor: '#6b7280',
+    backgroundColor: '#0ABAB5',
+    opacity: 0.6,
   },
   submitTextLocked: {
     color: '#ffffff',
@@ -862,6 +872,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     flexShrink: 1,
     paddingHorizontal: 4,
+    // Android 預設的字型上下留白會讓字視覺偏下，金幣相對就顯得偏高
+    includeFontPadding: false,
   },
   // 金幣圖示（按鈕內）
   coinIcon: {
@@ -869,6 +881,9 @@ const styles = StyleSheet.create({
     height: 18,
     marginLeft: 0,
     resizeMode: 'contain',
+    // 中文字形重心略低於文字框中線 → 金幣下移一點才落在該行文字的視覺中間
+    // （用 transform 不用 margin，避免撐高按鈕）
+    transform: [{ translateY: 1.5 }],
   },
 
   // ---- 載入狀態 ----
@@ -881,24 +896,9 @@ const styles = StyleSheet.create({
     color: '#e7eef6',
     marginTop: 12,
   },
-  // ---- 載入失敗：重試按鈕 ----
-  retryBtn: {
-    marginTop: 16,
-    backgroundColor: '#00a99d',
-    borderRadius: 25,
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-    alignItems: 'center',
-  },
-  retryBtnText: {
-    color: '#eafff9',
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-
   // ---- 更新鈕 + 刪除帳號 ----
   // 原本用 marginTop:'auto' 把按鈕頂到畫面最底，性別欄與綠 Bar 之間會空一大塊。
-  // 改為跟著內容流排列，間距沿用 inputRow 的 marginBottom(14)，與註冊／登入頁的等距節奏一致。
+  // 改為跟著內容流排列，間距沿用 inputRow 的 marginBottom(15)，與註冊／登入頁的等距節奏一致。
   footer: {},
 
   // ---- 刪除帳號 ----

@@ -29,7 +29,7 @@ export default function HistoryScreen() {
   // 與 ProfileScreen 的「加值」鈕字級一致（英文 Refill 不再沿用 RN 預設 14）
   const walletFontSize = walletActionFontSize(ms);
 
-  // 金幣餘額列在兩個分頁都會顯示，回到本頁（例如加值完）就刷新
+  // 金幣餘額列只在金幣紀錄分頁顯示，回到本頁（例如加值完）就刷新
   useFocusEffect(
     useCallback(() => {
       refreshCoins();
@@ -58,24 +58,32 @@ export default function HistoryScreen() {
         />
       </View>
 
-      {/* 金幣餘額與加值：兩個分頁都顯示，加值導向代幣商城 */}
-      <View style={styles.chargeRow}>
-        <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
-        <Text style={[styles.coinCount, { fontSize: walletFontSize }]}>{coins}</Text>
-        <Pressable
-          style={styles.chargeBtn}
-          onPress={() => navigation.navigate(routes.PURCHASE as never)}
-        >
-          <Text
-            style={[styles.chargeText, { fontSize: walletFontSize }]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
+      {/* 金幣餘額與加值：只在「金幣紀錄」分頁顯示，加值導向代幣商城 */}
+      {tab === 'coin' ? (
+        <View style={styles.chargeRow}>
+          {/* 三欄：左右兩側等寬（flex:1）→ 中間的金幣餘額恆在正中央；加值鈕靠右欄起點緊貼金幣 */}
+          <View style={styles.chargeSide} />
+          <View style={styles.balanceBox}>
+            <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
+            <Text style={[styles.coinCount, { fontSize: walletFontSize }]} numberOfLines={1}>{coins}</Text>
+          </View>
+          <View style={[styles.chargeSide, styles.chargeSideRight]}>
+          <Pressable
+            style={styles.chargeBtn}
+            onPress={() => navigation.navigate(routes.PURCHASE as never)}
           >
-            {translate('profileTopUp')}
-          </Text>
-        </Pressable>
-      </View>
+            <Text
+              style={[styles.chargeText, { fontSize: walletFontSize }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+            >
+              {translate('profileTopUp')}
+            </Text>
+          </Pressable>
+          </View>
+        </View>
+      ) : null}
 
       <View style={styles.content}>
         {tab === 'coin' ? (
@@ -148,6 +156,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
+  // flexBasis:0 讓左右兩欄不受內容（加值鈕）寬度影響、嚴格等寬，金幣才會真的置中
+  chargeSide: { flex: 1, flexBasis: 0, minWidth: 0 },
+  chargeSideRight: { flexDirection: 'row', justifyContent: 'flex-start' },
+  balanceBox: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   coinIcon: { width: 18, height: 18 },
   coinCount: { color: '#e7eef6', fontWeight: '700' },
   chargeBtn: {
@@ -155,6 +167,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
+    flexShrink: 1,
   },
   chargeText: { color: '#fff', fontWeight: '700' },
   content: { flex: 1, paddingTop: 6 },

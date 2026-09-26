@@ -14,9 +14,7 @@ import { forgotXStoryPassword } from "../config/authApiClient";
 import { translate } from "../i18n/i18n";
 import useResponsive from "../hook/useResponsive";
 import HeaderEyeLogo from "../components/HeaderEyeLogo";
-
-// Email 格式驗證（與註冊共用同一規則）
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { EMAIL_REGEX } from "../utils/email";
 
 interface Props {
   onEmailChange: (email: string) => void;
