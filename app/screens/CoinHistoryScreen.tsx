@@ -22,6 +22,7 @@ import { useCoins } from '../store/coinContext';
 import { iapService } from '../services/iapService';
 import { fetchCurrentPlatformCatalog, buildBackendNameMap } from '../utils/iapCatalog';
 import useResponsive from '../hook/useResponsive';
+import NoDataRetryView from '../components/NoDataRetryView';
 import { translate } from '../i18n/i18n';
 import { formatServerDateTime, toEpochMillis } from '../utils/datetime';
 
@@ -228,7 +229,7 @@ function describeLedgerRow(
   // 書籍解鎖：顯示「書名 - 解鎖」，不顯示 ORDER 編號
   if (log.type === 'BOOK_PURCHASE') {
     return {
-      title: bookName ? `${bookName} - ${translate('unlock')}` : translate('coinTypeBookPurchase'),
+      title: bookName ? `${bookName} - ${translate('coinHistoryUnlocked')}` : translate('coinTypeBookPurchase'),
       note: '',
     };
   }
@@ -265,7 +266,10 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
   // storyListId → 書名／定價（書店清單），供顯示備援與價格約束
   const [bookCatalog, setBookCatalog] = useState<Map<number, BookCatalogEntry>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // loadFailed：帳務紀錄本身取不到 → 整頁改為「沒有資料」狀態（說明 + 重試）
+  const [loadFailed, setLoadFailed] = useState(false);
+  // notice：紀錄有取到、只是書名配對資料不完整 → 列表上方掛一則說明，不擋畫面
+  const [notice, setNotice] = useState<string | null>(null);
 
   // ledgerId → 書名。整批一次算完，才能保證每本書只被一筆紀錄認領
   const { names: bookNames, backfill } = useMemo(
@@ -281,7 +285,8 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadFailed(false);
+    setNotice(null);
     try {
       // 先依後端金幣包載入平台商品列表，讓 resolveProductName 能取得當地語系顯示名稱。
       // 商品清單來自 api/coin-packs，後台新增品項的帳務紀錄也能正確顯示名稱。
@@ -335,13 +340,15 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
         allEntitlements.push(...(res.items ?? []));
       }
       if (entitlementsIncomplete) {
-        setError(translate('coinHistoryBookNamesUnavailable'));
+        setNotice(translate('coinHistoryBookNamesUnavailable'));
       }
 
       setLogs(logsRes);
       setEntitlements(allEntitlements);
     } catch (e) {
-      setError(e instanceof Error ? e.message : translate('loadFailed'));
+      // 原始錯誤只留 console；對使用者一律顯示內建翻譯（版面與個人資料錯誤頁一致）
+      console.error('[CoinHistoryScreen] 載入金幣紀錄失敗:', e);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -358,15 +365,28 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
     }, [refreshCoins, fetchData])
   );
 
+  // 取不到金幣紀錄：不畫標題與列表，整頁改為共用「沒有資料」狀態（內嵌於紀錄分頁時不重複畫頂欄）
+  if (!loading && loadFailed) {
+    return (
+      <Wrapper style={styles.safe}>
+        <NoDataRetryView
+          message={translate('coinHistoryLoadFailedMessage')}
+          onRetry={fetchData}
+          showTopBar={!embedded}
+        />
+      </Wrapper>
+    );
+  }
+
   return (
     <Wrapper style={styles.safe}>
       <View style={[styles.header, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
         <Text style={[styles.title, { fontSize: ms(18) }]}>{translate('coinHistory')}</Text>
       </View>
 
-      {error ? (
+      {notice ? (
         <View style={styles.errorWrap}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorText}>{notice}</Text>
         </View>
       ) : null}
 

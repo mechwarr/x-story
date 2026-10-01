@@ -79,8 +79,8 @@ function RootLayoutContent() {
       return;
     }
     showAlert(
-      translate('authExpiredTitle'),
-      translate('authExpiredMessage'),
+      translate('sessionExpiredTitle'),
+      translate('sessionExpiredMessage'),
       [
         {
           text: translate('ok'),

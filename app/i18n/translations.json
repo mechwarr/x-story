@@ -94,11 +94,6 @@
         "zh-CN": "发送重置邮件",
         "en": "Send Reset Email"
     },
-    "submit": {
-        "zh-TW": "送出",
-        "zh-CN": "送出",
-        "en": "Submit"
-    },
     "verificationSent": {
         "zh-TW": "我們已將驗證郵件發送至您的信箱，\n請點擊郵件中的連結完成信箱驗證",
         "zh-CN": "我们已将验证邮件发送至您的邮箱，\n请点击邮件中的链接完成邮箱验证",
@@ -147,7 +142,7 @@
     "resendFailed": {
         "zh-TW": "重發失敗",
         "zh-CN": "重发失败",
-        "en": "Resend failed"
+        "en": "Resend Failed"
     },
     "registerFailedMessage": {
         "zh-TW": "註冊失敗，\n請稍後再試",
@@ -245,8 +240,8 @@
         "en": "Enter "
     },
     "deleteAccountMessageAfter": {
-        "zh-TW": " 已確認刪除帳號，\n此操作無法復原",
-        "zh-CN": " 已确认删除账号，\n此操作无法恢复",
+        "zh-TW": " 以確認刪除帳號，\n此操作無法復原",
+        "zh-CN": " 以确认删除账号，\n此操作无法恢复",
         "en": " to confirm account deletion."
     },
     "deleteAccountInputPlaceholder": {
@@ -354,16 +349,6 @@
         "zh-CN": "为保障账号安全，\n请重新登录",
         "en": "Please sign in again to protect your account."
     },
-    "authExpiredTitle": {
-        "zh-TW": "帳戶權限過期",
-        "zh-CN": "账户权限已过期",
-        "en": "Session Expired"
-    },
-    "authExpiredMessage": {
-        "zh-TW": "您的登入權限已過期，\n請重新登入",
-        "zh-CN": "您的登录权限已过期，\n请重新登录",
-        "en": "Your session has expired.\nPlease sign in again."
-    },
     "networkErrorTitle": {
         "zh-TW": "網路異常",
         "zh-CN": "网络异常",
@@ -385,9 +370,9 @@
         "en": "WeChat sign-in may be unavailable.\nPlease contact support if the problem persists."
     },
     "storyOrderParseErrorMessage": {
-        "zh-TW": "劇情資料有誤（順序無法解析），\n將返回首頁",
-        "zh-CN": "剧情数据有误（顺序无法解析），\n将返回首页",
-        "en": "The story data is invalid (unparseable order).\nReturning to home."
+        "zh-TW": "劇情資料有誤，\n將返回首頁",
+        "zh-CN": "剧情数据有误，\n将返回首页",
+        "en": "The story data is invalid.\nReturning to home."
     },
     "noticeTitle": {
         "zh-TW": "提示",
@@ -420,9 +405,9 @@
         "en": "Preview length is not set.\nPreview length must be greater than 0."
     },
     "storyIdNotFound": {
-        "zh-TW": "找不到故事 ID",
-        "zh-CN": "找不到故事 ID",
-        "en": "Story ID not found."
+        "zh-TW": "找不到此故事，\n請稍後再試",
+        "zh-CN": "找不到此故事，\n请稍后重试",
+        "en": "Unable to find this story.\nPlease try again later."
     },
     "storyNotPurchasable": {
         "zh-TW": "此故事無法購買",
@@ -564,11 +549,6 @@
         "zh-CN": "注册账号",
         "en": "Sign up"
     },
-    "forgotPasswordLink": {
-        "zh-TW": "忘記密碼？",
-        "zh-CN": "忘记密码？",
-        "en": "Forgot password?"
-    },
     "welcomeSignUp": {
         "zh-TW": "歡迎加入 X Stories！",
         "zh-CN": "欢迎加入 X Stories！",
@@ -639,30 +619,10 @@
         "zh-CN": "登录",
         "en": "Sign in"
     },
-    "createPassword": {
-        "zh-TW": "請設定您的密碼",
-        "zh-CN": "设定密码",
-        "en": "Create a Password"
-    },
     "enterPassword": {
         "zh-TW": "設定密碼",
         "zh-CN": "设置密码",
         "en": "Create a password"
-    },
-    "confirmSignUpPassword": {
-        "zh-TW": "請再次輸入密碼",
-        "zh-CN": "请再次输入密码",
-        "en": "Confirm password"
-    },
-    "register": {
-        "zh-TW": "註冊",
-        "zh-CN": "注册",
-        "en": "Sign up"
-    },
-    "addYourEmail": {
-        "zh-TW": "請輸入您的 Email",
-        "zh-CN": "请输入您的 Email",
-        "en": "Add your email"
     },
     "resetLinkExpiredMessage": {
         "zh-TW": "密碼重設連結已過期或無效",
@@ -839,11 +799,6 @@
         "zh-CN": "删除账号",
         "en": "Delete Account"
     },
-    "loadFailed": {
-        "zh-TW": "載入失敗",
-        "zh-CN": "加载失败",
-        "en": "Failed to load"
-    },
     "close": {
         "zh-TW": "關閉",
         "zh-CN": "关闭",
@@ -904,11 +859,6 @@
         "zh-CN": "暂无交易记录",
         "en": "No transaction history yet."
     },
-    "loadPurchaseHistoryFailed": {
-        "zh-TW": "載入交易記錄失敗",
-        "zh-CN": "加载交易记录失败",
-        "en": "Failed to load transaction history."
-    },
     "coinHistoryBookNamesUnavailable": {
         "zh-TW": "部分故事資料載入失敗，\n故事名稱可能顯示為訂單編號",
         "zh-CN": "部分故事数据加载失败，\n故事名称可能显示为订单编号",
@@ -918,11 +868,6 @@
         "zh-TW": "訂單編號",
         "zh-CN": "订单编号",
         "en": "Order ID"
-    },
-    "amountNTD": {
-        "zh-TW": "交易額度 (NTD)",
-        "zh-CN": "交易额度 (NTD)",
-        "en": "Amount (NTD)"
     },
     "transactionAmount": {
         "zh-TW": "交易金額",
@@ -954,30 +899,15 @@
         "zh-CN": "加载商品失败",
         "en": "Failed to load products"
     },
-    "reload": {
-        "zh-TW": "重新載入",
-        "zh-CN": "重新加载",
-        "en": "Reload"
-    },
-    "noProductsAvailable": {
-        "zh-TW": "暫無可用商品",
-        "zh-CN": "暂无可用商品",
-        "en": "No products available"
-    },
-    "loadingStorePrices": {
-        "zh-TW": "正在載入商店價格資訊...",
-        "zh-CN": "正在加载商店价格信息...",
-        "en": "Loading store prices..."
-    },
     "operationFailedTitle": {
         "zh-TW": "操作失敗",
         "zh-CN": "操作失败",
         "en": "Operation Failed"
     },
     "productIdNotFoundMessage": {
-        "zh-TW": "找不到對應的商品 ID",
-        "zh-CN": "找不到对应的商品 ID",
-        "en": "Could not find the matching product ID."
+        "zh-TW": "無法取得商品資訊，\n請稍後再試",
+        "zh-CN": "无法获取商品信息，\n请稍后重试",
+        "en": "Unable to retrieve product information.\nPlease try again."
     },
     "cannotPurchaseTitle": {
         "zh-TW": "無法購買",
@@ -985,39 +915,9 @@
         "en": "Unable to Purchase"
     },
     "productNotLoadedMessage": {
-        "zh-TW": "商品尚未載入或不可用",
-        "zh-CN": "商品尚未加载或不可用",
-        "en": "The product is unavailable or could not be loaded."
-    },
-    "iapHintSimulatorIOS": {
-        "zh-TW": "請在實體裝置上測試 App Store 內購功能",
-        "zh-CN": "请在真实设备上测试 App Store 内购功能",
-        "en": "Please test App Store in-app purchases on a real device."
-    },
-    "iapHintSimulatorAndroid": {
-        "zh-TW": "請在實體裝置上測試 Google Play 內購功能",
-        "zh-CN": "请在真实设备上测试 Google Play 内购功能",
-        "en": "Please test Google Play in-app purchases on a real device."
-    },
-    "iapHintGooglePlayService": {
-        "zh-TW": "請確認裝置已安裝並更新 Google Play 服務",
-        "zh-CN": "请确保设备已安装并更新 Google Play 服务",
-        "en": "Please make sure Google Play services is installed and up to date."
-    },
-    "iapHintAppStore": {
-        "zh-TW": "請確保已登入 App Store 帳號，\n並檢查 App Store Connect 設定",
-        "zh-CN": "请确保已登录 App Store 账号，\n并检查 App Store Connect 配置",
-        "en": "Please make sure you're signed in to the App Store and check your App Store Connect configuration."
-    },
-    "iapHintNetwork": {
-        "zh-TW": "請檢查網絡連線和 API 伺服器狀態",
-        "zh-CN": "请检查网络连接和 API 服务器状态",
-        "en": "Please check your network connection and API server status."
-    },
-    "iapHintGeneric": {
-        "zh-TW": "請查看控制台日誌取得詳細錯誤資訊",
-        "zh-CN": "请查看控制台日志获取详细错误信息",
-        "en": "Please check the console logs for detailed error info."
+        "zh-TW": "無法取得商品資訊，\n請稍後再試",
+        "zh-CN": "无法获取商品信息，\n请稍后重试",
+        "en": "Unable to retrieve product information.\nPlease try again."
     },
     "noBooksViewed": {
         "zh-TW": "尚未閱讀任何故事",
@@ -1063,5 +963,65 @@
         "zh-TW": "資料已清除",
         "zh-CN": "资料已清除",
         "en": "Data cleared."
+    },
+    "coinHistoryUnlocked": {
+        "zh-TW": "解鎖",
+        "zh-CN": "解锁",
+        "en": "Unlocked"
+    },
+    "cannotContinueReadingTitle": {
+        "zh-TW": "無法繼續閱讀",
+        "zh-CN": "无法继续阅读",
+        "en": "Unable to Continue Reading"
+    },
+    "profileRewardAlreadyClaimedTitle": {
+        "zh-TW": "領取獎勵失敗",
+        "zh-CN": "领取奖励失败",
+        "en": "Reward Already Claimed"
+    },
+    "profileRewardAlreadyClaimedMessage": {
+        "zh-TW": "您已領取過此活動獎勵",
+        "zh-CN": "您已领取过此活动奖励",
+        "en": "You've already claimed this reward."
+    },
+    "coinHistoryLoadFailedMessage": {
+        "zh-TW": "無法取得金幣紀錄，\n請稍後再試",
+        "zh-CN": "无法获取金币记录，\n请稍后重试",
+        "en": "We couldn’t load your coin history.\nPlease try again."
+    },
+    "purchaseHistoryLoadFailedMessage": {
+        "zh-TW": "無法取得交易紀錄，\n請稍後再試",
+        "zh-CN": "无法获取交易记录，\n请稍后重试",
+        "en": "We couldn’t load your transaction history.\nPlease try again."
+    },
+    "loginFailedTitle": {
+        "zh-TW": "登入失敗",
+        "zh-CN": "登录失败",
+        "en": "Login Failed"
+    },
+    "shopLoadFailedMessage": {
+        "zh-TW": "無法取得商品資訊，\n請稍後再試",
+        "zh-CN": "无法获取商品信息，\n请稍后重试",
+        "en": "Unable to retrieve product information.\nPlease try again."
+    },
+    "shopStoreUnavailableMessage": {
+        "zh-TW": "無法連接 {store}，\n請稍後再試",
+        "zh-CN": "无法连接 {store}，\n请稍后重试",
+        "en": "Unable to connect to {store}.\nPlease try again."
+    },
+    "shopEmptyMessage": {
+        "zh-TW": "目前暫無可用商品，\n請稍後再試",
+        "zh-CN": "目前暂无可用商品，\n请稍后重试",
+        "en": "No products are available right now.\nPlease try again later."
+    },
+    "iapPurchaseFailedTitle": {
+        "zh-TW": "交易驗證失敗",
+        "zh-CN": "交易验证失败",
+        "en": "Transaction Verification Failed"
+    },
+    "iapPurchaseFailedMessage": {
+        "zh-TW": "無法確認金幣入帳，\n若已扣款，請稍後查看餘額或聯絡客服",
+        "zh-CN": "无法确认金币到账，\n若已扣款，请稍后查看余额或联系客服",
+        "en": "Unable to confirm the coins were added.\nIf you were charged, please check your balance later or contact us."
     }
 }

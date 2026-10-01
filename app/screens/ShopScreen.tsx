@@ -154,7 +154,7 @@ export default function ShopScreen() {
       console.error('[ShopScreen] 階段 2（平台）錯誤:', error.message);
       if (!hasAlertedIAPError.current) {
         hasAlertedIAPError.current = true;
-        showAlert(translate('loadProductsFailed'), error.message);
+        showAlert(translate('loadProductsFailed'), translate('shopLoadFailedMessage'));
       }
     } else {
       hasAlertedIAPError.current = false;
@@ -348,8 +348,9 @@ export default function ShopScreen() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
 
+      // 原始錯誤只留 console；彈窗一律顯示內建翻譯（useIAP 內的錯誤回呼已各自提示，這裡是最後保底）
       console.error('[ShopScreen] 購買失敗:', msg);
-      showAlert(translate('purchaseFailedTitle'), msg);
+      showAlert(translate('purchaseFailedTitle'), translate('purchaseErrorGeneric'));
     }
   };
 

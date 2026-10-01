@@ -12,14 +12,16 @@ type Props = {
   message: string;
   onRetry: () => void;
   onEyePress?: () => void;
+  /** 內嵌在分頁（如紀錄頁的金幣／交易分頁）時傳 false：外層已有頂欄，不重複顯示 */
+  showTopBar?: boolean;
 };
 
-export default function NoDataRetryView({ message, onRetry, onEyePress }: Props) {
+export default function NoDataRetryView({ message, onRetry, onEyePress, showTopBar = true }: Props) {
   const { horizontalPadding, ms } = useResponsive();
 
   return (
     <View style={styles.safe}>
-      <ScreenTopBar onEyePress={onEyePress} />
+      {showTopBar ? <ScreenTopBar onEyePress={onEyePress} /> : null}
       <View style={[styles.body, { paddingHorizontal: horizontalPadding }]}>
         <Text style={[styles.message, { fontSize: ms(17) }]}>{message}</Text>
         <Pressable style={styles.retryBtn} onPress={onRetry}>

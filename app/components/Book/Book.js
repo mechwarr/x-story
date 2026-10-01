@@ -210,7 +210,7 @@ function Book(props) {
     const onShelf = !!entry && entry.isActive !== false;
     if (!onShelf) {
       // 下架／刪除：不能再看
-      showAlert(translate('noticeTitle'), translate('bookUnavailable'));
+      showAlert(translate('cannotContinueReadingTitle'), translate('bookUnavailable'));
       return false;
     }
 
@@ -236,7 +236,7 @@ function Book(props) {
         }
         console.log('[Book] 付費書未持有且落點不在免費範圍 → 套用購買閘門：', bookId, '有章節:', hasChapter, '已持有清單:', ownedIds);
         // 先明講原因再導向：靜默轉場會讓使用者以為「閱讀紀錄壞了」（實際是尚未解鎖／授權失效）。
-        showAlert(translate('noticeTitle'), translate('bookNeedsUnlock'), [
+        showAlert(translate('cannotContinueReadingTitle'), translate('bookNeedsUnlock'), [
           {
             text: translate('ok'),
             onPress: () => {

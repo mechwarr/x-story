@@ -98,8 +98,8 @@ export default function useInitApp(
         // 創建刷新失敗處理函數（可以訪問內部的 setIsLoggedIn）
         const handleRefreshFailed = () => {
           showAlert(
-            translate('authExpiredTitle'),
-            translate('authExpiredMessage'),
+            translate('sessionExpiredTitle'),
+            translate('sessionExpiredMessage'),
             [
               {
                 text: translate('ok'),

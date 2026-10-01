@@ -1,7 +1,7 @@
 // app/screens/PurchaseHistoryScreen.tsx
 import React, { useState } from 'react';
 import {
-  SafeAreaView, View, Text, StyleSheet, ScrollView, Pressable, Platform, ActivityIndicator,
+  SafeAreaView, View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import routes from '../navigations/routes';
@@ -10,6 +10,7 @@ import { fetchCurrentPlatformCatalog, buildBackendNameMap } from '../utils/iapCa
 import type { IapReceipt } from '../config/shopApiClient';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
+import NoDataRetryView from '../components/NoDataRetryView';
 import { translate } from '../i18n/i18n';
 import { formatServerDateTime, toEpochMillis } from '../utils/datetime';
 
@@ -65,13 +66,13 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
   const { isTablet, maxContentWidth, ms } = useResponsive();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   // 載入收據列表（先載入 IAP 產品列表以取得平台顯示名稱）
   const loadReceipts = async () => {
     try {
       setIsLoading(true);
-      setError(null);
+      setLoadFailed(false);
 
       // 先依後端金幣包載入平台產品列表，讓 getProductName／getProductDisplayPrice 有資料可查。
       // 商品清單來自 api/coin-packs，後台新增品項的收據也能正確顯示名稱與價格。
@@ -93,9 +94,9 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
       const convertedPurchases = receipts.map((r) => convertReceiptToPurchase(r, backendNames));
       setPurchases(convertedPurchases);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : translate('loadPurchaseHistoryFailed');
+      // 原始錯誤只留 console；對使用者一律顯示內建翻譯（版面與個人資料錯誤頁一致）
       console.error('[PurchaseHistoryScreen] 載入收據失敗:', err);
-      setError(errorMessage);
+      setLoadFailed(true);
       setPurchases([]);
     } finally {
       setIsLoading(false);
@@ -108,6 +109,20 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
       loadReceipts();
     }, [])
   );
+
+  // 取不到交易紀錄：不畫標題與列表，整頁改為共用「沒有資料」狀態（內嵌於紀錄分頁時不重複畫頂欄）
+  if (!isLoading && loadFailed) {
+    return (
+      <Wrapper style={styles.safe}>
+        <NoDataRetryView
+          message={translate('purchaseHistoryLoadFailedMessage')}
+          onRetry={loadReceipts}
+          onEyePress={() => navigation.navigate(routes.MAIN as never)}
+          showTopBar={!embedded}
+        />
+      </Wrapper>
+    );
+  }
 
   return (
     <Wrapper style={styles.safe}>
@@ -124,14 +139,6 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#F7BA7E" />
           <Text style={styles.loadingText}>{translate('profileLoading')}</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.centerContainer}>
-          <Text style={styles.errorText}>{translate('loadFailed')}</Text>
-          <Text style={styles.errorDetail}>{error}</Text>
-          <Pressable onPress={loadReceipts} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>{translate('retry')}</Text>
-          </Pressable>
         </View>
       ) : purchases.length === 0 ? (
         <View style={styles.centerContainer}>
@@ -195,30 +202,6 @@ const styles = StyleSheet.create({
     color: '#9aa3ad',
     marginTop: 12,
     fontSize: 14,
-  },
-  errorText: {
-    color: '#ff6b6b',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  errorDetail: {
-    color: '#9aa3ad',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 32,
-  },
-  retryButton: {
-    backgroundColor: '#F7BA7E',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#2b2f33',
-    fontSize: 14,
-    fontWeight: '600',
   },
   emptyText: {
     color: '#9aa3ad',

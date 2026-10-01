@@ -273,12 +273,14 @@ export function useIAP(): UseIAPReturn {
         const error = err instanceof Error ? err : new Error(err.message || '購買失敗');
         setError(error);
 
-        const verifyPrefix = '[VERIFY_FAILED] ';
-        const isVerifyFailure = errorMessage.startsWith(verifyPrefix);
-        const alertBody = isVerifyFailure
-          ? errorMessage.slice(verifyPrefix.length)
-          : errorMessage || '購買過程中發生錯誤，請稍後再試';
-        showAlert(isVerifyFailure ? '驗證失敗' : '購買失敗', alertBody);
+        // 後端驗證失敗（商店已扣款、金幣未必入帳）與一般購買錯誤分開提示；
+        // 原始錯誤訊息只留上方 console.error，彈窗一律顯示內建翻譯
+        const isVerifyFailure = errorMessage.startsWith('[VERIFY_FAILED] ');
+        if (isVerifyFailure) {
+          showAlert(translate('iapPurchaseFailedTitle'), translate('iapPurchaseFailedMessage'));
+        } else {
+          showAlert(translate('purchaseFailedTitle'), translate('purchaseErrorGeneric'));
+        }
       };
 
       const catalogHasSku = products.some(
@@ -289,7 +291,7 @@ export function useIAP(): UseIAPReturn {
           '商店列表中尚無此商品，請先在商城重新載入後再試。（需先 fetchProducts 成功再購買）';
         setError(new Error(msg));
         setIsPurchasing(false);
-        showAlert('無法購買', msg);
+        showAlert(translate('cannotPurchaseTitle'), translate('productNotLoadedMessage'));
         return;
       }
 
@@ -299,7 +301,7 @@ export function useIAP(): UseIAPReturn {
       const error = err instanceof Error ? err : new Error('購買失敗');
       setError(error);
       setIsPurchasing(false);
-      showAlert('購買失敗', error.message);
+      showAlert(translate('purchaseFailedTitle'), translate('purchaseErrorGeneric'));
     }
   }, [products, refreshCoins]);
 

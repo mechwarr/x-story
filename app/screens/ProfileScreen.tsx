@@ -309,10 +309,8 @@ export default function ProfileScreen() {
         if (claimResult.success === false) {
           setShowCompleteProfileClaimCta(false);
           await refreshCoins(true);
-          showAlert(
-            translate('profileRewardClaimFailedTitle'),
-            claimResult.message || translate('profileRewardClaimFailedMessage')
-          );
+          console.warn('[ProfileScreen] 領取獎勵失敗:', claimResult.message);
+          showRewardClaimFailedAlert(claimResult.message);
           return;
         }
         setShowCompleteProfileClaimCta(false);
@@ -324,10 +322,7 @@ export default function ProfileScreen() {
         setShowCompleteProfileClaimCta(false);
         await refreshCoins(true);
         console.error('[ProfileScreen] 領取獎勵錯誤:', claimErr);
-        showAlert(
-          translate('profileRewardClaimFailedTitle'),
-          claimErr?.message || translate('profileRewardClaimFailedMessage')
-        );
+        showRewardClaimFailedAlert(claimErr?.message);
       }
     } catch (error: any) {
       console.error('更新用戶資料錯誤:', error);
@@ -335,6 +330,17 @@ export default function ProfileScreen() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // 領取獎勵失敗彈窗：後端回「已領取過」→ 專用標題／內文；其餘一律內建通用文案
+  // （後端訊息僅有繁中、無多語系，只留 console 供除錯，不直接顯示給使用者）
+  const showRewardClaimFailedAlert = (rawMessage?: string | null) => {
+    const alreadyClaimed = /已領取|已领取|already/i.test(rawMessage ?? '');
+    if (alreadyClaimed) {
+      showAlert(translate('profileRewardAlreadyClaimedTitle'), translate('profileRewardAlreadyClaimedMessage'));
+      return;
+    }
+    showAlert(translate('profileRewardClaimFailedTitle'), translate('profileRewardClaimFailedMessage'));
   };
 
   // ---- 事件：刪除帳號確認 ----
