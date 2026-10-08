@@ -859,9 +859,9 @@ function StoryScreen({ route }) {
   }, []);
 
   const handlePurchaseStory = useCallback(() => {
-    // 購買相關視窗一律顯示「主選單書名」main_menu_name；用 || 而非 ??，
-    // 連空字串也擋掉（CMS 該語系列缺值時退回導覽帶入的 name，源頭同為主選單書名）。
-    const bookTitle = storyData?.main_menu_name || name;
+    // 購買相關視窗（確認購買／解鎖成功）一律顯示「主選單標題」main_menu_title，與金幣紀錄同源；
+    // 用 || 而非 ??，連空字串也擋掉（CMS 該語系列缺值時依序退回 main_menu_name、導覽帶入的 name）。
+    const bookTitle = storyData?.main_menu_title || storyData?.main_menu_name || name;
     if (!storyId) {
       showAlert(translate('genericErrorTitle'), translate('storyIdNotFound'));
       return;

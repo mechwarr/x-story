@@ -336,6 +336,9 @@ function Book(props) {
 
   // 處理購買故事
   const handlePurchaseStory = async () => {
+    // 購買相關視窗（確認購買／解鎖成功）一律顯示「主選單標題」main_menu_title，與金幣紀錄同源；
+    // 用 || 而非 ??，連空字串也擋掉（CMS 該語系列缺值時退回 main_menu_name）。
+    const bookTitle = main_menu_title || main_menu_name;
     if (!id) {
       showAlert(translate('genericErrorTitle'), translate('storyIdNotFound'));
       return;
@@ -371,7 +374,7 @@ function Book(props) {
     // 確認購買
     showAlert(
       translate('confirmPurchase'),
-      translate('confirmPurchaseMessage', { price: priceCoins, name: main_menu_name }),
+      translate('confirmPurchaseMessage', { price: priceCoins, name: bookTitle }),
       [
         { text: translate('cancel'), style: 'cancel' },
         {
@@ -408,7 +411,7 @@ function Book(props) {
                 
                 showAlert(
                   translate('unlockSuccessTitle'),
-                  translate('purchaseSuccessMessage', { name: main_menu_name, coins: result.coinsSpent || priceCoins }),
+                  translate('purchaseSuccessMessage', { name: bookTitle, coins: result.coinsSpent || priceCoins }),
                   [
                     {
                       text: translate('startReading'),

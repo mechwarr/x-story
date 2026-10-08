@@ -81,8 +81,9 @@ function stripStoreAppNameSuffix(title: string): string {
  * 取商店商品的「純商品名稱」。
  * Android 的 name／iOS 的 displayName 是不含應用程式名的商品名，優先使用；
  * 兩者都缺時才退回 title，並剝掉應用程式名稱尾綴。
+ * 商城卡片、購買成功彈窗等所有顯示商品名稱的地方都應使用此函式，確保名稱一致。
  */
-function resolveStoreProductName(product: Product): string {
+export function resolveStoreProductName(product: Product): string {
   const raw = product as any;
   const clean = String(raw.name ?? raw.displayName ?? '').trim();
   if (clean) return clean;

@@ -24,14 +24,13 @@ import { useIAP } from '../hook/useIAP';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
 import NoDataRetryView from '../components/NoDataRetryView';
-import { type ProductId } from '../services/iapService';
+import { type ProductId, resolveStoreProductName } from '../services/iapService';
 import { useCoins } from '../store/coinContext';
 import {
   currentPlatformCode,
   findPackForStoreProductId,
   storeSkuMatchesBackendProductId,
 } from '../utils/iapCatalog';
-import { extractProductName } from '../utils/productName';
 import { formatStorePrice } from '../utils/priceFormat';
 import { translate } from '../i18n/i18n';
 
@@ -215,7 +214,7 @@ export default function ShopScreen() {
       items.push({
         id: `${pid}`,
         title: product.title, // 平台顯示名稱（多國語系）
-        name: extractProductName(product.title) || product.title, // 僅用平台產品名稱，不用後端回傳
+        name: resolveStoreProductName(product) || pid, // 僅用平台產品名稱，不用後端回傳
         coins,                 // 後端
         bonus,                 // 後端
         priceUsd: price,       // 商店（僅供數值用途）

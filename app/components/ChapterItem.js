@@ -97,9 +97,9 @@ const ChapterItem = (props) => {
   }, [navigation, storyId, id, storyName, author, storyData, nochapter, read_range_end, free_open]);
 
   const handlePurchaseStory = useCallback(() => {
-    // 購買相關視窗一律顯示「主選單書名」main_menu_name；用 || 而非 ??，
-    // 連空字串也擋掉（CMS 該語系列缺值時退回 storyName，源頭同為主選單書名）。
-    const bookTitle = storyData?.main_menu_name || storyName;
+    // 購買相關視窗（確認購買／解鎖成功）一律顯示「主選單標題」main_menu_title，與金幣紀錄同源；
+    // 用 || 而非 ??，連空字串也擋掉（CMS 該語系列缺值時依序退回 main_menu_name、storyName）。
+    const bookTitle = storyData?.main_menu_title || storyData?.main_menu_name || storyName;
     if (!storyId) {
       showAlert(translate('genericErrorTitle'), translate('storyIdNotFound'));
       return;

@@ -92,10 +92,11 @@ function resolveBookNames(
   const names = new Map<number, string>();
   const backfill: { orderId: number; storyListId: number }[] = [];
 
-  // 書名優先取 entitlement（使用者實際擁有的），書店清單為備援（退款或改版後仍能顯示）
+  // 書名優先取 entitlement（使用者實際擁有的），書店清單為備援（退款或改版後仍能顯示）。
+  // 與購買彈窗一致採用主選單標題 main_menu_title；用 || 連空字串也擋掉，缺值時退回 main_menu_name
   const entitlementNames = new Map<number, string>();
   for (const e of entitlements) {
-    const name = e.story?.main_menu_name;
+    const name = e.story?.main_menu_title || e.story?.main_menu_name;
     if (e.storyListId != null && name) entitlementNames.set(Number(e.storyListId), name);
   }
   const nameOf = (storyListId: number): string | null =>

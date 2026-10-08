@@ -25,6 +25,8 @@ const userApi = new RestfulApi({
 export interface Story {
   id: number;
   main_menu_name: string;
+  /** 主選單的故事標題（api/me/entitlements 有回；書店清單 api/bookstorelist 目前沒有） */
+  main_menu_title?: string;
   author: string;
   main_menu_image: string;
 }

@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { showAlert } from "../components/CustomAlert";
-import { iapService, type ProductId } from '../services/iapService';
+import { iapService, resolveStoreProductName, type ProductId } from '../services/iapService';
 import { type CoinPack } from '../config/shopApiClient';
 import { useCoins } from '../store/coinContext';
 import type { Product, Purchase, PurchaseError } from 'react-native-iap';
@@ -18,7 +18,6 @@ import {
   fetchCurrentPlatformCatalog,
   formatCatalogDiagnostics,
 } from '../utils/iapCatalog';
-import { extractProductName } from '../utils/productName';
 import { translate } from '../i18n/i18n';
 
 /** 商品 ID 的來源；雙平台一律走後端 api/coin-packs，不存在本地固定清單 */
@@ -220,8 +219,9 @@ export function useIAP(): UseIAPReturn {
           p.id === productId
         );
 
-        // 優先使用平台產品名稱（清理括號／描述後綴，與商城卡片一致），否則使用 productId
-        const productName = extractProductName(purchasedProduct?.title ?? '') || purchase.productId || productId;
+        // 優先使用平台產品名稱（與商城卡片同一套取法），否則使用 productId
+        const productName =
+          (purchasedProduct ? resolveStoreProductName(purchasedProduct) : '') || purchase.productId || productId;
 
         // 從驗證結果取得金幣額度（此時必為後端核發值）
         const coinsAdded = verificationResult.coinsAdded ?? 0;
