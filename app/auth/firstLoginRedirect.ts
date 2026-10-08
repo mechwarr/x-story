@@ -10,8 +10,21 @@
 //    由 ProfileScreen 每次載入／更新成功時同步；資料補齊即清除。
 //    登出時會被 storage.deleteAllStorage() 一併清掉（它只保留閱讀紀錄鍵），故不需帳號命名空間。
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { hasValidBirthday } from '../utils/birthday';
 
 const PROFILE_INCOMPLETE_KEY = 'profileIncomplete';
+
+/**
+ * 個人資料是否已完成：生日（有效日期）與性別（1/2）「皆」有資料才算完成，任一缺即未完成。
+ * LoginContainer（登入導向）、startupRoute（冷啟動導向）、ProfileScreen（CTA／旗標同步）共用此規則。
+ */
+export function isProfileComplete(
+  profile: { birthDate?: string | number | null; gender?: number | null } | null | undefined
+): boolean {
+  if (!profile) return false;
+  const hasGender = profile.gender === 1 || profile.gender === 2;
+  return hasGender && hasValidBirthday(profile.birthDate);
+}
 
 let pendingProfileRedirect = false;
 

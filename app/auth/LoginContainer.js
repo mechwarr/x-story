@@ -24,10 +24,9 @@ import {
 } from '../config/authApiClient';
 import { useCoins } from '../store/coinContext';
 import { getUserProfile } from '../config/userApiClient';
-import { setPendingProfileRedirect, setProfileIncompletePersisted } from './firstLoginRedirect';
+import { setPendingProfileRedirect, setProfileIncompletePersisted, isProfileComplete } from './firstLoginRedirect';
 import { setPendingSocialName, deriveGoogleDisplayName } from './pendingSocialName';
 import { subscribeVerifyRedirect } from './verifyRedirect';
-import { hasValidBirthday } from '../utils/birthday';
 
 export default function LoginContainer({ onLoginSuccess }) {
   const { refreshCoins } = useCoins();
@@ -101,12 +100,9 @@ export default function LoginContainer({ onLoginSuccess }) {
       await tokenStorage.setUserRoleLevel(Number(userData?.roleLevel) || 0);
 
       if (userData) {
-        // 不可只看欄位非空：後端對未填生日可能回佔位值（0000-00-00、1900-01-01 等），見 utils/birthday
-        const hasBirthday = hasValidBirthday(userData.birthDate);
-        const hasGender = userData.gender === 1 || userData.gender === 2;
-        // 生日 + 性別皆齊全才算完成；任一缺 → 本次登入導向 ProfileScreen，
-        // 並記在持久化旗標，讓資料補齊前的每次冷啟動（自動登入）也先進 ProfileScreen。
-        const incomplete = !(hasBirthday && hasGender);
+        // 生日 + 性別皆齊全才算完成（佔位生日視為未填，見 isProfileComplete）；任一缺 →
+        // 本次登入導向 ProfileScreen，並記在持久化旗標（冷啟動另會向後端重新核對，見 startupRoute）。
+        const incomplete = !isProfileComplete(userData);
         console.log('[LoginContainer] 導向資料頁判定:', {
           birthDate: userData.birthDate ?? null,
           gender: userData.gender ?? null,

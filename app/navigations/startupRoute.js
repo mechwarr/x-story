@@ -1,12 +1,14 @@
 import routes from './routes';
 import storage from '../storage/storage';
-import { getBookstoreList, getEffectiveRoleLevel } from '../config/userApiClient';
+import { getBookstoreList, getEffectiveRoleLevel, getUserProfile } from '../config/userApiClient';
 import { canViewUnlisted } from '../config/roles';
 import { matchesCurrentStoryLang } from '../i18n/i18n';
 import {
   isPendingProfileRedirect,
   setPendingProfileRedirect,
   getProfileIncompletePersisted,
+  setProfileIncompletePersisted,
+  isProfileComplete,
 } from '../auth/firstLoginRedirect';
 
 // 啟動落點判定（token 檢查通過後、掛載 Drawer 前呼叫；期間畫面顯示 BootScreen）：
@@ -40,11 +42,37 @@ const raceDeadline = async (promise, deadline, label) => {
   return result;
 };
 
+// 冷啟動（以既有 token 自動登入，不經過 LoginContainer）的個人資料完成度核對：
+// 以後端 profile 為準並同步持久化旗標——涵蓋「在別台裝置／後台改過資料」「登入當下取不到 profile
+// 而沒寫旗標」「旗標被清掉」等情況，不只依賴本機旗標。後端取不到（失敗／超時）才退回持久化旗標。
+const checkProfileIncompleteOnStartup = async (deadline) => {
+  const profile = await raceDeadline(
+    getUserProfile().catch(() => null),
+    deadline,
+    '個人資料'
+  );
+  if (profile) {
+    const incomplete = !isProfileComplete(profile);
+    console.log('[startupRoute] 個人資料完成度（後端）:', {
+      birthDate: profile.birthDate ?? null,
+      gender: profile.gender ?? null,
+      incomplete,
+    });
+    await setProfileIncompletePersisted(incomplete);
+    return incomplete;
+  }
+  const persisted = await getProfileIncompletePersisted();
+  console.log(`[startupRoute] 取不到 profile，沿用持久化旗標: incomplete=${persisted}`);
+  return persisted;
+};
+
 export async function decideInitialRoute() {
   try {
-    // 冷啟動以既有 token 自動登入時不會經過 LoginContainer，記憶體旗標為空 →
-    // 改讀持久化旗標（資料補齊前一直為真），讓「資料未完成」的使用者同樣先看到 ProfileScreen。
-    if (!isPendingProfileRedirect() && (await getProfileIncompletePersisted())) {
+    const deadline = makeDeadline(DECISION_DEADLINE_MS);
+
+    // 主動登入時 LoginContainer 已核對過並設定記憶體旗標，不重查；
+    // 否則（冷啟動自動登入、或登入後子樹重新掛載）向後端核對一次。
+    if (!isPendingProfileRedirect() && (await checkProfileIncompleteOnStartup(deadline))) {
       setPendingProfileRedirect(true);
     }
     // 個人資料未完成：一律落在 HOME（其內層 Stack 會直接顯示 ProfileScreen）。
@@ -53,8 +81,6 @@ export async function decideInitialRoute() {
       console.log('[startupRoute] 個人資料未完成 → HOME（內層顯示 ProfileScreen）');
       return routes.HOME;
     }
-
-    const deadline = makeDeadline(DECISION_DEADLINE_MS);
 
     // 三路平行採集（此刻即發出，之後才逐一 await）：
     //  - 本機閱讀紀錄：一般情況只讀 SecureStore + AsyncStorage（快）；SecureStore 尚無帳號 id 時

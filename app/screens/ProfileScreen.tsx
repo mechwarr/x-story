@@ -36,7 +36,7 @@ import DropdownArrow, {
 } from '../components/DropdownArrow';
 import { translate, getCurrentLang } from '../i18n/i18n';
 import { resolvePendingSocialName, clearPendingSocialName } from '../auth/pendingSocialName';
-import { setProfileIncompletePersisted } from '../auth/firstLoginRedirect';
+import { setProfileIncompletePersisted, isProfileComplete } from '../auth/firstLoginRedirect';
 import { walletActionFontSize, walletRecordsFontSize } from '../utils/walletFont';
 
 import DatePickerSheet from '../components/DatePickerSheet';
@@ -181,11 +181,9 @@ export default function ProfileScreen() {
             setGender(0);
           }
         }
-        // 與 LoginContainer 的導向判定共用同一規則
-        const hasBirthday = parseValidBirthday(userData.birthDate) !== null;
-        const hasGender = userData.gender === 1 || userData.gender === 2;
+        // 與 LoginContainer／startupRoute 的導向判定共用同一規則：
         // 生日 + 性別皆齊全 = 已完成個人資料；任一缺 → 仍顯示任務獎勵 CTA
-        const profileComplete = hasBirthday && hasGender;
+        const profileComplete = isProfileComplete(userData);
         setShowCompleteProfileClaimCta(!profileComplete);
         // 同步持久化旗標：資料補齊 → 清除（之後啟動正常落在首頁／繼續觀看）；
         // 仍缺 → 保持為真（含在別的裝置被改動、或登入時取不到 profile 的情況）。
@@ -260,7 +258,7 @@ export default function ProfileScreen() {
         // 已存回後端 → 清除社群暱稱暫存，避免下次載入殘留
         clearPendingSocialName();
         // 依這次送出的內容重算完成度並同步旗標（不必等下次載入才清）
-        setProfileIncompletePersisted(!(!!birthdayISO && (gender === 1 || gender === 2)));
+        setProfileIncompletePersisted(!isProfileComplete({ birthDate: birthdayISO, gender }));
         showAlert(translate('profileUpdatedSuccessTitle'), translate('profileUpdatedSuccessMessage'), [
           { text: translate('ok'), onPress: () => {} },
         ]);
@@ -302,7 +300,7 @@ export default function ProfileScreen() {
       // 已存回後端 → 清除社群暱稱暫存，避免下次載入殘留
       clearPendingSocialName();
       // 依這次送出的內容重算完成度並同步旗標（獎勵領取成功與否都不影響資料已完成的事實）
-      setProfileIncompletePersisted(!(!!birthdayISO && (gender === 1 || gender === 2)));
+      setProfileIncompletePersisted(!isProfileComplete({ birthDate: birthdayISO, gender }));
 
       try {
         const claimResult = await claimActivityReward({ activityName: 'PROFILE_COMPLETED' });
