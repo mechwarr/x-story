@@ -325,32 +325,27 @@ const getUserCoin = async (): Promise<number | null> => {
 // Language Code
 // 語系存 AsyncStorage 而非 SecureStore：iOS 的 SecureStore 底層是 Keychain，刪除 App 後仍會殘留，
 // 導致重新安裝時沿用舊語系、不跟系統語系。AsyncStorage 位於 App 沙盒，移除 App 即一併清除。
-// 舊版存在 Keychain 的值於首次讀取時搬到 AsyncStorage 並刪除 Keychain 端，之後重裝即可回到系統語系。
-let legacyLangMigration: Promise<void> | null = null;
-const migrateLegacyLang = () => {
-  if (!legacyLangMigration) {
-    legacyLangMigration = (async () => {
+// 舊版存在 Keychain 的語系一律只刪不讀（不搬移）：既有使用者更新後會重置為系統語系一次，
+// 但保證任何情況下都不會從 Keychain 取回語系（含舊版直接重裝成新版的情境）。
+let legacyLangPurge: Promise<void> | null = null;
+const purgeLegacyLang = () => {
+  if (!legacyLangPurge) {
+    legacyLangPurge = (async () => {
       try {
-        for (const key of [LANG_KEY, LANG_MANUAL_KEY]) {
-          const legacy = await SecureStore.getItemAsync(key);
-          if (legacy === null) continue;
-          if ((await AsyncStorage.getItem(key)) === null) {
-            await AsyncStorage.setItem(key, legacy);
-          }
-          await SecureStore.deleteItemAsync(key);
-        }
+        await SecureStore.deleteItemAsync(LANG_KEY);
+        await SecureStore.deleteItemAsync(LANG_MANUAL_KEY);
       } catch (e) {
-        console.error("migrateLegacyLang error", e);
+        console.error("purgeLegacyLang error", e);
       }
     })();
   }
-  return legacyLangMigration;
+  return legacyLangPurge;
 };
 
 const setUserLangCode = async (lang: string) => {
   try {
     console.log("setUserLangCode", lang);
-    await migrateLegacyLang();
+    await purgeLegacyLang();
     await AsyncStorage.setItem(LANG_KEY, lang);
   } catch (e) {
     console.error("setUserLangCode error", e);
@@ -359,7 +354,7 @@ const setUserLangCode = async (lang: string) => {
 
 const getUserLangCode = async (): Promise<string | null> => {
   try {
-    await migrateLegacyLang();
+    await purgeLegacyLang();
     return await AsyncStorage.getItem(LANG_KEY);
   } catch (e) {
     console.error("getUserLangCode error", e);
@@ -371,7 +366,7 @@ const getUserLangCode = async (): Promise<string | null> => {
 // 一旦為 true，App 啟動時的語系初始化就不再依裝置語系自動覆蓋。
 const setUserLangManual = async (manual: boolean) => {
   try {
-    await migrateLegacyLang();
+    await purgeLegacyLang();
     await AsyncStorage.setItem(LANG_MANUAL_KEY, manual ? "1" : "0");
   } catch (e) {
     console.error("setUserLangManual error", e);
@@ -380,7 +375,7 @@ const setUserLangManual = async (manual: boolean) => {
 
 const getUserLangManual = async (): Promise<boolean> => {
   try {
-    await migrateLegacyLang();
+    await purgeLegacyLang();
     return (await AsyncStorage.getItem(LANG_MANUAL_KEY)) === "1";
   } catch (e) {
     console.error("getUserLangManual error", e);

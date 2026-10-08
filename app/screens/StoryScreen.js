@@ -102,6 +102,9 @@ function StoryScreen({ route }) {
     targetDialogId = null,
     // 自動接續下一章（replace 重掛）時帶入的自動播放狀態：讓自動播放跨章節維持不中斷。
     autoPlay: initialAutoPlay = false,
+    // 由「跨章節跳轉」重掛時為 true：落點場次確定後補寫一次「落點起點」存檔，
+    // 補上「剛重掛、還沒推進第一段就離開／關掉自動播放」這段空窗的閱讀紀錄。
+    persistLanding = false,
   } = router.params ?? {};
 
   // ── 不分章節書籍的試閱閘門（read_free / read_range_end）──────────────────────
@@ -297,6 +300,27 @@ function StoryScreen({ route }) {
     return list[idx + 1];
   }, [chapterId]);
 
+  // 「場次起點」存檔的基本欄位：以 ref 持有最新值，讓定義在前面的 useCallback 也讀得到
+  // 補抓後的試閱旗標（free_open / read_range_end），不必把它們列入 deps。
+  const screenStartBaseRef = useRef(null);
+  const landingPersistedRef = useRef(false); // persistLanding 的落點存檔只寫一次
+  screenStartBaseRef.current = { storyId, chapterId, storyData, read_range_end, free_open, nochapter };
+
+  // 寫入「指定場次起點」的繼續觀看存檔（story:0、空造訪路徑 → 回來時線性還原到該場第一段）。
+  // 換場次/換章後 index.story 為 null，翻頁即存與保底存檔都不會寫，須在轉場當下先補這一筆，
+  // 否則還沒推進第一段就離開會遺失（或退回上一場的）進度。overrides 用於跨章時改寫章節欄位。
+  const storeScreenStart = (screen, overrides) => {
+    if (skipPersistRef.current) return;
+    storage.storeStory(
+      {
+        ...screenStartBaseRef.current,
+        ...overrides,
+        cachedIndex: { story: 0, screen, scrollOffset: 0, path: [] },
+      },
+      'continueStory'
+    );
+  };
+
   // 跳到指定場次（複用既有「story:null → 重抓內容」機制）
   const goToScreening = useCallback(
     (targetScreen) => {
@@ -309,6 +333,7 @@ function StoryScreen({ route }) {
       storyLockedRef.current = false;
       hasRecordedReadRef.current = false; // 換場次重新計一次閱讀
       scrollOffsetRef.current = 0; // 換場次重置捲動基準，避免沿用上一場次的 offset
+      storeScreenStart(targetScreen); // 先記新場次起點，避免未推進就離開時退回上一場
       setStory([]);
       setIndex({ story: initStoryIdx, screen: targetScreen });
     },
@@ -323,9 +348,20 @@ function StoryScreen({ route }) {
       const targetCh = chapterListRef.current.find(
         (c) => String(c?.id) === String(targetChapterId)
       );
-      // 換章/換場次前清掉本章「繼續觀看」快取，避免下次回來停在舊位置。
-      skipPersistRef.current = true; // 抑制離開保底存檔，避免把剛刪掉的進度又寫回
-      storage.deleteStory({ storyId }, 'continueStory');
+      // 換章/換場次前把「繼續觀看」改寫成目標章節起點（先記第 0 場；確切落點場次要等新畫面
+      // 抓到場次清單才換算得出，由 persistLanding 於落點確定後覆寫）。不再先刪除：刪掉後到
+      // 新畫面推進第一段之前完全沒有紀錄，此時關掉自動播放或離開，進度就整筆消失。
+      // 存檔落點被夾回（skipPersistRef 已為 true）時維持原本的清除行為。
+      if (skipPersistRef.current) {
+        storage.deleteStory({ storyId }, 'continueStory');
+      } else {
+        storeScreenStart(0, {
+          chapterId: targetChapterId,
+          read_range_end: targetCh?.read_range_end ?? read_range_end,
+          free_open: targetCh?.free_open ?? free_open,
+        });
+      }
+      skipPersistRef.current = true; // 抑制本畫面離開時的保底存檔，避免把舊章進度寫回
       rawNavigation.replace(routes.STORY, {
         storyId,
         chapterId: targetChapterId,
@@ -340,6 +376,7 @@ function StoryScreen({ route }) {
         targetDialogId: dialogId,
         // 以選項跨章時亦帶入自動播放狀態，維持與自動接續一致的行為。
         autoPlay: isAutoPlayRef.current,
+        persistLanding: true,
       });
     },
     [storyId, name, author, storyData, nochapter, read_range_end, free_open, rawNavigation]
@@ -644,6 +681,7 @@ function StoryScreen({ route }) {
       choseRef.current = true;
       hasRecordedReadRef.current = false;    // 換場次重新計一次閱讀
       scrollOffsetRef.current = 0;            // 換場次重置捲動基準，避免沿用上一場次的 offset
+      storeScreenStart(targetScreen);         // 先記新場次起點，避免未推進就離開時退回上一場
       setStory([]);
       setIndex({ story: initStoryIdx, screen: targetScreen });
       return;
@@ -723,9 +761,18 @@ function StoryScreen({ route }) {
           // 2) 章節型書籍：本章播畢後若仍有「可閱讀」的下一章，原地接續到下一章第一場次。
           if (nextChapter) {
             if (nextAccessible) {
-              // 換章前清掉本章的「繼續觀看」快取，避免下次回來停在舊章節尾端。
-              skipPersistRef.current = true; // 抑制離開保底存檔，避免把剛刪掉的進度又寫回
-              storage.deleteStory({ storyId }, 'continueStory');
+              // 換章前把「繼續觀看」改寫成下一章第一場次起點（取代舊章節尾端）。不再先刪除：
+              // 刪掉後到新章推進第一段之前完全沒有紀錄，此時關掉自動播放或離開，進度就整筆消失。
+              if (skipPersistRef.current) {
+                storage.deleteStory({ storyId }, 'continueStory');
+              } else {
+                storeScreenStart(0, {
+                  chapterId: nextChapter.id,
+                  read_range_end: nextChapter.read_range_end,
+                  free_open: nextChapter.free_open,
+                });
+              }
+              skipPersistRef.current = true; // 抑制本畫面離開時的保底存檔，避免把舊章進度寫回
               // replace：原地重掛 StoryScreen（不帶 cachedIndex → 從新章第一場次開始），
               // 並帶入下一章自己的試閱設定（free_open / read_range_end）。
               rawNavigation.replace(routes.STORY, {
@@ -1328,6 +1375,12 @@ function StoryScreen({ route }) {
         }
         if (targetDialogId != null) {
           pendingDialogRef.current = targetDialogId;
+        }
+        // 跨章節跳轉重掛（persistLanding）：落點場次至此才確定 → 補寫一次落點起點存檔，
+        // 覆寫跳轉當下先記的「第 0 場」。只寫一次：之後的進度交給翻頁即存。
+        if (persistLanding && !landingPersistedRef.current && screeningsList.length) {
+          landingPersistedRef.current = true;
+          storeScreenStart(landingScreen);
         }
         const screenData = screeningsList[landingScreen];
 
