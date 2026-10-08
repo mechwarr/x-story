@@ -36,6 +36,7 @@ import { syncPurchasedStoryIds, resolveOwnedStoryIds, canAccessChapter } from '.
 import mediaPlayer from '../services/mediaPlayer';
 import useResponsive from '../hook/useResponsive';
 import { sortChaptersByOrder, sortScreeningsByOrder } from '../utils/chapterOrder';
+import { resolveStartReadingParams } from '../services/startReadingService';
 
 const domain = apiclient.currentBaseUrl() + 'images/update/';
 const initStoryIdx = null;
@@ -216,9 +217,6 @@ function StoryScreen({ route }) {
   // 但不可再推進剩餘劇情」。一旦試閱耗盡即設 true，封鎖所有 onPressOption 推進；
   // 購買成功會 replace/navigate 重掛畫面，此 ref 自然重置。
   const storyLockedRef = useRef(false);
-  // 「一進畫面就整本上鎖」（不分章節 × 未開放試閱 × 未購買）：與「試閱播畢」不同，
-  // 使用者一場都還沒看到，購買成功後必須原地重掛從第一場次開始讀，不能走「讀完→回首頁」收尾。
-  const lockedFromStartRef = useRef(false);
   const [showPurchaseOverlay, setShowPurchaseOverlay] = useState(false);
   const [isBookPurchased, setIsBookPurchased] = useState(false);
   const [purchaseChecked, setPurchaseChecked] = useState(false);
@@ -840,7 +838,6 @@ function StoryScreen({ route }) {
     if (!free_open || free_open === '開放') return; // 旗標未解析出來時不誤鎖
     if (!(Number(priceCoins) > 0)) return;
     storyLockedRef.current = true; // 封鎖推進：關掉覆蓋層也不能再往下播
-    lockedFromStartRef.current = true; // 一場都沒看到 → 購買後要從頭讀，不能當成「讀完」
     setShowPurchaseOverlay(true);
   }, [
     purchaseChecked,
@@ -916,7 +913,7 @@ function StoryScreen({ route }) {
                   [
                     {
                       text: translate('startReading'),
-                      onPress: () => {
+                      onPress: async () => {
                         // 若購買是由選項跳轉被擋下觸發的 → 接續到原本要去的章節/場次/對話。
                         if (pendingJumpRef.current) {
                           const jump = pendingJumpRef.current;
@@ -924,31 +921,22 @@ function StoryScreen({ route }) {
                           jumpTo(jump);
                           return;
                         }
-                        if (storyData?.chapter_type === '章節') {
+                        // 其餘一律依閱讀紀錄進「下一個該讀的場次」（見 startReadingService）。
+                        // 進度已由翻頁即存寫入；抑制離開保底存檔，避免重掛前又寫回舊位置。
+                        skipPersistRef.current = true;
+                        const params = await resolveStartReadingParams({
+                          storyId,
+                          storyData,
+                          nochapter,
+                          name,
+                          author,
+                          fallback: { chapterId, read_range_end, free_open },
+                        });
+                        if (!params) {
                           navigation.navigate(routes.CHAPTER, { name, author, storyId, storyData });
-                        } else if (lockedFromStartRef.current) {
-                          // 未開放試閱而一進來就整本上鎖者：一場都沒讀過，購買後原地重掛從頭開始，
-                          // 不可寫入 finishStory（否則剛買的書會直接掉進「重新回味」）。
-                          lockedFromStartRef.current = false;
-                          storyLockedRef.current = false;
-                          skipPersistRef.current = true;
-                          storage.deleteStory({ storyId }, 'continueStory');
-                          rawNavigation.replace(routes.STORY, {
-                            storyId,
-                            chapterId,
-                            name,
-                            author,
-                            storyData,
-                            nochapter,
-                            read_range_end,
-                            free_open,
-                          });
-                        } else {
-                          skipPersistRef.current = true; // 抑制離開保底存檔，避免把剛刪掉的進度又寫回
-                          storage.deleteStory({ storyId }, 'continueStory');
-                          storage.storeStory({ storyId, storyData, nochapter }, 'finishStory');
-                          navigation.navigate(routes.MAIN);
+                          return;
                         }
+                        rawNavigation.replace(routes.STORY, params);
                       },
                     },
                   ]

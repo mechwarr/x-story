@@ -390,20 +390,16 @@ export async function resetXStoryPassword(
     } else {
       // 只記錄後端原始訊息供除錯，對使用者一律顯示內建翻譯（後端僅有繁中）
       // 失敗提示只在這裡跳一次，呼叫端（ResetPasswordScreen）不再重複彈窗
-      // 200 + success:false 代表後端拒絕了這個 token，即連結已過期或無效
+      // 重設密碼的所有失敗情境（連結失效、網路或伺服器錯誤）一律顯示同一則文案（審稿要求統一）
       console.warn("密碼重設失敗:", res?.message);
-      showAlert(translate("genericErrorTitle"), translate("resetLinkExpiredMessage"));
+      showAlert(translate("genericErrorTitle"), translate("passwordUpdateFailedMessage"));
       return false;
     }
   } catch (error) {
-    // 400 為後端判定 token 失效；其餘（逾時、連線失敗、5xx）維持一般失敗文案，
-    // 避免把網路問題誤報成「連結過期」讓使用者白跑一趟重寄流程。
-    const status = extractStatusCode(error);
-    console.error("密碼重設時發生錯誤:", extractErrorMessage(error));
-    showAlert(
-      translate("genericErrorTitle"),
-      translate(status === 400 ? "resetLinkExpiredMessage" : "passwordUpdateFailedMessage")
-    );
+    // 不論狀態碼（400 連結失效、逾時、連線失敗、5xx）一律顯示同一則文案；
+    // 文案本身已提示「稍後再試或重新取得連結」，兩種原因都涵蓋。狀態碼只留 console 供除錯。
+    console.error("密碼重設時發生錯誤:", extractStatusCode(error), extractErrorMessage(error));
+    showAlert(translate("genericErrorTitle"), translate("passwordUpdateFailedMessage"));
     return false;
   }
 }

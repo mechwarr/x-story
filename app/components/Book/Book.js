@@ -20,6 +20,7 @@ import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins, getEffectiveRoleLevel } from '../../config/userApiClient';
 import { canPreviewAll } from '../../config/roles';
 import { resolveOwnedStoryIds } from '../../services/bookAccessService';
+import { resolveStartReadingParams } from '../../services/startReadingService';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../../config/idempotencyKeyCache';
 import { useCoins } from '../../store/coinContext';
 import storage from '../../storage/storage';
@@ -415,24 +416,30 @@ function Book(props) {
                   [
                     {
                       text: translate('startReading'),
-                      onPress: () => {
-                        // 購買成功後，導航到故事頁面
-                        if (hasChapter) {
+                      onPress: async () => {
+                        // 依閱讀紀錄直接進「下一個該讀的場次」（見 startReadingService），不經章節列表。
+                        const unlockedData = { ...storyData, open: '公開' };
+                        const params = await resolveStartReadingParams({
+                          storyId: id,
+                          storyData: unlockedData,
+                          nochapter,
+                          name: main_menu_name,
+                          author,
+                          fallback: {
+                            chapterId: storyPayload.chapterId,
+                            read_range_end: storyPayload.read_range_end,
+                            free_open: storyPayload.free_open,
+                          },
+                        });
+                        if (!params) {
+                          // 落點無法決定（章節清單取不到）→ 退回章節列表
                           navigation.navigate(routes.HOME, {
                             screen: routes.CHAPTER,
-                            params: {
-                              name: main_menu_name,
-                              author,
-                              storyId: id,
-                              storyData: { ...storyData, open: '公開' },
-                            },
+                            params: { name: main_menu_name, author, storyId: id, storyData: unlockedData },
                           });
-                        } else {
-                          navigation.navigate(routes.HOME, {
-                            screen: routes.STORY,
-                            params: { ...storyPayload, storyData: { ...storyData, open: '公開' } },
-                          });
+                          return;
                         }
+                        navigation.navigate(routes.HOME, { screen: routes.STORY, params });
                       },
                     },
                   ]

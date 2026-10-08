@@ -624,11 +624,6 @@
         "zh-CN": "设置密码",
         "en": "Create a password"
     },
-    "resetLinkExpiredMessage": {
-        "zh-TW": "密碼重設連結已過期或無效",
-        "zh-CN": "密码重置链接已过期或无效",
-        "en": "Password reset link invalid or expired."
-    },
     "passwordMismatchMessage": {
         "zh-TW": "兩次輸入的密碼不一致",
         "zh-CN": "两次输入的密码不一致",
@@ -1004,24 +999,29 @@
         "zh-CN": "无法获取商品信息，\n请稍后重试",
         "en": "Unable to retrieve product information.\nPlease try again."
     },
-    "shopStoreUnavailableMessage": {
-        "zh-TW": "無法連接 {store}，\n請稍後再試",
-        "zh-CN": "无法连接 {store}，\n请稍后重试",
-        "en": "Unable to connect to {store}.\nPlease try again."
-    },
-    "shopEmptyMessage": {
-        "zh-TW": "目前暫無可用商品，\n請稍後再試",
-        "zh-CN": "目前暂无可用商品，\n请稍后重试",
-        "en": "No products are available right now.\nPlease try again later."
-    },
     "iapPurchaseFailedTitle": {
         "zh-TW": "交易驗證失敗",
         "zh-CN": "交易验证失败",
         "en": "Transaction Verification Failed"
     },
     "iapPurchaseFailedMessage": {
-        "zh-TW": "無法確認金幣入帳，\n若已扣款，請稍後查看餘額或聯絡客服",
-        "zh-CN": "无法确认金币到账，\n若已扣款，请稍后查看余额或联系客服",
+        "zh-TW": "無法確認金幣入帳，\n若已扣款，\n請稍後查看餘額或聯絡客服",
+        "zh-CN": "无法确认金币到账，\n若已扣款，\n请稍后查看余额或联系客服",
         "en": "Unable to confirm the coins were added.\nIf you were charged, please check your balance later or contact us."
+    },
+    "socialLoginFailedMessage": {
+        "zh-TW": "登入失敗，\n請稍後再試",
+        "zh-CN": "登录失败，\n请稍后重试",
+        "en": "Login failed.\nPlease try again later."
+    },
+    "wechatLoginErrorTitle": {
+        "zh-TW": "微信登入錯誤",
+        "zh-CN": "微信登录错误",
+        "en": "WeChat Login Error"
+    },
+    "wechatLoginFailedMessage": {
+        "zh-TW": "登入失敗，\n請稍後再試，\n若問題持續，\n請聯絡客服",
+        "zh-CN": "登录失败，\n请稍后重试，\n若问题持续，\n请联系客服",
+        "en": "Login failed. Please try again later.\nContact support if the problem persists."
     }
 }

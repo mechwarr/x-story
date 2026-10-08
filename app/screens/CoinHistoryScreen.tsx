@@ -48,6 +48,13 @@ const ACTIVITY_LABEL_KEYS: Record<string, string> = {
   PROFILE_COMPLETED: 'coinTypeActivityReward',
 };
 
+/**
+ * 後台退款流水的 source 標記。CMS 退款時以 rewards/grant 扣幣（type=ADMIN_GRANT），
+ * reason 寫死為「[系統退款] ORDER:{receiptId}」，receiptId 為 IAP 收據單號。
+ * 後端沒有專屬的退款 type，只能靠這個前綴辨識；CMS 改文案時只需改這裡。
+ */
+const REFUND_SOURCE_RE = /^\s*\[系統退款\]\s*ORDER:\s*([^\s|]+)/;
+
 /** 已購書籍分頁抓取設定（上限 5 頁，避免書量極大時拖慢畫面） */
 const ENTITLEMENTS_PAGE_SIZE = 100;
 const ENTITLEMENTS_MAX_PAGES = 5;
@@ -215,6 +222,12 @@ function parseSourceDisplay(
   return { line1, line2 };
 }
 
+/** 後台退款流水 → 收據單號；非退款流水回 null */
+function parseRefundReceiptId(log: CoinLedgerItem): string | null {
+  if (log.type !== 'ADMIN_GRANT') return null;
+  return String(log.source ?? '').match(REFUND_SOURCE_RE)?.[1] ?? null;
+}
+
 /**
  * 決定一筆帳務紀錄要顯示的標題與備註。
  * 原則：標題一律走 i18n 或商品／書名，絕不把後端的系統字串（ADMIN_GRANT、
@@ -223,7 +236,8 @@ function parseSourceDisplay(
 function describeLedgerRow(
   log: CoinLedgerItem,
   backendNames: Record<string, string>,
-  bookName: string | undefined
+  bookName: string | undefined,
+  receiptProducts: Map<string, string>
 ): { title: string; note: string } {
   const { line1, line2 } = parseSourceDisplay(log.source ?? '', backendNames);
 
@@ -239,6 +253,18 @@ function describeLedgerRow(
   if (log.type === 'ACTIVITY_REWARD') {
     const code = (log.source ?? '').match(/ACTIVITY:\s*([^\s|]+)/i)?.[1]?.toUpperCase() ?? '';
     return { title: translate(ACTIVITY_LABEL_KEYS[code] ?? 'coinTypeActivityReward'), note: '' };
+  }
+
+  // 後台退款：對標 CMS 的「ORDER:{receiptId}|{商品名稱}」，以收據對照出原儲值商品；
+  // 對不到收據（收據取不到或不在清單中）時退回單純的「退款」
+  const refundReceiptId = parseRefundReceiptId(log);
+  if (refundReceiptId) {
+    const productId = receiptProducts.get(refundReceiptId);
+    const refundLabel = translate('coinTypeRefund');
+    return {
+      title: productId ? `${resolveProductName(productId, backendNames)} - ${refundLabel}` : refundLabel,
+      note: `ORDER:${refundReceiptId}`,
+    };
   }
 
   const typeKey = TYPE_LABEL_KEYS[log.type];
@@ -266,6 +292,8 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
   const [orderBookMap, setOrderBookMap] = useState<Record<string, number>>({});
   // storyListId → 書名／定價（書店清單），供顯示備援與價格約束
   const [bookCatalog, setBookCatalog] = useState<Map<number, BookCatalogEntry>>(new Map());
+  // IAP 收據單號 → productId，供後台退款流水對照出原儲值商品名稱
+  const [receiptProducts, setReceiptProducts] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   // loadFailed：帳務紀錄本身取不到 → 整頁改為「沒有資料」狀態（說明 + 重試）
   const [loadFailed, setLoadFailed] = useState(false);
@@ -304,13 +332,23 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
       // 並補抓後續頁數，讓較早的帳務紀錄也對得到書。
       // 書店清單提供每本書的定價，是推導配對時的價格硬約束；本機對照表則是購買當下記下的事實。
       // 書店清單與本機對照表只是「讓書名更準」的輔助，取不到也要能顯示帳務紀錄，故各自吞錯
-      const [logsRes, entitlementsRes, bookstore, savedOrderBooks] = await Promise.all([
+      // IAP 收據只用來替退款流水補上商品名稱，取不到就退回「退款」，同樣吞錯
+      const [logsRes, entitlementsRes, bookstore, savedOrderBooks, receipts] = await Promise.all([
         getCoinLedger(),
         getEntitlements(1, ENTITLEMENTS_PAGE_SIZE, { bypassCache: true }),
         // 取不到（回 null）就當空清單：這裡書店清單只是配對書名的輔助，帳務紀錄照常顯示
         getBookstoreList().then((list) => list ?? []),
         getCoinOrderBookMap().catch(() => ({})),
+        iapService.getIapReceipts().catch(() => []),
       ]);
+
+      const productByReceipt = new Map<string, string>();
+      for (const r of receipts) {
+        const receiptId = String(r?.receiptId ?? '').trim();
+        const productId = String(r?.productId ?? '').trim();
+        if (receiptId && productId) productByReceipt.set(receiptId, productId);
+      }
+      setReceiptProducts(productByReceipt);
 
       const catalogByStoryId = new Map<number, BookCatalogEntry>();
       for (const item of bookstore) {
@@ -404,7 +442,8 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
               const { title: rowTitle, note: rowNote } = describeLedgerRow(
                 log,
                 backendNames,
-                bookNames.get(log.id)
+                bookNames.get(log.id),
+                receiptProducts
               );
               return (
               <View key={log.id} style={styles.row}>

@@ -58,8 +58,8 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
         // ✅ 本地驗證（僅在 !isValid 時檢查，維持你原本的邏輯）
         if (!isValid) {
             if (!token) {
-                // 連結失效（與後端回報連結過期時共用同一則文案，避免兩條路徑說法不一致）
-                showAlert("genericErrorTitle", "resetLinkExpiredMessage");
+                // 連結缺少 token：與其他重設失敗情境共用同一則文案（審稿要求統一）
+                showAlert("genericErrorTitle", "passwordUpdateFailedMessage");
                 return;
             }
             if (pwd !== pwd2) {

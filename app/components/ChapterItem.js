@@ -24,6 +24,7 @@ import colors from '../config/colors';
 import storage from '../storage/storage';
 import { recordCoinOrderBook } from '../storage/coinOrderBooks';
 import { canAccessChapter } from '../services/bookAccessService';
+import { resolveStartReadingParams } from '../services/startReadingService';
 import useResponsive from '../hook/useResponsive';
 import { toAlertTextStyle } from '../config/foolproofStyle';
 import { toColor, toFontWeight } from '../config/normalizeStyle';
@@ -150,7 +151,23 @@ const ChapterItem = (props) => {
                 showAlert(
                   translate('unlockSuccessTitle'),
                   translate('purchaseSuccessMessage', { name: bookTitle, coins: result.coinsSpent || priceCoins }),
-                  [{ text: translate('startReading') }]
+                  [
+                    {
+                      text: translate('startReading'),
+                      onPress: async () => {
+                        // 依閱讀紀錄直接進「下一個該讀的場次」（見 startReadingService），不跳章節介紹。
+                        const params = await resolveStartReadingParams({
+                          storyId,
+                          storyData,
+                          nochapter,
+                          name: storyName,
+                          author,
+                        });
+                        if (params) navigation.navigate(routes.STORY, params);
+                        else navigateToStory(); // 落點無法決定 → 退回進入所點的這一章
+                      },
+                    },
+                  ]
                 );
               } else {
                 showAlert(translate('purchaseFailedTitle'), translate('purchaseFailedRetry'));
@@ -163,7 +180,7 @@ const ChapterItem = (props) => {
         },
       ]
     );
-  }, [storyId, priceCoins, coins, storyName, storyData, navigation, refreshCoins, onPurchaseSuccess]);
+  }, [storyId, priceCoins, coins, storyName, storyData, nochapter, author, navigation, navigateToStory, refreshCoins, onPurchaseSuccess]);
 
   // (分)章節-防呆視窗（章節介紹彈窗）：標題/內文/兩顆按鈕的字級與顏色，來自 setup-chapter-foolproof
   // 參數表（toastConfig，已於 ChapterScreen 依語系挑列）。未設定的欄位會自動略過、沿用預設。

@@ -140,7 +140,8 @@ export default function ShopScreen() {
       console.error('[ShopScreen] 階段 1（後端）錯誤:', coinPacksError);
       if (Platform.OS !== 'ios' && !hasAlertedBackendError.current) {
         hasAlertedBackendError.current = true;
-        showAlert('後端金幣包取得失敗', `階段 1（後端）失敗：${coinPacksError}`);
+        // 原始錯誤已記錄於上方 console.error；彈窗一律顯示內建翻譯
+        showAlert(translate('loadProductsFailed'), translate('shopLoadFailedMessage'));
       }
     } else {
       hasAlertedBackendError.current = false;
@@ -355,19 +356,15 @@ export default function ShopScreen() {
 
   const { isTablet, maxContentWidth, horizontalPadding } = useResponsive();
 
-  // 沒有任何可顯示的商品：不畫完整版面（標題、餘額、診斷文字），改用共用「沒有資料」整頁狀態，
-  // 內文依問題種類顯示：後端取不到金幣包 → 商店連不上／查不到價格 → 兩邊都正常但合併後 0 筆。
+  // 沒有任何可顯示的商品：不畫完整版面（標題、餘額、診斷文字），改用共用「沒有資料」整頁狀態。
+  // 不論原因（後端取不到金幣包／商店連不上或查不到價格／兩邊正常但合併後 0 筆），
+  // 對使用者一律顯示同一則「無法取得商品資訊，請稍後再試」（審稿要求統一說法）。
   // 只看「有沒有資料」而不看 error：購買失敗也會寫入 error，但清單還在，不該被整頁蓋掉。
-  // 詳細的階段診斷（emptyReason）只留在 console。
+  // 實際原因的階段診斷（emptyReason）只留在 console。
   if (!isShopLoading && packsWithPrice.length === 0) {
-    const message = coinPacksError
-      ? translate('shopLoadFailedMessage')
-      : error
-      ? translate('shopStoreUnavailableMessage', { store: platformName })
-      : translate('shopEmptyMessage');
     return (
       <NoDataRetryView
-        message={message}
+        message={translate('shopLoadFailedMessage')}
         onRetry={refreshProducts}
         onEyePress={() => navigation.navigate(routes.MAIN as never)}
       />

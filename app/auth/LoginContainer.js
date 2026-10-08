@@ -302,16 +302,16 @@ export default function LoginContainer({ onLoginSuccess }) {
           console.log('[Google Login] 使用者取消登入，結束流程');
           return;
         }
-        const errorMsg = res?.message || res?.code || 'Google 登入失敗，請稍後再試';
-        console.error('[Google Login] 顯示錯誤訊息:', errorMsg);
-        showAlert('Google 登入錯誤', errorMsg);
+        // 原始錯誤只留 console；彈窗一律顯示內建翻譯（與 Facebook／Apple 一致）
+        console.error('[Google Login] 登入失敗原始訊息:', res?.message || res?.code);
+        showAlert(translate('socialLoginErrorTitle', { provider: 'Google' }), translate('socialLoginFailedMessage'));
         return;
       }
       
       // 檢查是否有有效的 idToken
       if (!res.idToken || res.idToken.length === 0) {
         console.error('[Google Login] 登入成功但沒有有效的 idToken');
-        showAlert('Google 登入錯誤', '未取得有效的登入憑證，請重試');
+        showAlert(translate('socialLoginErrorTitle', { provider: 'Google' }), translate('socialLoginTokenMissingMessage'));
         return;
       }
       
@@ -339,15 +339,14 @@ export default function LoginContainer({ onLoginSuccess }) {
           });
         } catch (tokenError) {
           console.error('[Google Login] 重新取得 tokens 失敗:', tokenError);
-          const errorMsg = tokenError?.message || String(tokenError) || '無法取得登入憑證';
-          showAlert('Google 登入錯誤', `無法取得登入憑證：${errorMsg}`);
+          showAlert(translate('socialLoginErrorTitle', { provider: 'Google' }), translate('socialLoginTokenMissingMessage'));
           return;
         }
       }
 
       if (!idToken || idToken.length === 0) {
         console.error('[Google Login] 最終 idToken 為空，無法繼續');
-        showAlert('Google 登入錯誤', '未取得 Google 登入憑證，請重試');
+        showAlert(translate('socialLoginErrorTitle', { provider: 'Google' }), translate('socialLoginTokenMissingMessage'));
         return;
       }
 
@@ -395,13 +394,12 @@ export default function LoginContainer({ onLoginSuccess }) {
           console.error('[Google Login] 後端返回的 accessToken 為空');
           console.error('[Google Login] 請檢查 console 中的 [Google Login API] 後端回應 日誌，查看具體錯誤訊息');
           console.error('[Google Login] ✅ 送往後端的 idToken:', idToken);
-          showAlert('Google 登入錯誤', '伺服器驗證失敗，請稍後再試');
+          showAlert(translate('socialLoginErrorTitle', { provider: 'Google' }), translate('socialLoginTokenMissingMessage'));
         }
       } catch (apiError) {
         console.error('[Google Login] 後端 API 調用失敗:', apiError);
-        const errorMsg = apiError?.message || '網路請求失敗，請檢查網路連線';
         console.error('[Google Login] ✅ 送往後端的 idToken:', idToken);
-        showAlert('Google 登入錯誤', errorMsg);
+        showAlert(translate('socialLoginErrorTitle', { provider: 'Google' }), translate('socialLoginFailedMessage'));
       }
     } catch (e) {
       // 所有錯誤都顯示 Alert
@@ -414,9 +412,8 @@ export default function LoginContainer({ onLoginSuccess }) {
       }
       
       // 其他錯誤都顯示
-      const errorMsg = e?.message || String(e) || 'Google 登入發生錯誤，請稍後再試';
       console.error('[Google Login] ✅ 送往後端的 idToken（若有）:', idToken);
-      showAlert('Google 登入錯誤', errorMsg);
+      showAlert(translate('socialLoginErrorTitle', { provider: 'Google' }), translate('socialLoginFailedMessage'));
     }
   };
 
@@ -533,8 +530,8 @@ export default function LoginContainer({ onLoginSuccess }) {
             console.error('[WeChat Login] ✅ 已取得的 code（用於換 token）:', code);
             console.error('[WeChat Login] ✅ 已取得的 accessToken（若有）:', tokenResult?.accessToken);
             showAlert(
-              "微信登入錯誤",
-              "Token 保存失敗，請重試。\n\n錯誤: " + (saveError?.message || String(saveError)),
+              translate("wechatLoginErrorTitle"),
+              translate("wechatLoginFailedMessage"),
               [{ text: translate("ok") }]
             );
           }
@@ -543,8 +540,8 @@ export default function LoginContainer({ onLoginSuccess }) {
           console.error('[WeChat Login] tokenResult 內容:', JSON.stringify(tokenResult, null, 2));
           console.error('[WeChat Login] ✅ 送往後端的 code:', code);
           showAlert(
-            "微信登入失敗",
-            "無法從伺服器取得登入憑證，請稍後再試。\n\n如果問題持續，請聯繫客服。",
+            translate("wechatLoginErrorTitle"),
+            translate("socialLoginTokenMissingMessage"),
             [{ text: translate("ok") }]
           );
         }
@@ -565,11 +562,10 @@ export default function LoginContainer({ onLoginSuccess }) {
         });
         console.error('[WeChat Login] ✅ 送往後端的 code（若有）:', code);
         
-        // 在 TestFlight 中顯示詳細錯誤信息
-        // 注意：這裡的 code 若未成功取得就可能是 null
+        // 詳細錯誤已記錄於上方 console.error；彈窗一律顯示內建翻譯
         showAlert(
-          "微信登入錯誤",
-          errorMessage + "\n\n如果問題持續，請聯繫客服。",
+          translate("wechatLoginErrorTitle"),
+          translate("wechatLoginFailedMessage"),
           [{ text: translate("ok") }]
         );
         return;
@@ -583,8 +579,8 @@ export default function LoginContainer({ onLoginSuccess }) {
       console.error('[WeChat Login] 發生未預期的錯誤:', e);
       console.error('[WeChat Login] ✅ 送往後端的 code（若有）:', code);
       showAlert(
-        "微信登入錯誤",
-        "發生未預期的錯誤: " + (e?.message ?? String(e)),
+        translate("wechatLoginErrorTitle"),
+        translate("wechatLoginFailedMessage"),
         [{ text: translate("ok") }]
       );
     }

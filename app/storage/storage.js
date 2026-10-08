@@ -12,7 +12,13 @@ const READING_KEY_PREFIXES = ['continueStory', 'finishStory'];
 
 // 登出時「不」清除的鍵前綴：閱讀紀錄，以及金幣紀錄用的訂單↔書籍對照
 // （對照表是購買當下才拿得到的事實，清掉就再也還原不了，見 storage/coinOrderBooks）。
-const PRESERVED_KEY_PREFIXES = [...READING_KEY_PREFIXES, 'coinOrderBooks'];
+// 語系（userLangCode / userLangManual）為裝置層級偏好，登出時同樣保留（見 auth/Storage）。
+const PRESERVED_KEY_PREFIXES = [
+  ...READING_KEY_PREFIXES,
+  'coinOrderBooks',
+  'userLangCode',
+  'userLangManual',
+];
 const ANON_ACCOUNT_ID = '__anon__';
 
 // 目前帳號 id 的記憶體快取：避免每次讀寫都打 SecureStore／profile。登出時由 resetAccountScope() 清除。
