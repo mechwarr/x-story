@@ -7,11 +7,12 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import { iapService } from '../services/iapService';
 import { fetchCurrentPlatformCatalog, buildBackendNameMap } from '../utils/iapCatalog';
+import { appStoreSkuToBackendProductId } from '../utils/iosIapSkuMapping';
 import type { IapReceipt } from '../config/shopApiClient';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
 import NoDataRetryView from '../components/NoDataRetryView';
-import { translate } from '../i18n/i18n';
+import { translate, coinCountLabel } from '../i18n/i18n';
 import { formatServerDateTime, toEpochMillis } from '../utils/datetime';
 
 type Purchase = {
@@ -22,7 +23,7 @@ type Purchase = {
   totalCoins: number;  // 總金幣數
   baseCoins: number;   // 基礎金幣
   bonusCoins: number;  // 贈送金幣
-  status: string;      // 狀態
+  status: ReceiptStatus | null; // 狀態（無法辨識為 null，不顯示）
 };
 
 // 格式化日期時間：後端 UTC 時間戳 → 裝置時區的 yyyy.MM.dd HH:mm（台北為 UTC+8）
@@ -33,14 +34,35 @@ function formatDateTime(isoString: string): string {
 /**
  * 依 productId 取得顯示名稱：優先用雙平台（App Store / Google Play）回傳的當地語系 title，
  * 平台尚未載入時退回後端金幣包名稱（同樣來自 API，非硬編碼），最後才退回 productId。
+ * 另一平台的收據（例如 Android 上看到 iOS 的 item_03）先換回後端 ID 再查金幣包名稱。
  */
 function resolveProductName(productId: string, backendNames: Record<string, string>): string {
   const platformName = iapService.getProductName(productId);
   if (platformName && platformName !== productId) {
     return platformName;
   }
-  return backendNames[String(productId ?? '').trim()] ?? productId;
+  const id = String(productId ?? '').trim();
+  return backendNames[id] ?? backendNames[appStoreSkuToBackendProductId(id)] ?? productId;
 }
+
+type ReceiptStatus = 'success' | 'refunded' | 'pending' | 'failed';
+
+/** 後端收據 status（SUCCESS／REFUNDED…）→ 顯示分類；無法辨識者回 null（不顯示狀態列） */
+function normalizeReceiptStatus(status: string): ReceiptStatus | null {
+  const s = String(status ?? '').trim().toUpperCase();
+  if (s === 'SUCCESS' || s === 'COMPLETED' || s === 'VERIFIED') return 'success';
+  if (s.startsWith('REFUND')) return 'refunded';
+  if (s === 'PENDING') return 'pending';
+  if (s === 'FAILED' || s === 'FAIL') return 'failed';
+  return null;
+}
+
+const STATUS_LABEL_KEYS: Record<ReceiptStatus, string> = {
+  success: 'transactionStatusSuccess',
+  refunded: 'transactionStatusRefunded',
+  pending: 'transactionStatusPending',
+  failed: 'transactionStatusFailed',
+};
 
 // 將 IAP 收據轉換為 UI 顯示格式（優先平台當地語系名稱，退回後端名稱）
 function convertReceiptToPurchase(receipt: IapReceipt, backendNames: Record<string, string>): Purchase {
@@ -56,7 +78,7 @@ function convertReceiptToPurchase(receipt: IapReceipt, backendNames: Record<stri
     totalCoins: receipt.totalCoins,
     baseCoins: receipt.baseCoins,
     bonusCoins: receipt.bonusCoins,
-    status: receipt.status,
+    status: normalizeReceiptStatus(receipt.status),
   };
 }
 
@@ -154,6 +176,25 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
               ) : null}
               <Row label={translate('transactionProductName')} value={p.productName} />
               <Row label={translate('transactionTime')} value={p.purchasedAt} />
+              {p.status ? (
+                <Row
+                  label={translate('transactionStatus')}
+                  value={translate(STATUS_LABEL_KEYS[p.status])}
+                  strong={p.status === 'refunded'}
+                  alert={p.status === 'refunded' || p.status === 'failed'}
+                />
+              ) : null}
+              {/* 已退款：註明扣回的金幣（儲值＋贈送），讓使用者能與代幣紀錄的退款流水對帳 */}
+              {p.status === 'refunded' && Number(p.totalCoins) > 0 ? (
+                <Row
+                  label={translate('refundedCoins')}
+                  value={
+                    Number(p.bonusCoins) > 0
+                      ? translate('refundedCoinsValue', { total: p.totalCoins, bonus: p.bonusCoins })
+                      : coinCountLabel(Number(p.totalCoins))
+                  }
+                />
+              ) : null}
             </View>
           ))}
         </ScrollView>
@@ -162,12 +203,12 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
   );
 }
 
-function Row({ label, value, strong, mono, fit }: { label: string; value: string; strong?: boolean; mono?: boolean; fit?: boolean }) {
+function Row({ label, value, strong, mono, fit, alert }: { label: string; value: string; strong?: boolean; mono?: boolean; fit?: boolean; alert?: boolean }) {
   return (
     <View style={rowStyles.row}>
       <Text style={rowStyles.label}>{label}</Text>
       <Text
-        style={[rowStyles.value, strong && rowStyles.strong, mono && rowStyles.mono]}
+        style={[rowStyles.value, strong && rowStyles.strong, mono && rowStyles.mono, alert && rowStyles.alert]}
         // fit：單行不換行，過長時自動縮小字體以完整顯示（不使用省略號截斷）
         numberOfLines={fit ? 1 : 2}
         adjustsFontSizeToFit={fit}
@@ -214,5 +255,6 @@ const rowStyles = StyleSheet.create({
   label: { color: '#9aa3ad', width: 110, fontSize: 13 },
   value: { color: '#ffffff', flex: 1, fontSize: 15 },
   strong: { fontWeight: '800' },
+  alert: { color: '#f0ad57' },
   mono: { fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }) as any },
 });

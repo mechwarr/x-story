@@ -21,6 +21,8 @@ import { getCoinOrderBookMap, recordCoinOrderBooks } from '../storage/coinOrderB
 import { useCoins } from '../store/coinContext';
 import { iapService } from '../services/iapService';
 import { fetchCurrentPlatformCatalog, buildBackendNameMap } from '../utils/iapCatalog';
+import { appStoreSkuToBackendProductId } from '../utils/iosIapSkuMapping';
+import type { IapReceipt } from '../config/shopApiClient';
 import useResponsive from '../hook/useResponsive';
 import NoDataRetryView from '../components/NoDataRetryView';
 import { translate } from '../i18n/i18n';
@@ -176,13 +178,60 @@ function resolveBookNames(
 /**
  * 依 productId 取得顯示名稱：優先用雙平台（App Store / Google Play）回傳的當地語系 title，
  * 平台尚未載入時退回後端金幣包名稱（同樣來自 API，非硬編碼），最後才退回 productId。
+ * 另一平台的紀錄（例如 Android 上看到 iOS 的 item_03）先換回後端 ID 再查金幣包名稱，
+ * 避免畫面直接印出 SKU 代碼。
  */
 function resolveProductName(productId: string, backendNames: Record<string, string>): string {
   const platformName = iapService.getProductName(productId);
   if (platformName && platformName !== productId) {
     return platformName;
   }
-  return backendNames[String(productId ?? '').trim()] ?? productId;
+  const id = String(productId ?? '').trim();
+  return backendNames[id] ?? backendNames[appStoreSkuToBackendProductId(id)] ?? productId;
+}
+
+/** IAP 單號 → 原儲值商品與贈送金幣，供退款流水顯示「退的是哪個金幣包、含多少 BONUS」 */
+type PurchaseOrderInfo = { productId?: string; bonusCoins?: number };
+
+/**
+ * 建立 IAP 單號對照：收據（api/me/iap-receipts）為主，帳本自己的儲值流水為備援。
+ * 退款流水只帶單號，若只靠收據這一條路，收據取不到或不在清單中時就只剩單號可顯示；
+ * 帳本的「ORDER:x|PROD:y」(IAP) 與「ORDER:x|PROD:y_BONUS」(IAP_BONUS) 一樣對得出商品與贈送金幣。
+ */
+function buildPurchaseOrderInfo(
+  receipts: IapReceipt[],
+  logs: CoinLedgerItem[]
+): Map<string, PurchaseOrderInfo> {
+  const map = new Map<string, PurchaseOrderInfo>();
+  // 先寫入者優先（收據 > 帳本），後來者只補缺的欄位
+  const merge = (orderId: string | undefined, info: PurchaseOrderInfo) => {
+    const key = String(orderId ?? '').trim();
+    if (!key) return;
+    const prev = map.get(key) ?? {};
+    map.set(key, {
+      productId: prev.productId || info.productId || undefined,
+      bonusCoins: prev.bonusCoins ?? info.bonusCoins,
+    });
+  };
+
+  for (const r of receipts) {
+    const bonus = Number(r?.bonusCoins);
+    merge(r?.receiptId, {
+      productId: String(r?.productId ?? '').trim(),
+      bonusCoins: Number.isFinite(bonus) ? bonus : undefined,
+    });
+  }
+  for (const log of logs) {
+    if (log.type !== 'IAP' && log.type !== 'IAP_BONUS') continue;
+    const source = String(log.source ?? '');
+    const orderId = source.match(/ORDER:\s*([^\s|]+)/i)?.[1];
+    const prod = source.match(/PROD:\s*([^|\s]+)/i)?.[1]?.replace(/_BONUS$/i, '');
+    merge(orderId, {
+      productId: prod,
+      bonusCoins: log.type === 'IAP_BONUS' ? Math.abs(Number(log.amount) || 0) : undefined,
+    });
+  }
+  return map;
 }
 
 /**
@@ -225,7 +274,7 @@ function parseRefundReceiptId(log: CoinLedgerItem): string | null {
 }
 
 /**
- * 決定一筆帳務紀錄要顯示的標題與備註。
+ * 決定一筆帳務紀錄要顯示的標題、補充說明與備註。
  * 原則：標題一律走 i18n 或商品／書名，絕不把後端的系統字串（ADMIN_GRANT、
  * ACTIVITY:PROFILE_COMPLETED…）直接印到畫面；備註只顯示收據編號，書籍解鎖不顯示。
  */
@@ -233,8 +282,8 @@ function describeLedgerRow(
   log: CoinLedgerItem,
   backendNames: Record<string, string>,
   bookName: string | undefined,
-  receiptProducts: Map<string, string>
-): { title: string; note: string } {
+  orderInfo: Map<string, PurchaseOrderInfo>
+): { title: string; note: string; detail?: string } {
   const { line1, line2 } = parseSourceDisplay(log.source ?? '', backendNames);
 
   // 書籍解鎖：顯示「書名 - 解鎖」，不顯示 ORDER 編號
@@ -251,14 +300,18 @@ function describeLedgerRow(
     return { title: translate(ACTIVITY_LABEL_KEYS[code] ?? 'coinTypeActivityReward'), note: '' };
   }
 
-  // 後台退款：對標 CMS 的「ORDER:{receiptId}|{商品名稱}」，以收據對照出原儲值商品；
-  // 對不到收據（收據取不到或不在清單中）時退回單純的「退款」
+  // 後台退款：顯示「金幣包名稱 - 退款」與「含 BONUS N 金幣」，讓使用者能對帳（扣回的是儲值＋贈送）。
+  // 商品依序取 收據／帳本同單號的儲值流水 → 退款流水自帶的 PROD；都對不到才只顯示「退款」
   const refundReceiptId = parseRefundReceiptId(log);
   if (refundReceiptId) {
-    const productId = receiptProducts.get(refundReceiptId);
+    const info = orderInfo.get(refundReceiptId);
+    const sourceProd = String(log.source ?? '').match(/PROD:\s*([^|\s]+)/i)?.[1];
+    const productId = info?.productId || sourceProd;
+    const bonus = Number(info?.bonusCoins) || 0;
     const refundLabel = translate('coinTypeRefund');
     return {
       title: productId ? `${resolveProductName(productId, backendNames)} - ${refundLabel}` : refundLabel,
+      detail: bonus > 0 ? translate('coinRefundIncludesBonus', { bonus }) : '',
       note: `ORDER:${refundReceiptId}`,
     };
   }
@@ -288,8 +341,8 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
   const [orderBookMap, setOrderBookMap] = useState<Record<string, number>>({});
   // storyListId → 書名／定價（書店清單），供顯示備援與價格約束
   const [bookCatalog, setBookCatalog] = useState<Map<number, BookCatalogEntry>>(new Map());
-  // IAP 收據單號 → productId，供後台退款流水對照出原儲值商品名稱
-  const [receiptProducts, setReceiptProducts] = useState<Map<string, string>>(new Map());
+  // IAP 收據，供後台退款流水對照出原儲值商品與贈送金幣
+  const [receipts, setReceipts] = useState<IapReceipt[]>([]);
   const [loading, setLoading] = useState(true);
   // loadFailed：帳務紀錄本身取不到 → 整頁改為「沒有資料」狀態（說明 + 重試）
   const [loadFailed, setLoadFailed] = useState(false);
@@ -301,6 +354,9 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
     () => resolveBookNames(logs, entitlements, orderBookMap, bookCatalog),
     [logs, entitlements, orderBookMap, bookCatalog]
   );
+
+  // IAP 單號 → 原儲值商品／贈送金幣（收據為主、帳本儲值流水為備援）
+  const orderInfo = useMemo(() => buildPurchaseOrderInfo(receipts, logs), [receipts, logs]);
 
   // Layer 4：把這次推導出的結果固化回本機對照表，舊紀錄算過一次就定案，
   // 不會因為之後又買了新書或後台改價而在畫面上跳動。
@@ -328,8 +384,8 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
       // 並抓齊所有頁（getAllEntitlements 以後端 total 翻頁），讓較早的帳務紀錄也對得到書。
       // 書店清單提供每本書的定價，是推導配對時的價格硬約束；本機對照表則是購買當下記下的事實。
       // 書店清單與本機對照表只是「讓書名更準」的輔助，取不到也要能顯示帳務紀錄，故各自吞錯
-      // IAP 收據只用來替退款流水補上商品名稱，取不到就退回「退款」，同樣吞錯
-      const [logsRes, entitlementsRes, bookstore, savedOrderBooks, receipts] = await Promise.all([
+      // IAP 收據只用來替退款流水補上商品名稱與 BONUS，取不到時改由帳本儲值流水對照，同樣吞錯
+      const [logsRes, entitlementsRes, bookstore, savedOrderBooks, receiptsRes] = await Promise.all([
         getCoinLedger(),
         getAllEntitlements(),
         // 取不到（回 null）就當空清單：這裡書店清單只是配對書名的輔助，帳務紀錄照常顯示
@@ -338,13 +394,7 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
         iapService.getIapReceipts().catch(() => []),
       ]);
 
-      const productByReceipt = new Map<string, string>();
-      for (const r of receipts) {
-        const receiptId = String(r?.receiptId ?? '').trim();
-        const productId = String(r?.productId ?? '').trim();
-        if (receiptId && productId) productByReceipt.set(receiptId, productId);
-      }
-      setReceiptProducts(productByReceipt);
+      setReceipts(receiptsRes);
 
       const catalogByStoryId = new Map<number, BookCatalogEntry>();
       for (const item of bookstore) {
@@ -423,11 +473,11 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
             <Text style={styles.emptyText}>{translate('coinHistoryEmpty')}</Text>
           ) : (
             logs.map((log) => {
-              const { title: rowTitle, note: rowNote } = describeLedgerRow(
+              const { title: rowTitle, note: rowNote, detail: rowDetail } = describeLedgerRow(
                 log,
                 backendNames,
                 bookNames.get(log.id),
-                receiptProducts
+                orderInfo
               );
               return (
               <View key={log.id} style={styles.row}>
@@ -436,6 +486,9 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
                     <Text style={[styles.rowTitle, { fontSize: ms(15) }]}>
                       {rowTitle}
                     </Text>
+                  ) : null}
+                  {rowDetail ? (
+                    <Text style={[styles.detail, { fontSize: ms(13) }]}>{rowDetail}</Text>
                   ) : null}
                   {rowNote ? (
                     <Text style={[styles.note, { fontSize: ms(13) }]} numberOfLines={1} ellipsizeMode="middle">
@@ -484,6 +537,7 @@ const styles = StyleSheet.create({
   left: { flexShrink: 1, paddingRight: 8 },
   rowTitle: { color: '#e7eef6', fontSize: 15, fontWeight: '700', marginBottom: 2 },
   note: { color: '#ffffff', opacity: 0.85, fontSize: 13, fontWeight: '700' },
+  detail: { color: '#e7eef6', fontSize: 13, marginBottom: 2 },
   date: { color: '#a6afba', fontSize: 12, marginTop: 6 },
 
   right: { flexDirection: 'row', alignItems: 'center', gap: 6 },

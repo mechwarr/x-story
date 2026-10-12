@@ -879,6 +879,46 @@
         "zh-CN": "交易时间",
         "en": "Time"
     },
+    "transactionStatus": {
+        "zh-TW": "交易狀態",
+        "zh-CN": "交易状态",
+        "en": "Status"
+    },
+    "transactionStatusSuccess": {
+        "zh-TW": "交易完成",
+        "zh-CN": "交易完成",
+        "en": "Completed"
+    },
+    "transactionStatusRefunded": {
+        "zh-TW": "已退款",
+        "zh-CN": "已退款",
+        "en": "Refunded"
+    },
+    "transactionStatusPending": {
+        "zh-TW": "處理中",
+        "zh-CN": "处理中",
+        "en": "Pending"
+    },
+    "transactionStatusFailed": {
+        "zh-TW": "交易失敗",
+        "zh-CN": "交易失败",
+        "en": "Failed"
+    },
+    "refundedCoins": {
+        "zh-TW": "扣回金幣",
+        "zh-CN": "扣回金币",
+        "en": "Coins Deducted"
+    },
+    "refundedCoinsValue": {
+        "zh-TW": "{total} 金幣（含 BONUS {bonus}）",
+        "zh-CN": "{total} 金币（含 BONUS {bonus}）",
+        "en": "{total} coins (incl. {bonus} bonus)"
+    },
+    "coinRefundIncludesBonus": {
+        "zh-TW": "含 BONUS {bonus} 金幣",
+        "zh-CN": "含 BONUS {bonus} 金币",
+        "en": "Includes {bonus} bonus coins"
+    },
     "shopTitle": {
         "zh-TW": "商城",
         "zh-CN": "商城",
