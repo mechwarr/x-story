@@ -13,6 +13,8 @@ import colors from '../config/colors';
 import storage from '../storage/storage';
 import { bookDataBaseUrl } from '../config/apiClient';
 import { resolveOwnedStoryIds } from '../services/bookAccessService';
+import { getBookstoreList, getEffectiveRoleLevel } from '../config/userApiClient';
+import { canViewUnlisted } from '../config/roles';
 import { translate, pickConfigByLang } from '../i18n/i18n';
 import { compareBookByOrder } from '../utils/bookOrder';
 
@@ -22,6 +24,7 @@ const url = bookDataBaseUrl;
 // 「我的書籍」：以伺服器 entitlements（resolveOwnedStoryIds）為權威來源，
 // 取出使用者實際持有的書，並與 story-list（含完整 storyData）交集後呈現。
 // 呈現「所有購買過的書」，不依語系過濾——各語言版本皆會顯示，方便用戶查找。
+// 已下架／刪除的書不顯示（需求：下架＝用戶看不到），role>=5 預覽者例外，與「繼續觀看」一致。
 // 排版與「繼續觀看」一致（2 欄 Book 網格）；點擊沿用 Book 一般變體邏輯，
 // 開啟與大廳相同的簡介彈窗（樣式來自 menu-foolproof、字樣依語系挑列）。
 function MyBooksScreen() {
@@ -38,14 +41,32 @@ function MyBooksScreen() {
   const [menuFoolproofConfig, setMenuFoolproofConfig] = useState({});
   const [nochapter, setNochapter] = useState([]);
   const [storyCache, setStoryCache] = useState(null);
+  // 在架判定用：roleLevel（role>=5 可見下架書）＋ 目前在架書籍 ID 集合。
+  // onShelfIds 為 null 代表書店清單取不到（狀態未知）→ 不過濾，避免網路失敗就把書櫃清空。
+  const [shelf, setShelf] = useState({ roleLevel: null, onShelfIds: null });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         // 權威持有清單（自動翻頁、bypassCache；線上失敗時退回本地快取並標記為「未知」）。
-        const { ids: owned, authoritative } = await resolveOwnedStoryIds();
+        const [{ ids: owned, authoritative }, roleLevel, bookstoreList] = await Promise.all([
+          resolveOwnedStoryIds(),
+          getEffectiveRoleLevel(),
+          getBookstoreList(),
+        ]);
         setOwnedIds(owned);
         setOwnedUnknown(!authoritative);
+        // 後台下架／刪除後，公開書店清單不再回傳該書（或回傳 isActive=false）。
+        setShelf({
+          roleLevel,
+          onShelfIds: Array.isArray(bookstoreList)
+            ? new Set(
+                bookstoreList
+                  .filter((b) => b?.isActive !== false)
+                  .map((b) => Number(b?.storyListId))
+              )
+            : null,
+        });
 
         // story-list 公開 API：含每本書完整 storyData（main_menu_* / open / chapter_type / lang），
         // 供簡介彈窗與排版，與大廳同源。取不到時同樣標記為「未知」——持有清單查得到、
@@ -87,12 +108,17 @@ function MyBooksScreen() {
   // 方便用戶查找所有購買過的語言版本（各語言版本為各自獨立的 story，非重複資料）。
   // 排序依後端 order（"001"、"002"…）；本頁不依語系過濾，同一 order 必然撞號
   //（001繁 / 001简 / 001En），故次要排序為 繁體 → 簡體 → 英文，讓同一本書的各語言版本相鄰。
+  // 在架過濾：role<5 只顯示仍在架的書；role>=5 全部可見；書店清單取不到時不過濾。
   const myBooks = useMemo(() => {
     const ownedSet = new Set((ownedIds || []).map(Number));
+    const canSeeUnlisted = canViewUnlisted(shelf.roleLevel);
     return (storyList || [])
       .filter((b) => ownedSet.has(Number(b?.id)))
+      .filter(
+        (b) => canSeeUnlisted || !shelf.onShelfIds || shelf.onShelfIds.has(Number(b?.id))
+      )
       .sort(compareBookByOrder);
-  }, [ownedIds, storyList]);
+  }, [ownedIds, storyList, shelf]);
 
   return (
     <Screen>
