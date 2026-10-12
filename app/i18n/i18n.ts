@@ -70,6 +70,15 @@ export const matchesCurrentStoryLang = (rawLang?: string | null): boolean => {
   return normalizeStoryLang(rawLang) === normalizeLang(currentLang);
 };
 
+// 判斷某筆章節／角色資料的 lang 是否屬於「這本書」的語系（兩邊都正規化成語言碼後比較）。
+// 書「內」的資料要跟著書本身的語言走，不是 App 目前語系：書櫃會列出所有語言的已購書，
+// 若以 App 語系過濾，跨語言的書其章節／角色會被整批濾掉（章節頁空白、角色頭像名稱消失）。
+// 書的 lang 缺漏時（舊存檔／未帶 storyData 的入口）退回 App 語系，維持原本行為。
+export const matchesBookLang = (rawLang?: string | null, bookLang?: string | null): boolean => {
+  if (bookLang == null || String(bookLang).trim() === '') return matchesCurrentStoryLang(rawLang);
+  return normalizeStoryLang(rawLang) === normalizeStoryLang(bookLang);
+};
+
 // 從「多語系參數表」（後端各支參數 API 皆回傳全部語系的資料列）中，
 // 挑出與目前 App 語系相符的那一筆設定。
 // 後端 list API（menu / setup-chapter / setup-story-list / setup-story-role / *-foolproof）

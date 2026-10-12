@@ -9,7 +9,7 @@
 import axios from 'axios';
 import apiclient from '../config/apiClient';
 import storage from '../storage/storage';
-import { matchesCurrentStoryLang } from '../i18n/i18n';
+import { matchesBookLang } from '../i18n/i18n';
 import { sortChaptersByOrder, sortScreeningsByOrder } from '../utils/chapterOrder';
 
 // 與 StoryScreen 的 isStoryEnd 同一定義：order 為 '999999' 或空白＝整本結束哨符。
@@ -18,10 +18,11 @@ const isStoryEnd = (item) => {
   return o === '' || o === '999999';
 };
 
-const fetchChapterList = async (storyId) => {
+// 章節依「這本書」的語系過濾（非 App 語系），跨語言的已購書才取得到章節。
+const fetchChapterList = async (storyId, bookLang) => {
   const res = await axios.get(apiclient.currentBaseUrl() + `api/v1/admin/chapter/${storyId}`);
   return sortChaptersByOrder(
-    (Array.isArray(res?.data) ? res.data : []).filter((c) => matchesCurrentStoryLang(c?.lang))
+    (Array.isArray(res?.data) ? res.data : []).filter((c) => matchesBookLang(c?.lang, bookLang))
   );
 };
 
@@ -72,7 +73,7 @@ export const resolveStartReadingParams = async ({
   let chapters = [];
   if (isChapterBook) {
     try {
-      chapters = await fetchChapterList(storyId);
+      chapters = await fetchChapterList(storyId, storyData?.lang);
     } catch (e) {
       console.warn('[startReading] 章節清單取不到:', e?.message ?? e);
     }

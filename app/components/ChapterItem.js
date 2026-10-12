@@ -19,7 +19,7 @@ import apiclient from '../config/apiClient';
 import { useGuardedNavigate } from '../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins } from '../config/userApiClient';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
-import { translate, matchesCurrentStoryLang, coinCountLabel } from '../i18n/i18n';
+import { translate, matchesBookLang, coinCountLabel } from '../i18n/i18n';
 import colors from '../config/colors';
 import storage from '../storage/storage';
 import { recordCoinOrderBook } from '../storage/coinOrderBooks';
@@ -241,9 +241,10 @@ const ChapterItem = (props) => {
     }
   };
 
-  // 只顯示與 App 啟動語系相符的章節（取代原本寫死的「繁體中文」）
+  // 只顯示與「這本書」語系相符的章節（取代原本寫死的「繁體中文」）。
+  // 依書的語系而非 App 語系：書櫃可開啟其他語言的已購書，用 App 語系會把章節全部濾掉成空白頁。
   // 用正規化比對，避免後端 lang 欄位簡繁字形/文案差異造成比對失敗
-  if (!matchesCurrentStoryLang(lang)) return null;
+  if (!matchesBookLang(lang, storyData?.lang)) return null;
   return (
     <>
       <Pressable

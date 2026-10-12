@@ -31,7 +31,7 @@ import { purchaseStoryWithCoins, recordBookRead, getEffectiveRoleLevel } from '.
 import { canSwitchScreening, canPreviewAll } from '../config/roles';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
 import { useCoins } from '../store/coinContext';
-import { translate, matchesCurrentStoryLang, getCurrentLang, pickConfigByLang, coinCountLabel } from '../i18n/i18n';
+import { translate, matchesBookLang, getCurrentLang, pickConfigByLang, coinCountLabel } from '../i18n/i18n';
 import { syncPurchasedStoryIds, resolveOwnedStoryIds, canAccessChapter } from '../services/bookAccessService';
 import mediaPlayer from '../services/mediaPlayer';
 import useResponsive from '../hook/useResponsive';
@@ -265,7 +265,7 @@ function StoryScreen({ route }) {
 
   const screeningList = Array.isArray(queryInfo.screenings) ? queryInfo.screenings : [];
 
-  // 章節清單（與章節選單同一來源、同樣以目前語系過濾並維持相同排序），
+  // 章節清單（與章節選單同一來源、同樣以本書語系過濾並維持相同排序），
   // 供「本章播畢自動接續下一章」判斷下一章 id 與其試閱設定使用。
   // 用 ref 保存最新清單：避免把它列入「播畢判斷 effect」的依賴，否則清單於閱讀途中
   // 載入完成會觸發 effect 重跑、重抓當前場次並清空畫面（setStory([])）造成閃動。
@@ -280,7 +280,7 @@ function StoryScreen({ route }) {
         // 與章節頁同一套順序（依 order），getNextChapter 的「下一章」才會與畫面一致。
         const list = sortChaptersByOrder(
           (Array.isArray(res?.data) ? res.data : []).filter((c) =>
-            matchesCurrentStoryLang(c?.lang)
+            matchesBookLang(c?.lang, storyData?.lang)
           )
         );
         if (mounted) chapterListRef.current = list;
@@ -289,7 +289,7 @@ function StoryScreen({ route }) {
       }
     })();
     return () => { mounted = false; };
-  }, [storyId]);
+  }, [storyId, storyData?.lang]);
 
   // 依目前 chapterId 在（語系過濾後的）章節清單中找出下一章；沒有則回傳 null（代表整本已讀完）。
   const getNextChapter = useCallback(() => {
@@ -1386,9 +1386,10 @@ function StoryScreen({ route }) {
 
         // admin/role 為「全站」角色清單（跨所有故事與語系），若直接交給 Chat 以 role_name 比對，
         // 同名角色（如「警察」在多本故事都有）會誤抓到別本故事的那一隻（頭像／性別／簡介全錯）。
-        // 故此處先過濾成「本故事(storyid) + 目前語系(lang)」，再交下游比對。
+        // 故此處先過濾成「本故事(storyid) + 本書語系(lang)」，再交下游比對。
+        // 依書的語系而非 App 語系：從書櫃開啟其他語言的已購書時，App 語系會把角色全部濾掉。
         const roleList = (Array.isArray(role?.data) ? role.data : []).filter(
-          (r) => Number(r?.storyid) === Number(storyId) && matchesCurrentStoryLang(r?.lang)
+          (r) => Number(r?.storyid) === Number(storyId) && matchesBookLang(r?.lang, storyData?.lang)
         );
 
         // 依目前語系挑出相符的 setup-story-list / setup-story-role 參數列
