@@ -146,8 +146,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         fontSize: 16,
         color: "white",
-        // 與 ResetPasswordScreen 兩個密碼欄的間距一致（第二欄 marginTop: 12）
-        marginBottom: 12,
+        marginBottom: 15,
     },
     loginButton: {
         width: "100%",

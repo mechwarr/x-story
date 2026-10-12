@@ -68,6 +68,28 @@ function formatDateLocal(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * 判斷領取獎勵失敗是否屬於「已領取過」這一類。
+ * 來源有兩種：success:false 時的後端 message，或非 2xx 時 api.ts 拋出的「HTTP 狀態碼: 原始回應」。
+ * 後者的回應若是 JSON，中文可能被跳脫成 \uXXXX，故先解析取出 message 再比對；
+ * 409 Conflict 為「重複請求」的標準狀態碼，一併視為已領取。
+ */
+function isRewardAlreadyClaimedError(rawMessage?: string | null): boolean {
+  const text = String(rawMessage ?? '');
+  let haystack = text;
+  const http = text.match(/^HTTP (\d+):\s*([\s\S]*)$/);
+  if (http) {
+    if (http[1] === '409') return true;
+    try {
+      const body = JSON.parse(http[2]);
+      haystack = `${body?.message ?? ''} ${body?.error ?? ''} ${text}`;
+    } catch {
+      // 回應不是 JSON：直接比對原始字串
+    }
+  }
+  return /已領|已领|重複領|重复领|已經領|已经领|already|duplicate/i.test(haystack);
+}
+
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const { coins, refreshCoins } = useCoins();
@@ -330,11 +352,10 @@ export default function ProfileScreen() {
     }
   };
 
-  // 領取獎勵失敗彈窗：後端回「已領取過」→ 專用標題／內文；其餘一律內建通用文案
-  // （後端訊息僅有繁中、無多語系，只留 console 供除錯，不直接顯示給使用者）
+  // 領取獎勵失敗彈窗：後端回「已領取過」或類似的錯誤 → 專用標題／內文（您已領取過此活動獎勵）；
+  // 其餘一律內建通用文案（後端訊息僅有繁中、無多語系，只留 console 供除錯，不直接顯示給使用者）
   const showRewardClaimFailedAlert = (rawMessage?: string | null) => {
-    const alreadyClaimed = /已領取|已领取|already/i.test(rawMessage ?? '');
-    if (alreadyClaimed) {
+    if (isRewardAlreadyClaimedError(rawMessage)) {
       showAlert(translate('profileRewardAlreadyClaimedTitle'), translate('profileRewardAlreadyClaimedMessage'));
       return;
     }

@@ -151,7 +151,8 @@ export function ResetPasswordScreen({ token, onCancel, onSuccess }: Props) {
             </View>
 
             {/* 再次輸入新密碼 */}
-            <View style={[styles.inputRow, { marginTop: 12, marginBottom: 10 }]}>
+            {/* 兩欄間距與 Email 登入頁（XStoryLogin）一致：Email 欄 marginBottom 15 */}
+            <View style={[styles.inputRow, { marginTop: 15, marginBottom: 10 }]}>
                 <TextInput
                     style={styles.input}
                     placeholder={translate("confirmPassword")}
