@@ -32,7 +32,7 @@ import { canSwitchScreening, canPreviewAll } from '../config/roles';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../config/idempotencyKeyCache';
 import { useCoins } from '../store/coinContext';
 import { translate, matchesBookLang, getCurrentLang, pickConfigByLang, coinCountLabel } from '../i18n/i18n';
-import { syncPurchasedStoryIds, resolveOwnedStoryIds, canAccessChapter } from '../services/bookAccessService';
+import { syncPurchasedStoryIds, resolveBookOwnership, canAccessChapter } from '../services/bookAccessService';
 import mediaPlayer from '../services/mediaPlayer';
 import useResponsive from '../hook/useResponsive';
 import { sortChaptersByOrder, sortScreeningsByOrder } from '../utils/chapterOrder';
@@ -809,8 +809,8 @@ function StoryScreen({ route }) {
   // 避免一開始就未持有（正在試閱）者被誤跳。
   const wasOwnedRef = useRef(false);
   const verifyOwnership = useCallback(async () => {
-    const { ids, authoritative } = await resolveOwnedStoryIds();
-    const ownedByList = ids.includes(Number(storyId));
+    // 權威結果為「未持有」時 resolveBookOwnership 會再確認一次，避免單次誤判就把已購者鎖住。
+    const { ids, authoritative, owned: ownedByList } = await resolveBookOwnership(storyId);
     // 持有狀態「未知」（entitlements 取不到：離線／逾時／非 2xx）時不把已知的「已持有」
     // 降級成未持有——否則一次網路失敗就會把已購買者當成試閱者：場次被 read_range_end 截斷、
     // 存檔落點被夾回試閱範圍尾，並跳出購買覆蓋層。

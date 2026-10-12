@@ -1,7 +1,5 @@
 import storage from '../storage/storage';
-import { getEntitlements, invalidateEntitlementsCache } from '../config/userApiClient';
-
-const ENTITLEMENTS_PAGE_SIZE = 100;
+import { getAllEntitlements, invalidateEntitlementsCache } from '../config/userApiClient';
 
 const normalizeStoryId = (value) => Number(value);
 
@@ -15,35 +13,21 @@ const uniqueIds = (ids) =>
   );
 
 async function fetchAllEntitlementStoryIds() {
-  const storyIds = [];
-  let page = 1;
-  let total = 0;
-
   await invalidateEntitlementsCache();
 
-  while (true) {
-    const res = await getEntitlements(page, ENTITLEMENTS_PAGE_SIZE, { bypassCache: true });
-    // 取不到（網路異常／逾時／非 2xx／格式不正確）：getEntitlements 一律回空清單並標記 failed。
-    // 這裡必須拋出，讓呼叫端的 catch 走「未知」分支（退回本地快取／fail-open）；
-    // 否則「取不到」會被當成「一本都沒買」，付費書全部被判未持有而遭閘門誤擋。
-    if (res?.failed) {
-      throw new Error('entitlements 取得失敗（狀態未知）');
-    }
-    const items = Array.isArray(res?.items) ? res.items : [];
-    for (const item of items) {
-      if (item?.storyListId !== undefined) {
-        storyIds.push(item.storyListId);
-      }
-    }
-
-    total = Number(res?.total ?? total ?? 0);
-    if (items.length === 0) break;
-    if (total > 0 && storyIds.length >= total) break;
-    if (items.length < ENTITLEMENTS_PAGE_SIZE) break;
-    page += 1;
+  // 翻頁交給 getAllEntitlements（以後端 total 判斷是否還有下一頁，不受後端每頁上限影響）。
+  const { items, failed, total, pages } = await getAllEntitlements();
+  // 取不到（網路異常／逾時／非 2xx／格式不正確／清單不完整）：必須拋出，讓呼叫端的 catch 走
+  // 「未知」分支（退回本地快取／fail-open）；否則「取不到」會被當成「一本都沒買」，
+  // 付費書全部被判未持有而遭閘門誤擋。
+  if (failed) {
+    throw new Error('entitlements 取得失敗（狀態未知）');
   }
-
-  return uniqueIds(storyIds);
+  const ids = uniqueIds(
+    items.filter((item) => item?.storyListId !== undefined).map((item) => item.storyListId)
+  );
+  console.log('[bookAccessService] 權威持有清單 →', { count: ids.length, total, pages });
+  return ids;
 }
 
 export async function syncPurchasedStoryIds() {
@@ -97,4 +81,20 @@ export async function resolveOwnedStoryIds() {
     console.warn('[bookAccessService] 取得權威持有清單失敗，退回本地快取（狀態未知）:', error);
     return { ids: uniqueIds(await storage.getLocalPurchasedStoryIds()), authoritative: false };
   }
+}
+
+/**
+ * 確認「單一本書」的持有狀態（閱讀閘門用）。權威結果為「未持有」時再查一次才採信：
+ * 「未持有」會把付費用戶擋在門外（跳授權失效、閱讀中上鎖），代價遠高於多一次請求，
+ * 故排除後端剛寫入／短暫不一致造成的單次誤判。
+ * 回傳 { owned, ids, authoritative }，ids／authoritative 語意同 resolveOwnedStoryIds。
+ */
+export async function resolveBookOwnership(storyId) {
+  const id = normalizeStoryId(storyId);
+  let result = await resolveOwnedStoryIds();
+  if (result.authoritative && !result.ids.includes(id)) {
+    console.warn('[bookAccessService] 權威清單未含此書，再確認一次：', id);
+    result = await resolveOwnedStoryIds();
+  }
+  return { ...result, owned: result.ids.includes(id) };
 }

@@ -12,7 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 
 import {
   getCoinLedger,
-  getEntitlements,
+  getAllEntitlements,
   getBookstoreList,
   CoinLedgerItem,
   BookEntitlementItem,
@@ -54,10 +54,6 @@ const ACTIVITY_LABEL_KEYS: Record<string, string> = {
  * 後端沒有專屬的退款 type，只能靠這個前綴辨識；CMS 改文案時只需改這裡。
  */
 const REFUND_SOURCE_RE = /^\s*\[系統退款\]\s*ORDER:\s*([^\s|]+)/;
-
-/** 已購書籍分頁抓取設定（上限 5 頁，避免書量極大時拖慢畫面） */
-const ENTITLEMENTS_PAGE_SIZE = 100;
-const ENTITLEMENTS_MAX_PAGES = 5;
 
 /** 書籍基本資料（storyListId → 書名／定價），來源為書店清單，供顯示與價格約束使用 */
 export type BookCatalogEntry = { name: string | null; priceCoins: number | null };
@@ -329,13 +325,13 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
       }
 
       // entitlements 需為最新（剛買的書若吃到 5 分鐘快取就配不到書名），
-      // 並補抓後續頁數，讓較早的帳務紀錄也對得到書。
+      // 並抓齊所有頁（getAllEntitlements 以後端 total 翻頁），讓較早的帳務紀錄也對得到書。
       // 書店清單提供每本書的定價，是推導配對時的價格硬約束；本機對照表則是購買當下記下的事實。
       // 書店清單與本機對照表只是「讓書名更準」的輔助，取不到也要能顯示帳務紀錄，故各自吞錯
       // IAP 收據只用來替退款流水補上商品名稱，取不到就退回「退款」，同樣吞錯
       const [logsRes, entitlementsRes, bookstore, savedOrderBooks, receipts] = await Promise.all([
         getCoinLedger(),
-        getEntitlements(1, ENTITLEMENTS_PAGE_SIZE, { bypassCache: true }),
+        getAllEntitlements(),
         // 取不到（回 null）就當空清單：這裡書店清單只是配對書名的輔助，帳務紀錄照常顯示
         getBookstoreList().then((list) => list ?? []),
         getCoinOrderBookMap().catch(() => ({})),
@@ -366,24 +362,12 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
       // entitlements 取不到（failed）≠ 沒買過任何書：兩者都回空清單，但前者只是這次查不到。
       // 帳務紀錄本身照常顯示（書名配對是輔助），故不擋畫面，只在上方掛一則說明，
       // 讓「書名變成訂單編號」有原因可循，而不是看起來像資料錯亂。
-      let entitlementsIncomplete = Boolean(entitlementsRes.failed);
-      const allEntitlements = [...(entitlementsRes.items ?? [])];
-      const total = Number(entitlementsRes.total ?? allEntitlements.length);
-      const totalPages = Math.min(
-        Math.ceil(total / ENTITLEMENTS_PAGE_SIZE) || 1,
-        ENTITLEMENTS_MAX_PAGES
-      );
-      for (let page = 2; page <= totalPages; page++) {
-        const res = await getEntitlements(page, ENTITLEMENTS_PAGE_SIZE, { bypassCache: true });
-        if (res.failed) entitlementsIncomplete = true;
-        allEntitlements.push(...(res.items ?? []));
-      }
-      if (entitlementsIncomplete) {
+      if (entitlementsRes.failed) {
         setNotice(translate('coinHistoryBookNamesUnavailable'));
       }
 
       setLogs(logsRes);
-      setEntitlements(allEntitlements);
+      setEntitlements(entitlementsRes.items);
     } catch (e) {
       // 原始錯誤只留 console；對使用者一律顯示內建翻譯（版面與個人資料錯誤頁一致）
       console.error('[CoinHistoryScreen] 載入金幣紀錄失敗:', e);

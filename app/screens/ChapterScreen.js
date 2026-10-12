@@ -7,7 +7,7 @@ import StoryHeader from '../components/StoryHeader';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import apiclient from '../config/apiClient';
 import { useCoins } from '../store/coinContext';
-import { resolveOwnedStoryIds } from '../services/bookAccessService';
+import { resolveBookOwnership } from '../services/bookAccessService';
 import { getEffectiveRoleLevel } from '../config/userApiClient';
 import { canPreviewAll } from '../config/roles';
 import { pickConfigByLang } from '../i18n/i18n';
@@ -47,8 +47,8 @@ const ChapterScreen = () => {
 
   const refreshPurchasedIds = useCallback(async () => {
     // 以伺服器 entitlements 為權威來源：被移除書單（撤銷授權）的付費書會回到鎖定、需重新購買（需求 10）。
-    // 線上失敗時退回本地快取，避免誤擋合法持有者。
-    const { ids: ownedIds, authoritative } = await resolveOwnedStoryIds();
+    // 線上失敗時退回本地快取，避免誤擋合法持有者；權威結果為「未持有」時會再確認一次。
+    const { ids: ownedIds, authoritative } = await resolveBookOwnership(storyId);
     // 診斷用：isAdminUser=true（role>=5）代表預覽者、章節刻意不上鎖；owned=true 代表後端仍回傳此書。
     console.log('[ChapterScreen] 持有權確認 →', {
       storyId: Number(storyId), owned: ownedIds.includes(Number(storyId)), authoritative, isAdminUser, ownedIds,

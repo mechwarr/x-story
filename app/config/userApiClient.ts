@@ -335,6 +335,74 @@ export async function getEntitlements(
   }
 }
 
+/** getAllEntitlements 每頁請求筆數（後端可能壓低上限，故不可用它判斷是否為最後一頁） */
+const ENTITLEMENTS_PAGE_SIZE = 100;
+/** 翻頁上限：防後端忽略 page 參數時無限迴圈（100 筆 × 50 頁，遠超實際持有量） */
+const ENTITLEMENTS_MAX_PAGES = 50;
+
+export interface GetAllEntitlementsResult {
+  items: BookEntitlementItem[];
+  /**
+   * 未取得完整清單（某頁取不到，或達翻頁上限仍有下一頁）時為 true。
+   * 此時 items 只是部分結果，「不在 items 內」不代表未持有。
+   */
+  failed: boolean;
+  /** 後端回報的總筆數（未回報時為已取得筆數） */
+  total: number;
+  /** 實際請求的頁數（診斷用） */
+  pages: number;
+}
+
+/**
+ * 取得「全部」已購買書籍（自動翻頁，一律 bypassCache）。
+ * 是否還有下一頁不可只看「本頁筆數 < 請求的 limit」：後端若把每頁上限壓在 20／50，
+ * 第一頁就會被誤判為最後一頁，之後買的書全被當成未持有（已購書跳「授權已失效」、
+ * 金幣紀錄配不到書名）。改以後端 total 為準、後端實際採用的 limit 為輔；
+ * 空頁、重複頁（後端忽略 page 參數）、達翻頁上限即停止。
+ */
+export async function getAllEntitlements(): Promise<GetAllEntitlementsResult> {
+  const items: BookEntitlementItem[] = [];
+  const seenPages = new Set<string>();
+  let total = 0;
+  let pages = 0;
+  let hasMore = true;
+
+  while (hasMore && pages < ENTITLEMENTS_MAX_PAGES) {
+    pages += 1;
+    const res = await getEntitlements(pages, ENTITLEMENTS_PAGE_SIZE, { bypassCache: true });
+    if (res.failed) return { items, failed: true, total, pages };
+
+    const pageItems = Array.isArray(res.items) ? res.items : [];
+    if (pageItems.length === 0) {
+      hasMore = false;
+      break;
+    }
+    const pageKey = pageItems.map((it) => `${it?.storyListId}@${it?.createdAt}`).join('|');
+    if (seenPages.has(pageKey)) {
+      // 後端忽略 page 參數（每頁都回同一批）：再翻也拿不到其餘部分。
+      // total 顯示還有沒拿到的書 → 清單不完整，交由呼叫端當成「狀態未知」處理。
+      console.warn('[userApiClient] entitlements 翻頁回傳重複資料，停止翻頁:', {
+        pages, fetched: items.length, total,
+      });
+      return { items, failed: total > items.length, total: Math.max(total, items.length), pages };
+    }
+    seenPages.add(pageKey);
+
+    items.push(...pageItems);
+    total = Number(res.total) || 0;
+    const pageLimit = Number(res.limit) || ENTITLEMENTS_PAGE_SIZE;
+    hasMore = total > items.length || pageItems.length >= pageLimit;
+  }
+
+  if (hasMore && pages >= ENTITLEMENTS_MAX_PAGES) {
+    console.warn('[userApiClient] entitlements 達翻頁上限仍有下一頁，視為未取得完整清單:', {
+      pages, fetched: items.length, total,
+    });
+    return { items, failed: true, total, pages };
+  }
+  return { items, failed: false, total: Math.max(total, items.length), pages };
+}
+
 export async function invalidateEntitlementsCache(): Promise<void> {
   try {
     const allKeys = await AsyncStorage.getAllKeys();

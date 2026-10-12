@@ -19,7 +19,7 @@ import { toColor, toFontWeight } from '../../config/normalizeStyle';
 import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
 import { purchaseStoryWithCoins, getEffectiveRoleLevel } from '../../config/userApiClient';
 import { canPreviewAll } from '../../config/roles';
-import { resolveOwnedStoryIds } from '../../services/bookAccessService';
+import { resolveBookOwnership } from '../../services/bookAccessService';
 import { resolveStartReadingParams } from '../../services/startReadingService';
 import { getOrCreateIdempotencyKey, clearIdempotencyKey } from '../../config/idempotencyKeyCache';
 import { useCoins } from '../../store/coinContext';
@@ -214,10 +214,10 @@ function Book(props) {
     }
 
     // 付費書：以伺服器 entitlements 權威判斷持有；被移除書單者需重新購買。
+    // resolveBookOwnership 在權威結果為「未持有」時會再確認一次，避免單次誤判就跳授權失效。
     const isPaid = Number(entry.priceCoins) > 0;
     if (isPaid) {
-      const { ids: ownedIds, authoritative } = await resolveOwnedStoryIds();
-      const owned = ownedIds.map(Number).includes(Number(bookId));
+      const { ids: ownedIds, authoritative, owned } = await resolveBookOwnership(bookId);
       // 持有狀態「未知」（entitlements 取不到：離線／逾時／非 2xx）時不誤擋——與上方
       // 「在架快照為空即放行」同一原則。少了這道判斷，一次網路失敗就會讓所有付費書
       // 被當成未持有，「繼續觀看」永遠靜默導去章節選單、回不到最後的閱讀進度。
