@@ -6,7 +6,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { showAlert } from "../components/CustomAlert";
-import { iapService, resolveStoreProductName, type ProductId } from '../services/iapService';
+import {
+  iapService,
+  isUnconfirmedChargeError,
+  resolveStoreProductName,
+  type ProductId,
+} from '../services/iapService';
 import { type CoinPack } from '../config/shopApiClient';
 import { useCoins } from '../store/coinContext';
 import type { Product, Purchase, PurchaseError } from 'react-native-iap';
@@ -36,7 +41,13 @@ interface UseIAPReturn {
   catalogDiagnostics: string;
   isLoading: boolean;
   isPurchasing: boolean;
-  error: Error | null;
+  /** 載入商品（階段 2：initConnection／fetchProducts）失敗；商城據此提示「載入商品失敗」 */
+  loadError: Error | null;
+  /**
+   * 最近一次購買失敗。刻意與 loadError 分開：購買失敗已由本 hook 自行提示，
+   * 若共用同一個狀態，商城會把購買失敗誤報成「載入商品失敗」而多跳一個彈窗。
+   */
+  purchaseError: Error | null;
   requestedProductIds: string[];
   productIdSource: ProductIdSource;
   purchaseProduct: (productId: ProductId) => Promise<void>;
@@ -53,7 +64,8 @@ export function useIAP(): UseIAPReturn {
   const [catalogDiagnostics, setCatalogDiagnostics] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+  const [loadError, setLoadError] = useState<Error | null>(null);
+  const [purchaseError, setPurchaseError] = useState<Error | null>(null);
   const [requestedProductIds, setRequestedProductIds] = useState<string[]>([]);
   const [productIdSource, setProductIdSource] = useState<ProductIdSource>('unknown');
   const [iapCatalogSummary, setIapCatalogSummary] = useState('');
@@ -63,7 +75,7 @@ export function useIAP(): UseIAPReturn {
   const loadProducts = useCallback(async () => {
     try {
       setIsLoading(true);
-      setError(null);
+      setLoadError(null);
       setIapCatalogSummary('');
       setCoinPacksError(null);
 
@@ -115,7 +127,7 @@ export function useIAP(): UseIAPReturn {
       const invalidIds = productIds.filter(id => !id || typeof id !== 'string' || id.trim().length === 0);
       if (invalidIds.length > 0) {
         console.error('[useIAP] ❌ 發現無效的商品 ID:', invalidIds);
-        setError(new Error('商品 ID 配置錯誤，包含無效值'));
+        setLoadError(new Error('商品 ID 配置錯誤，包含無效值'));
         setProducts([]);
         setIapCatalogSummary('尚未呼叫 fetchProducts（商品 ID 配置錯誤）');
         return;
@@ -129,7 +141,7 @@ export function useIAP(): UseIAPReturn {
           ? '無法初始化內購服務。可能原因：1) 未登入 App Store 帳號 2) 應用未正確配置 App Store Connect 3) 網絡連接問題'
           : '無法初始化內購服務。可能原因：1) 在模擬器上運行 2) 設備沒有 Google Play 服務 3) 應用未正確配置';
         console.warn('[useIAP]', errorMsg);
-        setError(new Error(errorMsg));
+        setLoadError(new Error(errorMsg));
         setProducts([]);
         setIapCatalogSummary(`尚未呼叫 fetchProducts（initConnection 失敗）\n${errorMsg}`);
         return;
@@ -182,7 +194,7 @@ export function useIAP(): UseIAPReturn {
       );
     } catch (err) {
       const error = err instanceof Error ? err : new Error('載入商品失敗');
-      setError(error);
+      setLoadError(error);
       console.error('[useIAP] ========== 載入商品失敗 ==========');
       console.error('[useIAP] 錯誤:', error);
       setProducts([]);
@@ -194,9 +206,50 @@ export function useIAP(): UseIAPReturn {
 
   // 購買商品
   const purchaseProduct = useCallback(async (productId: ProductId) => {
+    // 同一次購買只提示一次失敗：錯誤可能同時從 purchaseErrorListener（onPurchaseError）
+    // 與 requestPurchase 的 reject（下方 catch）兩條路回來，避免連跳兩個彈窗。
+    let failureReported = false;
+    const reportFailure = (err: unknown) => {
+      setIsPurchasing(false);
+      const error = err instanceof Error ? err : new Error(String((err as any)?.message || '購買失敗'));
+
+      // 判斷是否為用戶取消購買：不設置錯誤狀態，也不顯示錯誤訊息
+      const errorMessage = String((err as any)?.message || '').toLowerCase();
+      const errorCode = String((err as any)?.code ?? '').toUpperCase();
+      const isUserCancel =
+        !isUnconfirmedChargeError(err) &&
+        (errorMessage.includes('cancel') || errorCode.includes('CANCEL'));
+      if (isUserCancel) {
+        console.log('[useIAP] ℹ️ 用戶取消了購買，不設置錯誤狀態');
+        return;
+      }
+
+      setPurchaseError(error);
+      if (failureReported) return;
+      failureReported = true;
+
+      // 原始錯誤訊息只留 console，彈窗一律顯示內建翻譯
+      if (isUnconfirmedChargeError(err)) {
+        // 商店已回傳購買（可能已扣款）但金幣入帳未確認：明講可能已扣款、請勿重複購買，
+        // 並附交易編號供客服對帳。後端也可能其實已入帳，順手刷新一次餘額。
+        const txLine = err.transactionId
+          ? `\n${translate('iapTransactionIdLine', { id: err.transactionId })}`
+          : '';
+        showAlert(
+          translate('iapUnconfirmedChargeTitle'),
+          `${translate('iapUnconfirmedChargeMessage')}${txLine}`
+        );
+        refreshCoins(true).catch((refreshError) => {
+          console.error('[useIAP] ⚠️ 刷新金幣餘額失敗:', refreshError);
+        });
+        return;
+      }
+      showAlert(translate('purchaseFailedTitle'), translate('purchaseErrorGeneric'));
+    };
+
     try {
       setIsPurchasing(true);
-      setError(null);
+      setPurchaseError(null);
 
       // 設定購買成功回調
       iapService.onPurchaseSuccess = async (
@@ -253,34 +306,7 @@ export function useIAP(): UseIAPReturn {
       // 設定購買錯誤回調
       iapService.onPurchaseError = (err: Error | PurchaseError) => {
         console.error('購買錯誤:', err);
-        setIsPurchasing(false);
-
-        // 判斷是否為用戶取消購買
-        const errorMessage = err instanceof Error ? err.message : err.message || '';
-        const errorCode = (err as any)?.code?.toString() || '';
-        const isUserCancel =
-          errorMessage.toLowerCase().includes('cancel') ||
-          errorMessage.toLowerCase().includes('cancelled') ||
-          errorCode.includes('CANCELLED') ||
-          errorCode.includes('USER_CANCEL');
-
-        // 如果是用戶取消，不設置錯誤狀態，也不顯示錯誤訊息
-        if (isUserCancel) {
-          console.log('[useIAP] ℹ️ 用戶取消了購買，不設置錯誤狀態');
-          return;
-        }
-
-        const error = err instanceof Error ? err : new Error(err.message || '購買失敗');
-        setError(error);
-
-        // 後端驗證失敗（商店已扣款、金幣未必入帳）與一般購買錯誤分開提示；
-        // 原始錯誤訊息只留上方 console.error，彈窗一律顯示內建翻譯
-        const isVerifyFailure = errorMessage.startsWith('[VERIFY_FAILED] ');
-        if (isVerifyFailure) {
-          showAlert(translate('iapPurchaseFailedTitle'), translate('iapPurchaseFailedMessage'));
-        } else {
-          showAlert(translate('purchaseFailedTitle'), translate('purchaseErrorGeneric'));
-        }
+        reportFailure(err);
       };
 
       const catalogHasSku = products.some(
@@ -289,7 +315,7 @@ export function useIAP(): UseIAPReturn {
       if (!catalogHasSku) {
         const msg =
           '商店列表中尚無此商品，請先在商城重新載入後再試。（需先 fetchProducts 成功再購買）';
-        setError(new Error(msg));
+        setPurchaseError(new Error(msg));
         setIsPurchasing(false);
         showAlert(translate('cannotPurchaseTitle'), translate('productNotLoadedMessage'));
         return;
@@ -298,10 +324,8 @@ export function useIAP(): UseIAPReturn {
       // 執行購買（iapService 內會再次確認 consume 型 SKU 已自商店載入）
       await iapService.purchaseProduct(productId);
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('購買失敗');
-      setError(error);
-      setIsPurchasing(false);
-      showAlert(translate('purchaseFailedTitle'), translate('purchaseErrorGeneric'));
+      console.error('[useIAP] 購買流程失敗:', err);
+      reportFailure(err);
     }
   }, [products, refreshCoins]);
 
@@ -309,7 +333,7 @@ export function useIAP(): UseIAPReturn {
   const restorePurchases = useCallback(async () => {
     try {
       setIsLoading(true);
-      setError(null);
+      setPurchaseError(null);
 
       const initialized = await iapService.initialize();
       if (!initialized) {
@@ -333,7 +357,7 @@ export function useIAP(): UseIAPReturn {
       showAlert(translate('restorePurchaseTitle'), translate('restorePurchaseSuccessMessage', { count: purchases.length }));
     } catch (err) {
       const error = err instanceof Error ? err : new Error('恢復購買失敗');
-      setError(error);
+      setPurchaseError(error);
       showAlert(translate('restorePurchaseFailedTitle'), error.message);
     } finally {
       setIsLoading(false);
@@ -362,9 +386,10 @@ export function useIAP(): UseIAPReturn {
     catalogDiagnostics,
     isLoading,
     isPurchasing,
-    error,
-      requestedProductIds,
-      productIdSource,
+    loadError,
+    purchaseError,
+    requestedProductIds,
+    productIdSource,
     purchaseProduct,
     restorePurchases,
     refreshProducts,

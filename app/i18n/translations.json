@@ -999,15 +999,20 @@
         "zh-CN": "无法获取商品信息，\n请稍后重试",
         "en": "Unable to retrieve product information.\nPlease try again."
     },
-    "iapPurchaseFailedTitle": {
-        "zh-TW": "交易驗證失敗",
-        "zh-CN": "交易验证失败",
-        "en": "Transaction Verification Failed"
+    "iapUnconfirmedChargeTitle": {
+        "zh-TW": "金幣尚未確認入帳",
+        "zh-CN": "金币尚未确认到账",
+        "en": "Coins Not Yet Confirmed"
     },
-    "iapPurchaseFailedMessage": {
-        "zh-TW": "無法確認金幣入帳，\n若已扣款，\n請稍後查看餘額或聯絡客服",
-        "zh-CN": "无法确认金币到账，\n若已扣款，\n请稍后查看余额或联系客服",
-        "en": "Unable to confirm the coins were added.\nIf you were charged, please check your balance later or contact us."
+    "iapUnconfirmedChargeMessage": {
+        "zh-TW": "付款可能已完成，\n但目前無法確認金幣入帳。\n請勿重複購買，\n稍後請查看金幣餘額；\n若仍未入帳，請聯絡客服。",
+        "zh-CN": "付款可能已完成，\n但目前无法确认金币到账。\n请勿重复购买，\n稍后请查看金币余额；\n若仍未到账，请联系客服。",
+        "en": "Your payment may have gone through,\nbut we couldn't confirm your coins yet.\nPlease don't purchase again.\nCheck your balance later,\nand contact us if the coins don't arrive."
+    },
+    "iapTransactionIdLine": {
+        "zh-TW": "交易編號：{id}",
+        "zh-CN": "交易编号：{id}",
+        "en": "Transaction ID: {id}"
     },
     "socialLoginFailedMessage": {
         "zh-TW": "登入失敗，\n請稍後再試",

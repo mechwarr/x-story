@@ -121,7 +121,7 @@ export default function ShopScreen() {
     isLoading: isShopLoading,
     isPurchasing,
     purchaseProduct,
-    error,
+    loadError,
     refreshProducts,
   } = useIAP();
   const { coins } = useCoins();
@@ -148,10 +148,11 @@ export default function ShopScreen() {
     }
   }, [coinPacksError]);
 
-  // IAP 錯誤時跳出 Alert（僅在錯誤剛發生時提醒一次）
+  // 載入商品（階段 2：商店）失敗時跳出 Alert（僅在錯誤剛發生時提醒一次）。
+  // 只看 loadError：購買失敗由 useIAP 自行提示，若也在這裡跳「載入商品失敗」會連跳兩個彈窗。
   useEffect(() => {
-    if (error) {
-      console.error('[ShopScreen] 階段 2（平台）錯誤:', error.message);
+    if (loadError) {
+      console.error('[ShopScreen] 階段 2（平台）錯誤:', loadError.message);
       if (!hasAlertedIAPError.current) {
         hasAlertedIAPError.current = true;
         showAlert(translate('loadProductsFailed'), translate('shopLoadFailedMessage'));
@@ -159,7 +160,7 @@ export default function ShopScreen() {
     } else {
       hasAlertedIAPError.current = false;
     }
-  }, [error]);
+  }, [loadError]);
 
   // 合併：以「後端金幣包」為主體逐筆展開（已過濾 isActive、依 sortOrder 排序），
   // 再把商店回傳的名稱／價格併進來。任何一邊缺資料就整筆不顯示——
@@ -328,7 +329,7 @@ export default function ShopScreen() {
     if (!isShopLoading && packsWithPrice.length === 0 && emptyReason) {
       console.log('[ShopScreen] 暫無可用商品 — 原因：', emptyReason.replace(/\n/g, ' | '));
     }
-  }, [isShopLoading, error, packsWithPrice.length, emptyReason]);
+  }, [isShopLoading, loadError, packsWithPrice.length, emptyReason]);
 
   const handlePressPack = async (p: PackItem & { productId?: ProductId; isAvailable?: boolean }) => {
     if (!p.productId) {
@@ -359,7 +360,7 @@ export default function ShopScreen() {
   // 沒有任何可顯示的商品：不畫完整版面（標題、餘額、診斷文字），改用共用「沒有資料」整頁狀態。
   // 不論原因（後端取不到金幣包／商店連不上或查不到價格／兩邊正常但合併後 0 筆），
   // 對使用者一律顯示同一則「無法取得商品資訊，請稍後再試」（審稿要求統一說法）。
-  // 只看「有沒有資料」而不看 error：購買失敗也會寫入 error，但清單還在，不該被整頁蓋掉。
+  // 只看「有沒有資料」而不看 loadError：清單還在時不該被整頁蓋掉。
   // 實際原因的階段診斷（emptyReason）只留在 console。
   if (!isShopLoading && packsWithPrice.length === 0) {
     return (

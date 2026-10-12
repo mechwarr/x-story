@@ -90,6 +90,27 @@ export function resolveStoreProductName(product: Product): string {
   return stripStoreAppNameSuffix(String(raw.title ?? ''));
 }
 
+/**
+ * 商店已回傳購買物件（＝可能已扣款），但金幣入帳未獲後端確認：驗證不通過、驗證請求失敗、
+ * 或處理購買時出錯。與「商店端購買失敗」（未扣款）分開，畫面必須明講「可能已扣款、請勿重複購買」，
+ * 不可沿用「發生錯誤，請稍後再試」——那會誘導使用者再買一次而重複扣款。
+ */
+export class IapUnconfirmedChargeError extends Error {
+  readonly code = 'IAP_UNCONFIRMED_CHARGE';
+  /** 商店交易編號（iOS transactionId／Android orderId 或 purchaseToken），供使用者聯絡客服對帳 */
+  readonly transactionId?: string;
+
+  constructor(message: string, transactionId?: string) {
+    super(message);
+    this.name = 'IapUnconfirmedChargeError';
+    this.transactionId = transactionId || undefined;
+  }
+}
+
+export function isUnconfirmedChargeError(err: unknown): err is IapUnconfirmedChargeError {
+  return (err as { code?: unknown } | null)?.code === 'IAP_UNCONFIRMED_CHARGE';
+}
+
 class IAPService {
   private purchaseUpdateSubscription: any = null;
   private purchaseErrorSubscription: any = null;
@@ -419,9 +440,7 @@ class IAPService {
           if (!verificationResult) {
             console.warn('[iapService] 後端驗證未通過，不觸發購買成功回調');
             this.onPurchaseError?.(
-              new Error(
-                '[VERIFY_FAILED] 伺服器驗證失敗，無法確認金幣入帳。若已扣款，請稍後查看餘額或聯絡客服。',
-              ),
+              new IapUnconfirmedChargeError('後端驗證未通過，無法確認金幣入帳', dedupeKey),
             );
             return;
           }
@@ -444,8 +463,11 @@ class IAPService {
             console.error('[iapService] ❌ 完成交易失敗:', finishError);
           }
           
-          // 觸發購買錯誤回調
-          this.onPurchaseError?.(error as Error);
+          // 已收到商店的購買物件＝可能已扣款：一律回報為「入帳未確認」，不可當成一般購買失敗
+          const reason = error instanceof Error ? error.message : String(error);
+          this.onPurchaseError?.(
+            new IapUnconfirmedChargeError(`處理購買時發生錯誤：${reason}`, dedupeKey),
+          );
         }
       }
     );
@@ -925,8 +947,6 @@ class IAPService {
       console.log('[iapService]   商品名稱:', (product as any).title || (product as any).id);
       console.log('[iapService]   商品價格:', (product as any).price || (product as any).displayPrice || 'N/A');
       
-      // 嘗試多種格式（react-native-iap v14.4.5 可能需要不同的格式）
-      
       // 購買前的最終驗證
       console.log('[iapService] ========== 購買前最終驗證 ==========');
       console.log('[iapService] 📋 準備購買的商品資訊:');
@@ -957,104 +977,35 @@ class IAPService {
       }
       console.log('[iapService] ==========================================');
 
-      // 方法 1: 嘗試嵌套的 request 格式
+      // react-native-iap v14 唯一有效的格式：{ request: { ios: { sku } | android: { skus } }, type }。
+      // 只呼叫一次、失敗不換格式重試：舊版的「方法 2／3」不帶 request，v14 會直接丟
+      // 'Missing purchase request configuration'，反而把方法 1 的真正錯誤蓋掉。
+      const purchaseRequest = {
+        request:
+          Platform.OS === 'android'
+            ? { android: { skus: [productIdValue] } }
+            : { ios: { sku: productIdValue } },
+        type: 'in-app' as const,
+      };
+      console.log('[iapService] 購買配置:', JSON.stringify(purchaseRequest, null, 2));
       try {
-        console.log('[iapService] 嘗試方法 1: 嵌套 request 格式');
-        
-        // react-native-iap v14.4.5 可能需要嵌套格式
-        const config1 = {
-          request: Platform.OS === 'android' 
-            ? {
-                android: {
-                  skus: [productIdValue],
-                },
-              }
-            : {
-                ios: {
-                  sku: productIdValue,
-                },
-              },
-        };
-        
-        console.log('[iapService] 購買配置 (方法 1):', JSON.stringify(config1, null, 2));
-        console.log('[iapService] ⚠️ 即將調用 requestPurchase，商品 ID:', productIdValue);
-        console.log('[iapService] ⚠️ 如果 Google Play 顯示「找不到」，請檢查上述驗證項目');
-        
-        await requestPurchase(config1 as any);
-        
-        console.log('[iapService] ✅✅✅ 方法 1 成功（嵌套格式）✅✅✅');
-        console.log('[iapService] ✓ requestPurchase 調用成功');
-        console.log('[iapService] ⏳ 等待 Google Play 返回購買結果...');
-        console.log('[iapService] 📱 Google Play 購買介面應該已經打開');
-        console.log('[iapService] 💡 請在 Google Play 購買介面中完成購買操作');
-        console.log('[iapService] 💡 購買完成後，結果將通過 purchaseUpdatedListener 回傳');
-        console.log('[iapService] 💡 請查看日誌中的「收到購買更新」訊息');
-        return;
-      } catch (error1: any) {
-        console.warn('[iapService] 方法 1 失敗:', error1?.message);
-        
-        // 方法 2: 嘗試直接使用 skus 格式
-        try {
-          console.log('[iapService] 嘗試方法 2: 直接 skus 格式');
-          
-          const config2 = Platform.OS === 'android' 
-            ? { skus: [productIdValue] }
-            : { sku: productIdValue };
-          
-          console.log('[iapService] 購買配置 (方法 2):', JSON.stringify(config2, null, 2));
-          await requestPurchase(config2 as any);
-          
-          console.log('[iapService] ✓ 方法 2 成功（直接 skus 格式）');
-          console.log('[iapService] ⏳ 等待 Google Play 返回購買結果...');
-          return;
-        } catch (error2: any) {
-          console.warn('[iapService] 方法 2 失敗:', error2?.message);
-          
-          // 方法 3: 嘗試使用 sku（單數）格式
-          try {
-            console.log('[iapService] 嘗試方法 3: sku 單數格式');
-            
-            const config3 = { sku: productIdValue };
-            
-            console.log('[iapService] 購買配置 (方法 3):', JSON.stringify(config3, null, 2));
-            await requestPurchase(config3 as any);
-            
-            console.log('[iapService] ✓ 方法 3 成功（sku 單數格式）');
-            console.log('[iapService] ⏳ 等待 Google Play 返回購買結果...');
-            return;
-          } catch (error3: any) {
-            // 所有方法都失敗，拋出最後一個錯誤
-            console.error('[iapService] ❌ 所有購買方法都失敗');
-            const finalError = error3 || error2 || error1;
-            const errorMsg = String(finalError?.message || '').toLowerCase();
-            
-            console.error('[iapService] ========== 購買失敗 ==========');
-            console.error('[iapService] 錯誤:', finalError?.message);
-            console.error('[iapService] 嘗試購買的商品 ID:', productIdValue);
-            
-            // 如果是「找不到商品」的錯誤，提供詳細診斷
-            if (errorMsg.includes('item') && (errorMsg.includes('not found') || errorMsg.includes('找不到'))) {
-              const storeName = Platform.OS === 'ios' ? 'App Store Connect' : 'Google Play Console';
-              console.error('[iapService] ========== 商品找不到錯誤診斷 ==========');
-              console.error('[iapService] ❌ 錯誤：找不到商品');
-              console.error(`[iapService] 嘗試購買的商品 ID: "${productIdValue}"`);
-              console.error('[iapService]');
-              console.error('[iapService] 最可能的原因：');
-              console.error('[iapService]   1. ❌ fetchProducts 無法獲取該商品');
-              console.error('[iapService]      → 請確認商品是否在 fetchProducts 的返回列表中');
-              console.error('[iapService]   2. ❌ 商品 ID 不匹配（區分大小寫、空格等）');
-              console.error(`[iapService]      → 請與 ${storeName} 中的商品 ID 完全對比`);
-              console.error(`[iapService]   3. ❌ 商品在 ${storeName} 中未啟用或不存在`);
-              console.error('[iapService] ==========================================');
-            }
-            
-            console.error('[iapService] ==========================================');
-            
-            // 重新拋出錯誤，讓上層處理
-            throw finalError;
-          }
+        await requestPurchase(purchaseRequest);
+      } catch (requestError: any) {
+        const errorMsg = String(requestError?.message || '').toLowerCase();
+        console.error('[iapService] ❌ requestPurchase 失敗:', requestError?.message);
+        // 如果是「找不到商品」的錯誤，提供詳細診斷
+        if (errorMsg.includes('item') && (errorMsg.includes('not found') || errorMsg.includes('找不到'))) {
+          const storeName = Platform.OS === 'ios' ? 'App Store Connect' : 'Google Play Console';
+          console.error('[iapService] ========== 商品找不到錯誤診斷 ==========');
+          console.error(`[iapService] 嘗試購買的商品 ID: "${productIdValue}"`);
+          console.error('[iapService]   1. ❌ fetchProducts 無法獲取該商品');
+          console.error('[iapService]   2. ❌ 商品 ID 不匹配（區分大小寫、空格等）');
+          console.error(`[iapService]   3. ❌ 商品在 ${storeName} 中未啟用或不存在`);
+          console.error('[iapService] ==========================================');
         }
+        throw requestError;
       }
+      console.log('[iapService] ✓ requestPurchase 調用成功，購買結果將透過 purchaseUpdatedListener 回傳');
     } catch (error) {
       console.error('[iapService] ========== 購買失敗 ==========');
       console.error('[iapService] 錯誤:', error);
