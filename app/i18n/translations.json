@@ -1010,14 +1010,14 @@
         "en": "Unable to Continue Reading"
     },
     "profileRewardAlreadyClaimedTitle": {
-        "zh-TW": "領取獎勵失敗",
-        "zh-CN": "领取奖励失败",
-        "en": "Reward Already Claimed"
+        "zh-TW": "個人資料已更新",
+        "zh-CN": "个人资料已更新",
+        "en": "Profile Updated"
     },
     "profileRewardAlreadyClaimedMessage": {
-        "zh-TW": "您已領取過此活動獎勵",
-        "zh-CN": "您已领取过此活动奖励",
-        "en": "You've already claimed this reward."
+        "zh-TW": "您已領取過此活動獎勵，\n不會重複發放。",
+        "zh-CN": "您已领取过此活动奖励，\n不会重复发放。",
+        "en": "You've already claimed this reward,\nso it won't be granted again."
     },
     "coinHistoryLoadFailedMessage": {
         "zh-TW": "無法取得金幣紀錄，\n請稍後再試",

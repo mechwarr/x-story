@@ -25,6 +25,7 @@ import {
   updateUserProfile,
   deleteUserAccount,
   claimActivityReward,
+  hasClaimedActivityReward,
   type GenderCode,
 } from '../config/userApiClient';
 import useResponsive from '../hook/useResponsive';
@@ -89,6 +90,9 @@ function isRewardAlreadyClaimedError(rawMessage?: string | null): boolean {
   }
   return /已領|已领|重複領|重复领|已經領|已经领|already|duplicate/i.test(haystack);
 }
+
+/** 「完成個人資料」任務獎勵的活動代碼（領取 API 的 activityName、帳本 source 的 ACTIVITY:<代碼>） */
+const PROFILE_REWARD_ACTIVITY = 'PROFILE_COMPLETED';
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
@@ -172,7 +176,11 @@ export default function ProfileScreen() {
         setGender(0);
       }
 
-      const userData = await getUserProfile();
+      // 帳本與個人資料並行取得：已領過「完成個人資料」獎勵者不再顯示「完成並領取」按鈕
+      const [userData, rewardClaimed] = await Promise.all([
+        getUserProfile(),
+        hasClaimedActivityReward(PROFILE_REWARD_ACTIVITY),
+      ]);
 
       if (userData) {
         const accountId =
@@ -204,9 +212,11 @@ export default function ProfileScreen() {
           }
         }
         // 與 LoginContainer／startupRoute 的導向判定共用同一規則：
-        // 生日 + 性別皆齊全 = 已完成個人資料；任一缺 → 仍顯示任務獎勵 CTA
+        // 生日 + 性別皆齊全 = 已完成個人資料；任一缺 → 仍顯示任務獎勵 CTA。
+        // 例外：帳本已有這筆獎勵（已領過）→ 獎勵只能領一次，改顯示一般「更新」按鈕，
+        // 否則按下去必定領取失敗。帳本取不到（null）時維持原行為。
         const profileComplete = isProfileComplete(userData);
-        setShowCompleteProfileClaimCta(!profileComplete);
+        setShowCompleteProfileClaimCta(!profileComplete && rewardClaimed !== true);
         // 同步持久化旗標：資料補齊 → 清除（之後啟動正常落在首頁／繼續觀看）；
         // 仍缺 → 保持為真（含在別的裝置被改動、或登入時取不到 profile 的情況）。
         setProfileIncompletePersisted(!profileComplete);
@@ -325,12 +335,12 @@ export default function ProfileScreen() {
       setProfileIncompletePersisted(!isProfileComplete({ birthDate: birthdayISO, gender }));
 
       try {
-        const claimResult = await claimActivityReward({ activityName: 'PROFILE_COMPLETED' });
+        const claimResult = await claimActivityReward({ activityName: PROFILE_REWARD_ACTIVITY });
         if (claimResult.success === false) {
           setShowCompleteProfileClaimCta(false);
           await refreshCoins(true);
           console.warn('[ProfileScreen] 領取獎勵失敗:', claimResult.message);
-          showRewardClaimFailedAlert(claimResult.message);
+          await showRewardClaimFailedAlert(claimResult.message);
           return;
         }
         setShowCompleteProfileClaimCta(false);
@@ -342,7 +352,7 @@ export default function ProfileScreen() {
         setShowCompleteProfileClaimCta(false);
         await refreshCoins(true);
         console.error('[ProfileScreen] 領取獎勵錯誤:', claimErr);
-        showRewardClaimFailedAlert(claimErr?.message);
+        await showRewardClaimFailedAlert(claimErr?.message);
       }
     } catch (error: any) {
       console.error('更新用戶資料錯誤:', error);
@@ -352,10 +362,14 @@ export default function ProfileScreen() {
     }
   };
 
-  // 領取獎勵失敗彈窗：後端回「已領取過」或類似的錯誤 → 專用標題／內文（您已領取過此活動獎勵）；
-  // 其餘一律內建通用文案（後端訊息僅有繁中、無多語系，只留 console 供除錯，不直接顯示給使用者）
-  const showRewardClaimFailedAlert = (rawMessage?: string | null) => {
-    if (isRewardAlreadyClaimedError(rawMessage)) {
+  // 領取獎勵失敗彈窗：已領取過 → 專用標題／內文（個人資料已更新、您已領取過此活動獎勵），不當成錯誤；
+  // 其餘一律內建通用文案（後端訊息僅有繁中、無多語系，只留 console 供除錯，不直接顯示給使用者）。
+  // 「已領取過」先比對後端錯誤字樣，對不上再以帳本確認——重複領取時後端不一定回可辨識的訊息。
+  const showRewardClaimFailedAlert = async (rawMessage?: string | null) => {
+    const alreadyClaimed =
+      isRewardAlreadyClaimedError(rawMessage) ||
+      (await hasClaimedActivityReward(PROFILE_REWARD_ACTIVITY)) === true;
+    if (alreadyClaimed) {
       showAlert(translate('profileRewardAlreadyClaimedTitle'), translate('profileRewardAlreadyClaimedMessage'));
       return;
     }

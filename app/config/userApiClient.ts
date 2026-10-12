@@ -791,10 +791,9 @@ export interface GetCoinLedgerResponse {
 }
 
 /**
- * 獲取金幣帳本（歷史紀錄）
- * @returns Promise<CoinLedgerItem[]> 金幣紀錄列表，失敗時返回 []
+ * 獲取金幣帳本（歷史紀錄），取不到（網路異常／非 2xx／格式不正確）時回 null。
  */
-export async function getCoinLedger(): Promise<CoinLedgerItem[]> {
+async function fetchCoinLedger(): Promise<CoinLedgerItem[] | null> {
   try {
     const endpoint = "api/me/coins/ledger";
 
@@ -810,11 +809,36 @@ export async function getCoinLedger(): Promise<CoinLedgerItem[]> {
       return res.items;
     }
     console.warn("[userApiClient] ✗ 獲取金幣帳本失敗，響應格式不正確:", res);
-    return [];
+    return null;
   } catch (error) {
     console.error("[userApiClient] 獲取金幣帳本時發生錯誤:", error);
-    return [];
+    return null;
   }
+}
+
+/**
+ * 獲取金幣帳本（歷史紀錄）
+ * @returns Promise<CoinLedgerItem[]> 金幣紀錄列表，失敗時返回 []
+ */
+export async function getCoinLedger(): Promise<CoinLedgerItem[]> {
+  return (await fetchCoinLedger()) ?? [];
+}
+
+/**
+ * 是否已領過某活動獎勵：以帳本中的 ACTIVITY_REWARD 流水（source = ACTIVITY:<NAME>）為準。
+ * 重複領取時 api/activities/claim-reward 回的錯誤訊息不一定可辨識（可能只是通用錯誤），
+ * 不能只靠比對錯誤字樣判斷是否「已領過」。
+ * 帳本取不到時回 null（狀態未知），呼叫端不可當成「未領過」以外的確定結果使用。
+ */
+export async function hasClaimedActivityReward(activityName: string): Promise<boolean | null> {
+  const items = await fetchCoinLedger();
+  if (!items) return null;
+  const code = String(activityName ?? '').trim().toUpperCase();
+  return items.some(
+    (item) =>
+      item.type === 'ACTIVITY_REWARD' &&
+      String(item.source ?? '').match(/ACTIVITY:\s*([^\s|]+)/i)?.[1]?.toUpperCase() === code
+  );
 }
 
 //=======================================================
