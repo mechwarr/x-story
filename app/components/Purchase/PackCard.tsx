@@ -14,7 +14,8 @@ export type PackItem = {
 
 // 價格區塊的版面常數：外層（ShopScreen）要用同一組數字換算共用字級，
 // 兩邊各自寫死會在改版面時悄悄失準，所以由這裡輸出。
-export const PRICE_BOX_WIDTH = 100;
+// 1008 審稿要求商品名稱放大：價格區與 Bonus 欄各收窄一點，把寬度讓給名稱欄
+export const PRICE_BOX_WIDTH = 92;
 export const PRICE_BOX_PADDING = 6;
 export const PRICE_LETTER_SPACING = 0.3;
 export const PRICE_MAX_FONT = 22;
@@ -27,16 +28,16 @@ export const DEFAULT_COINS_WIDTH = 46;         // 4 位數
 
 // 商品名稱：同批各卡共用同一字級（以最長名稱塞得下的字級為準），
 // 不讓各卡各自縮字造成大小不一。名稱欄吃剩餘寬度，外層需知道左半其餘元件佔掉多少。
-export const TITLE_MAX_FONT = 19;
-export const TITLE_MIN_FONT = 13;
+export const TITLE_MAX_FONT = 22;
+export const TITLE_MIN_FONT = 14;
 export const TITLE_LETTER_SPACING = 0.3;
-const LEFT_PADDING_LEFT = 12;
+const LEFT_PADDING_LEFT = 10;
 const LEFT_PADDING_RIGHT = 4;
 const TITLE_MARGIN_RIGHT = 4;
 const COIN_ICON_SIZE = 24;
 const COIN_ICON_MARGIN_RIGHT = 3;
 const COINS_MARGIN_RIGHT = 2;
-const BONUS_WIDTH = 48;
+const BONUS_WIDTH = 44;
 // 卡片寬度扣掉這個值與 coinsWidth，就是名稱欄可用寬度
 export const TITLE_ROW_FIXED_WIDTH =
   PRICE_BOX_WIDTH + LEFT_PADDING_LEFT + LEFT_PADDING_RIGHT + TITLE_MARGIN_RIGHT +

@@ -36,6 +36,34 @@ export default function HistoryScreen() {
     }, [refreshCoins])
   );
 
+  // 金幣餘額與加值：排在「金幣紀錄」標題下方（標題 → 金幣列），加值導向代幣商城。
+  // 交給 CoinHistoryScreen 插在標題後；取不到紀錄的錯誤頁不顯示
+  const chargeRow = (
+    <View style={styles.chargeRow}>
+      {/* 三欄：左右兩側等寬（flex:1）→ 中間的金幣餘額恆在正中央；加值鈕靠右欄起點緊貼金幣 */}
+      <View style={styles.chargeSide} />
+      <View style={styles.balanceBox}>
+        <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
+        <Text style={[styles.coinCount, { fontSize: walletFontSize }]} numberOfLines={1}>{coins}</Text>
+      </View>
+      <View style={[styles.chargeSide, styles.chargeSideRight]}>
+        <Pressable
+          style={styles.chargeBtn}
+          onPress={() => navigation.navigate(routes.PURCHASE as never)}
+        >
+          <Text
+            style={[styles.chargeText, { fontSize: walletFontSize }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+          >
+            {translate('profileTopUp')}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScreenTopBar
@@ -58,36 +86,9 @@ export default function HistoryScreen() {
         />
       </View>
 
-      {/* 金幣餘額與加值：只在「金幣紀錄」分頁顯示，加值導向代幣商城 */}
-      {tab === 'coin' ? (
-        <View style={styles.chargeRow}>
-          {/* 三欄：左右兩側等寬（flex:1）→ 中間的金幣餘額恆在正中央；加值鈕靠右欄起點緊貼金幣 */}
-          <View style={styles.chargeSide} />
-          <View style={styles.balanceBox}>
-            <Image style={styles.coinIcon} source={require('../../assets/coin.png')} />
-            <Text style={[styles.coinCount, { fontSize: walletFontSize }]} numberOfLines={1}>{coins}</Text>
-          </View>
-          <View style={[styles.chargeSide, styles.chargeSideRight]}>
-          <Pressable
-            style={styles.chargeBtn}
-            onPress={() => navigation.navigate(routes.PURCHASE as never)}
-          >
-            <Text
-              style={[styles.chargeText, { fontSize: walletFontSize }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.85}
-            >
-              {translate('profileTopUp')}
-            </Text>
-          </Pressable>
-          </View>
-        </View>
-      ) : null}
-
       <View style={styles.content}>
         {tab === 'coin' ? (
-          <CoinHistoryScreen embedded />
+          <CoinHistoryScreen embedded belowTitle={chargeRow} />
         ) : (
           <PurchaseHistoryScreen embedded />
         )}
@@ -169,6 +170,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     flexShrink: 1,
   },
-  chargeText: { color: '#fff', fontWeight: '700' },
+  // 與個人資料頁加值鈕一致：關掉 Android 字型上下留白，中文字才會垂直置中
+  chargeText: { color: '#fff', fontWeight: '700', includeFontPadding: false, textAlignVertical: 'center' },
   content: { flex: 1, paddingTop: 6 },
 });

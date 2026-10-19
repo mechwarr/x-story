@@ -11,7 +11,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 
 import {
-  getCoinLedger,
+  getCoinLedgerOrNull,
   getAllEntitlements,
   getBookstoreList,
   CoinLedgerItem,
@@ -328,7 +328,14 @@ function formatDateTime(iso: string): string {
   return formatServerDateTime(iso);
 }
 
-export default function CoinHistoryScreen({ embedded = false }: { embedded?: boolean }) {
+export default function CoinHistoryScreen({
+  embedded = false,
+  belowTitle,
+}: {
+  embedded?: boolean;
+  /** 標題「金幣紀錄」下方的附加列（紀錄頁傳入金幣餘額＋加值鈕）；錯誤頁不顯示 */
+  belowTitle?: React.ReactNode;
+}) {
   const Wrapper: any = embedded ? View : SafeAreaView;
   const { refreshCoins } = useCoins();
   const { isTablet, maxContentWidth, ms } = useResponsive();
@@ -386,13 +393,18 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
       // 書店清單與本機對照表只是「讓書名更準」的輔助，取不到也要能顯示帳務紀錄，故各自吞錯
       // IAP 收據只用來替退款流水補上商品名稱與 BONUS，取不到時改由帳本儲值流水對照，同樣吞錯
       const [logsRes, entitlementsRes, bookstore, savedOrderBooks, receiptsRes] = await Promise.all([
-        getCoinLedger(),
+        getCoinLedgerOrNull(),
         getAllEntitlements(),
         // 取不到（回 null）就當空清單：這裡書店清單只是配對書名的輔助，帳務紀錄照常顯示
         getBookstoreList().then((list) => list ?? []),
         getCoinOrderBookMap().catch(() => ({})),
         iapService.getIapReceipts().catch(() => []),
       ]);
+
+      // 帳本取不到（null）≠ 沒有紀錄：不可落到「尚無金幣紀錄」，改走整頁錯誤狀態（說明＋重試）
+      if (!logsRes) {
+        throw new Error('金幣帳本取得失敗');
+      }
 
       setReceipts(receiptsRes);
 
@@ -456,6 +468,8 @@ export default function CoinHistoryScreen({ embedded = false }: { embedded?: boo
       <View style={[styles.header, isTablet && { maxWidth: maxContentWidth, alignSelf: 'center', width: '100%' }]}>
         <Text style={[styles.title, { fontSize: ms(18) }]}>{translate('coinHistory')}</Text>
       </View>
+
+      {belowTitle}
 
       {notice ? (
         <View style={styles.errorWrap}>

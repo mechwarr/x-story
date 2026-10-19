@@ -825,6 +825,14 @@ export async function getCoinLedger(): Promise<CoinLedgerItem[]> {
 }
 
 /**
+ * 獲取金幣帳本，但保留「取不到」的狀態：失敗時返回 null（不可當成「沒有紀錄」）。
+ * 金幣紀錄頁需要分辨兩者——取不到要顯示錯誤頁＋重試，而不是「尚無金幣紀錄」。
+ */
+export async function getCoinLedgerOrNull(): Promise<CoinLedgerItem[] | null> {
+  return fetchCoinLedger();
+}
+
+/**
  * 是否已領過某活動獎勵：以帳本中的 ACTIVITY_REWARD 流水（source = ACTIVITY:<NAME>）為準。
  * 重複領取時 api/activities/claim-reward 回的錯誤訊息不一定可辨識（可能只是通用錯誤），
  * 不能只靠比對錯誤字樣判斷是否「已領過」。

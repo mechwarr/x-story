@@ -1208,6 +1208,15 @@ class IAPService {
   }
 
   /**
+   * 根據產品 ID 取得平台回傳的 ISO 幣別代碼（例如 "TWD"、"USD"），找不到時回傳空字串。
+   * @param productId - 產品 ID
+   */
+  getProductCurrencyCode(productId: string): string {
+    const product = this.findCachedProduct(productId);
+    return String((product as any)?.currency ?? '').trim().toUpperCase();
+  }
+
+  /**
    * 驗證收據（調用後端 API）
    * @param purchase - 購買物件
    * @returns Promise<{ productName: string; coinsAdded: number; message?: string } | undefined> 驗證結果

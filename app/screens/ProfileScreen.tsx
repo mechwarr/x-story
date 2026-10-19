@@ -35,7 +35,7 @@ import DropdownArrow, {
   DROPDOWN_ARROW_WIDTH,
   DROPDOWN_ARROW_HEIGHT,
 } from '../components/DropdownArrow';
-import { translate, getCurrentLang } from '../i18n/i18n';
+import { translate } from '../i18n/i18n';
 import { resolvePendingSocialName, clearPendingSocialName } from '../auth/pendingSocialName';
 import { setProfileIncompletePersisted, isProfileComplete } from '../auth/firstLoginRedirect';
 import { walletActionFontSize, walletRecordsFontSize } from '../utils/walletFont';
@@ -54,6 +54,9 @@ import { Picker } from '@react-native-picker/picker';
 const FIELD_RADIUS = 25;
 const FIELD_HEIGHT = 50;
 const FIELD_PADDING_H = 20;
+/** 「加值 / Refill」鈕外框：三語固定同尺寸（英文不再另走較窄的內距） */
+const CHARGE_BTN_MIN_WIDTH = 76;
+const CHARGE_BTN_HEIGHT = 38;
 
 /**
  * 尚未設定生日時，日期滾輪的起始定位。
@@ -136,15 +139,14 @@ export default function ProfileScreen() {
   const submitFontSize = ms(16);
   // 頭像維持 1:1 圓形比例，寬度 RWD：手機為螢幕寬 30%、平板為 25%。
   const avatarSize = Math.round(windowWidth * (isTablet ? 0.25 : 0.3));
-  const isEn = getCurrentLang() === 'en';
   // 加值鈕字級：與 HistoryScreen 的「加值」共用同一組數值（見 utils/walletFont）
   const walletFontSize = walletActionFontSize(ms);
-  // 「查看紀錄 / Coin History」：與加值鈕同級
+  // 「查看紀錄 / Coin History」：比加值鈕小一級
   const recordsFontSize = walletRecordsFontSize(ms);
-  // 「更新個人資訊 / Update Profile」按鈕：三語同字級（英文原本放大到 20，比中文明顯大一截）
-  const updateFontSize = ms(16);
-  // 「完成並領取 50 金幣 / Complete to Get 50 Coins」CTA：英文字串長但按鈕是滿版兩行，可比中文再大一級
-  const claimFontSize = ms(isEn ? 19 : 16);
+  // 「更新個人資訊 / Update Profile」與「完成並領取 50 金幣 / Complete to Get 50 Coins」：
+  // 三語同字級，參照註冊／登入頁主要按鈕（XStoryLogin loginButtonText = 18）
+  const updateFontSize = ms(18);
+  const claimFontSize = ms(18);
   /** 生日上限＝今天（不可選未來日期）。放在 render 外避免每次 render 產生新 Date 觸發下游重算 */
   const maxBirthdayDate = useMemo(() => new Date(), []);
 
@@ -485,8 +487,8 @@ export default function ProfileScreen() {
                   <Image style={[styles.coin, { width: coinIconSmall, height: coinIconSmall }]} source={require('../../assets/coin.png')} />
                   <Text style={[styles.balanceText, { fontSize: bodyFontSize }]} numberOfLines={1}>{coins}</Text>
                 </View>
-                <View style={[styles.walletRow, styles.walletRowRight, isEn && styles.walletRowEn]}>
-                  <Pressable style={[styles.chargeBtn, isEn && styles.chargeBtnEn]} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
+                <View style={[styles.walletRow, styles.walletRowRight]}>
+                  <Pressable style={[styles.chargeBtn, { minWidth: ms(CHARGE_BTN_MIN_WIDTH), height: ms(CHARGE_BTN_HEIGHT) }]} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
                     <Text
                       style={[styles.chargeText, { fontSize: walletFontSize }]}
                       numberOfLines={1}
@@ -709,15 +711,15 @@ export default function ProfileScreen() {
               style={[styles.datePickerSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
               onPress={(e) => e.stopPropagation()}
             >
-              {/* 與 DatePickerSheet 的工具列一致：左取消、右確定，且用 confirm（三語為 確定/确定/Confirm）
-                  ——原本用 ok，但 ok 三語都是 "OK"，簡中／英文都看不到在地化文字。 */}
+              {/* 與 DatePickerSheet 的工具列一致：左取消、右確定，用 pickerConfirm（確定/确定/OK）
+                  ——ok 三語都是 "OK"，中文看不到在地化文字；confirm 的英文是 Confirm，審稿要求選擇器用 OK。 */}
               <View style={[styles.datePickerToolbar, styles.genderSheetToolbar]}>
                 <Pressable onPress={() => setShowGenderPicker(false)} hitSlop={12}>
                   <Text style={styles.genderSheetCancelText}>{translate('cancel')}</Text>
                 </Pressable>
                 <View style={styles.datePickerToolbarSpacer} />
                 <Pressable onPress={() => setShowGenderPicker(false)} hitSlop={12}>
-                  <Text style={styles.datePickerDoneText}>{translate('confirm')}</Text>
+                  <Text style={styles.datePickerDoneText}>{translate('pickerConfirm')}</Text>
                 </Pressable>
               </View>
               <View style={styles.genderPickerWrap}>
@@ -800,15 +802,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  // 英文字串較長：縮小欄距與按鈕內距，讓整組按鈕與中文版約略等寬，
-  // 金幣餘額才會落在與中文版相同的位置（不被推離中線）
-  walletRowEn: { gap: 8 },
-  chargeBtnEn: { paddingHorizontal: 10 },
+  // 三語共用同一組尺寸（minWidth／height 由 render 依 ms() 帶入）：
+  // 英文 Refill 與中文「加值」外框一致，金幣餘額也因此落在相同位置
   chargeBtn: {
     backgroundColor: '#ff3344',
-    paddingHorizontal: 18,
-    paddingVertical: 9,
+    paddingHorizontal: 12,
     borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
     // 整列的最後一道讓步：spacer → 餘額方塊 都收完仍塞不下時，才輪到「加值」收縮
     // （它保留 adjustsFontSizeToFit，字會縮；「查看紀錄」則完全不縮）
     flexShrink: 1,
@@ -817,7 +818,8 @@ const styles = StyleSheet.create({
     // 「查看紀錄 / Coin History」永遠以自然寬與設定字級呈現，不參與收縮
     flexShrink: 0,
   },
-  chargeText: { color: '#fff', fontWeight: '700' },
+  // Android 預設字型上下留白會讓中文字視覺偏下 → 關掉並垂直置中
+  chargeText: { color: '#fff', fontWeight: '700', includeFontPadding: false, textAlignVertical: 'center' },
   linkText: {
     color: '#f0ad57',
     fontWeight: '600',
@@ -937,8 +939,8 @@ const styles = StyleSheet.create({
   },
   // ---- 更新鈕 + 刪除帳號 ----
   // 原本用 marginTop:'auto' 把按鈕頂到畫面最底，性別欄與綠 Bar 之間會空一大塊。
-  // 改為跟著內容流排列，間距沿用 inputRow 的 marginBottom(15)，與註冊／登入頁的等距節奏一致。
-  footer: {},
+  // 改為跟著內容流排列；只留 inputRow 的 15 太擠，再加 30 → 與登入頁密碼欄到登入鍵的距離相近。
+  footer: { marginTop: 30 },
 
   // ---- 刪除帳號 ----
   deleteAccountRow: {

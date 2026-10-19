@@ -17,7 +17,7 @@ import { formatServerDateTime, toEpochMillis } from '../utils/datetime';
 
 type Purchase = {
   id: string;          // 收據編號
-  priceText: string;   // 交易金額（平台顯示價格，含幣別符號、已去地區前綴，例如 "$170"）
+  priceText: string;   // 交易金額（平台顯示價格＋幣別代碼，例如 "$170 (NTD)"）
   productName: string; // 交易商品名稱
   purchasedAt: string; // 交易時間（yyyy.MM.dd HH:mm）
   totalCoins: number;  // 總金幣數
@@ -64,11 +64,26 @@ const STATUS_LABEL_KEYS: Record<ReceiptStatus, string> = {
   failed: 'transactionStatusFailed',
 };
 
+// 幣別代碼顯示：審稿以「NTD」稱新台幣，其餘沿用 ISO 代碼
+const CURRENCY_DISPLAY_CODES: Record<string, string> = { TWD: 'NTD' };
+
+/**
+ * 交易金額：價格字串已去地區前綴（"NT$300" -> "$300"），各幣別都可能只剩 "$"，
+ * 故於金額後補上幣別代碼 → "$300 (NTD)"。幣別不放在欄位標題，依各筆商品的平台幣別自動帶出。
+ */
+function formatPriceWithCurrency(priceText: string, currencyCode: string): string {
+  if (!priceText || !currencyCode) return priceText;
+  return `${priceText} (${CURRENCY_DISPLAY_CODES[currencyCode] ?? currencyCode})`;
+}
+
 // 將 IAP 收據轉換為 UI 顯示格式（優先平台當地語系名稱，退回後端名稱）
 function convertReceiptToPurchase(receipt: IapReceipt, backendNames: Record<string, string>): Purchase {
   const productName = resolveProductName(receipt.productId, backendNames);
   // 交易金額：依 productId 從雙平台取得真實貨幣價格（含幣別符號）
-  const priceText = iapService.getProductDisplayPrice(receipt.productId);
+  const priceText = formatPriceWithCurrency(
+    iapService.getProductDisplayPrice(receipt.productId),
+    iapService.getProductCurrencyCode(receipt.productId),
+  );
 
   return {
     id: receipt.receiptId,
@@ -163,7 +178,7 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
           <Text style={styles.loadingText}>{translate('profileLoading')}</Text>
         </View>
       ) : purchases.length === 0 ? (
-        <View style={styles.centerContainer}>
+        <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>{translate('purchaseHistoryEmpty')}</Text>
         </View>
       ) : (
@@ -171,10 +186,11 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
           {purchases.map((p) => (
             <View key={p.id} style={styles.card}>
               <Row label={translate('orderId')} value={p.id} mono fit />
+              {/* 欄位順序（1008 審稿）：單號 → 商品名稱 → 交易金額 → 時間 */}
+              <Row label={translate('transactionProductName')} value={p.productName} />
               {p.priceText ? (
                 <Row label={translate('transactionAmount')} value={p.priceText} strong />
               ) : null}
-              <Row label={translate('transactionProductName')} value={p.productName} />
               <Row label={translate('transactionTime')} value={p.purchasedAt} />
               {p.status ? (
                 <Row
@@ -244,9 +260,16 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
   },
+  // 無紀錄：位置比照金幣紀錄頁（標題下方 6 + 列表上距 6 + 文字上距 24），不再垂直置中
+  emptyContainer: {
+    paddingTop: 12,
+    paddingHorizontal: 16,
+  },
   emptyText: {
-    color: '#9aa3ad',
+    color: '#a6afba',
     fontSize: 14,
+    textAlign: 'center',
+    marginTop: 24,
   },
 });
 

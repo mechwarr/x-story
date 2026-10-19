@@ -153,7 +153,7 @@ export default function DatePickerSheet({
             </Pressable>
             <View style={styles.toolbarSpacer} />
             <Pressable onPress={handleConfirm} hitSlop={12}>
-              <Text style={styles.confirmText}>{translate('confirm')}</Text>
+              <Text style={styles.confirmText}>{translate('pickerConfirm')}</Text>
             </Pressable>
           </View>
 
