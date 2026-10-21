@@ -18,14 +18,12 @@ function StoryHeader({ storyName, author, config, isAutoPlay, onToggleAutoPlay }
   return (
     <View style={styles.container}>
       {/* 書名（config 未載入前不顯示）。
-          允許最多兩行；長書名時以 adjustsFontSizeToFit 自動縮小字級塞進兩行，
-          字級基準仍取 CMS 的 stroy_name_size（變動）。 */}
+          字級完全採用 CMS 的 stroy_name_size，不自動縮小（否則長書名的語系會比其他語系小）；
+          最多兩行，超出以省略號截斷。 */}
       <View style={styles.titleGroup}>
         {author_size ? (
           <AppText
             numberOfLines={2}
-            adjustsFontSizeToFit
-            minimumFontScale={0.6}
             style={[
               styles.text,
               {
