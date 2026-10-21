@@ -939,8 +939,9 @@ const styles = StyleSheet.create({
   },
   // ---- 更新鈕 + 刪除帳號 ----
   // 原本用 marginTop:'auto' 把按鈕頂到畫面最底，性別欄與綠 Bar 之間會空一大塊。
-  // 改為跟著內容流排列；只留 inputRow 的 15 太擠，再加 30 → 與登入頁密碼欄到登入鍵的距離相近。
-  footer: { marginTop: 30 },
+  // 改為跟著內容流排列；inputRow 的 15 再加 60 → 共 75，與登入頁「密碼欄 → 忘記密碼？→ 登入鍵」
+  // 的距離一致（XStoryLogin：密碼欄 marginBottom 10 ＋ 連結約 20 ＋ 連結 marginBottom 30 ＋ 登入鍵 marginTop 15）。
+  footer: { marginTop: 60 },
 
   // ---- 刪除帳號 ----
   deleteAccountRow: {
