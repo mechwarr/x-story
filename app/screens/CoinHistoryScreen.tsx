@@ -57,6 +57,16 @@ const ACTIVITY_LABEL_KEYS: Record<string, string> = {
  */
 const REFUND_SOURCE_RE = /^\s*\[系統退款\]\s*ORDER:\s*([^\s|]+)/;
 
+/**
+ * 後台書單「移除」的已退款標註。CMS 以 rewards/grant 寫入一筆 0 金幣流水（type=ADMIN_GRANT），
+ * 說明為「[已退款] {書名} ORDER:{orderId}」，orderId 是該書 BOOK_PURCHASE 的訂單流水號（不是 IAP 收據）。
+ * 書籍保留、金幣不退，這筆只是「該書已退款」的標註；書名取結尾的 ORDER 之前，書名內含 ORDER 字樣也不誤判。
+ */
+const REFUNDED_BOOK_SOURCE_RE = /^\s*\[已退款\]\s*(.*?)\s*ORDER:\s*(\d+)\s*$/;
+
+/** CMS 查無書名時寫入的佔位字樣「書籍 {id}」，屬系統字串，不可當書名顯示 */
+const REFUNDED_BOOK_PLACEHOLDER_RE = /^書籍\s*\d+$/;
+
 /** 書籍基本資料（storyListId → 書名／定價），來源為書店清單，供顯示與價格約束使用 */
 export type BookCatalogEntry = { name: string | null; priceCoins: number | null };
 
@@ -173,6 +183,55 @@ function resolveBookNames(
   }
 
   return { names, backfill };
+}
+
+/** 後台書籍已退款標註 → 書籍訂單編號與 CMS 寫入的書名（查無或佔位字樣時為 null）；非此類流水回 null */
+function parseRefundedBookMark(log: CoinLedgerItem): { orderId: number; name: string | null } | null {
+  if (log.type !== 'ADMIN_GRANT') return null;
+  const m = String(log.source ?? '').match(REFUNDED_BOOK_SOURCE_RE);
+  if (!m) return null;
+  const orderId = Number(m[2]);
+  if (!Number.isFinite(orderId) || orderId <= 0) return null;
+  const name = m[1].trim();
+  return { orderId, name: name && !REFUNDED_BOOK_PLACEHOLDER_RE.test(name) ? name : null };
+}
+
+/**
+ * 在 resolveBookNames 的結果上補齊已退款標註與其解鎖紀錄的書名（ledgerId → 書名），
+ * 兩列以書籍訂單編號互相對應：
+ *  - 標註列：優先取同一訂單解鎖列由 App 推導出的書名——訂單編號是結構化對照，且兩列會同名
+ *    （CMS 寫入的是自由文字，取的欄位也可能與 App 顯示的主選單標題不同），推導不到才用 CMS 書名。
+ *  - 解鎖列：App 推導不到書名時，借用指向同一訂單的標註書名，不再只顯示「故事解鎖」。
+ */
+function attachRefundedBookNames(
+  logs: CoinLedgerItem[],
+  bookNames: Map<number, string>
+): Map<number, string> {
+  const marks: { ledgerId: number; orderId: number }[] = [];
+  const markedNames = new Map<number, string>(); // 訂單編號 → CMS 寫入的書名
+  for (const log of logs) {
+    const mark = parseRefundedBookMark(log);
+    if (!mark) continue;
+    marks.push({ ledgerId: log.id, orderId: mark.orderId });
+    if (mark.name && !markedNames.has(mark.orderId)) markedNames.set(mark.orderId, mark.name);
+  }
+  if (marks.length === 0) return bookNames;
+
+  const names = new Map(bookNames);
+  const purchasedNames = new Map<number, string>(); // 訂單編號 → App 推導出的解鎖書名
+  for (const log of logs) {
+    if (log.type !== 'BOOK_PURCHASE') continue;
+    const orderId = parseNumericOrderId(log.source);
+    if (orderId === null) continue;
+    const name = bookNames.get(log.id);
+    if (name) purchasedNames.set(orderId, name);
+    else if (markedNames.has(orderId)) names.set(log.id, markedNames.get(orderId)!);
+  }
+  for (const { ledgerId, orderId } of marks) {
+    const name = purchasedNames.get(orderId) ?? markedNames.get(orderId);
+    if (name) names.set(ledgerId, name);
+  }
+  return names;
 }
 
 /**
@@ -294,6 +353,15 @@ function describeLedgerRow(
     };
   }
 
+  // 後台書籍已退款標註：顯示「書名 - 已退款」，與解鎖列一樣不顯示訂單編號。
+  // 原解鎖列刻意不加註「已退款」：這筆標註通常 0 金幣，加在 -N 那列會讓人誤以為扣款已退回
+  if (parseRefundedBookMark(log)) {
+    return {
+      title: bookName ? `${bookName} - ${translate('coinHistoryRefunded')}` : translate('coinTypeBookRefunded'),
+      note: '',
+    };
+  }
+
   // 活動獎勵：只顯示獎勵名稱，不顯示 ACTIVITY 代碼
   if (log.type === 'ACTIVITY_REWARD') {
     const code = (log.source ?? '').match(/ACTIVITY:\s*([^\s|]+)/i)?.[1]?.toUpperCase() ?? '';
@@ -361,6 +429,8 @@ export default function CoinHistoryScreen({
     () => resolveBookNames(logs, entitlements, orderBookMap, bookCatalog),
     [logs, entitlements, orderBookMap, bookCatalog]
   );
+  // 再補上後台已退款標註的書名（標註列與其解鎖列以訂單編號互補）
+  const rowBookNames = useMemo(() => attachRefundedBookNames(logs, bookNames), [logs, bookNames]);
 
   // IAP 單號 → 原儲值商品／贈送金幣（收據為主、帳本儲值流水為備援）
   const orderInfo = useMemo(() => buildPurchaseOrderInfo(receipts, logs), [receipts, logs]);
@@ -490,7 +560,7 @@ export default function CoinHistoryScreen({
               const { title: rowTitle, note: rowNote, detail: rowDetail } = describeLedgerRow(
                 log,
                 backendNames,
-                bookNames.get(log.id),
+                rowBookNames.get(log.id),
                 orderInfo
               );
               return (
@@ -520,7 +590,8 @@ export default function CoinHistoryScreen({
                       log.amount >= 0 ? styles.plus : styles.minus,
                     ]}
                   >
-                    {log.amount >= 0 ? `+${log.amount}` : `${log.amount}`}
+                    {/* 0 金幣（例如已退款標註）不加正號，避免看起來像有入帳 */}
+                    {log.amount > 0 ? `+${log.amount}` : `${log.amount}`}
                   </Text>
                   <Image style={styles.coinMini} source={require('../../assets/coin.png')} />
                 </View>

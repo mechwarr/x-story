@@ -1009,6 +1009,16 @@
         "zh-CN": "解锁",
         "en": "Unlocked"
     },
+    "coinHistoryRefunded": {
+        "zh-TW": "已退款",
+        "zh-CN": "已退款",
+        "en": "Refunded"
+    },
+    "coinTypeBookRefunded": {
+        "zh-TW": "故事已退款",
+        "zh-CN": "故事已退款",
+        "en": "Story Refunded"
+    },
     "cannotContinueReadingTitle": {
         "zh-TW": "無法繼續閱讀",
         "zh-CN": "无法继续阅读",
