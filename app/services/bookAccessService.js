@@ -36,7 +36,8 @@ async function updateLocalPurchasedIds(localBefore, remoteIds) {
   );
 }
 
-async function fetchAllEntitlementStoryIds() {
+/** 權威持有清單：{ ids, items }，items 為後端原始已購項目（含購買時間，供已退款比對） */
+async function fetchAuthoritativeEntitlements() {
   const localBefore = uniqueIds(await storage.getLocalPurchasedStoryIds());
   await invalidateEntitlementsCache();
 
@@ -53,13 +54,13 @@ async function fetchAllEntitlementStoryIds() {
   );
   console.log('[bookAccessService] 權威持有清單 →', { count: ids.length, total, pages });
   await updateLocalPurchasedIds(localBefore, ids);
-  return ids;
+  return { ids, items };
 }
 
 /** 以伺服器清單更新本機快取後回傳快取（取不到時原樣回傳快取） */
 export async function syncPurchasedStoryIds() {
   try {
-    await fetchAllEntitlementStoryIds();
+    await fetchAuthoritativeEntitlements();
   } catch (error) {
     console.warn('[bookAccessService] 同步已購買書籍失敗，改用本地快取:', error);
   }
@@ -87,17 +88,18 @@ export async function getAuthoritativeOwnedStoryIds() {
 
 /**
  * 同 getAuthoritativeOwnedStoryIds，但額外回報「這份清單是否為權威結果」：
- *  - { ids, authoritative: true }  → 伺服器回覆成功，ids 即目前實際持有（可反映撤銷授權）。
- *  - { ids, authoritative: false } → 取不到（離線／逾時／錯誤），ids 只是本地樂觀快取，
+ *  - { ids, items, authoritative: true }  → 伺服器回覆成功，ids 即目前實際持有（可反映撤銷授權），
+ *    items 為後端原始已購項目（含購買時間）。
+ *  - { ids, items: null, authoritative: false } → 取不到（離線／逾時／錯誤），ids 只是本地樂觀快取，
  *    「不在 ids 內」不代表未持有。閱讀閘門遇此情形應 fail-open（不誤擋），
  *    與「在架清單取不到就不誤擋」的既有原則一致。
  */
 export async function resolveOwnedStoryIds() {
   try {
-    return { ids: await fetchAllEntitlementStoryIds(), authoritative: true };
+    return { ...(await fetchAuthoritativeEntitlements()), authoritative: true };
   } catch (error) {
     console.warn('[bookAccessService] 取得權威持有清單失敗，退回本地快取（狀態未知）:', error);
-    return { ids: uniqueIds(await storage.getLocalPurchasedStoryIds()), authoritative: false };
+    return { ids: uniqueIds(await storage.getLocalPurchasedStoryIds()), items: null, authoritative: false };
   }
 }
 

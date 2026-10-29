@@ -14,7 +14,8 @@ import colors from '../config/colors';
 import storage from '../storage/storage';
 import { bookDataBaseUrl } from '../config/apiClient';
 import { resolveOwnedStoryIds } from '../services/bookAccessService';
-import { getBookstoreList, getEffectiveRoleLevel } from '../config/userApiClient';
+import { buildBookCatalog, resolveRefundedBookIds } from '../services/refundedBooks';
+import { getBookstoreList, getEffectiveRoleLevel, getCoinLedgerOrNull } from '../config/userApiClient';
 import { canViewUnlisted } from '../config/roles';
 import { translate, pickConfigByLang } from '../i18n/i18n';
 import { compareBookByOrder } from '../utils/bookOrder';
@@ -26,6 +27,7 @@ const url = bookDataBaseUrl;
 // 取出使用者實際持有的書，並與 story-list（含完整 storyData）交集後呈現。
 // 呈現「所有購買過的書」，不依語系過濾——各語言版本皆會顯示，方便用戶查找。
 // 已下架／刪除的書不顯示（需求：下架＝用戶看不到），role>=5 預覽者例外，與「繼續觀看」一致。
+// CMS 書單「移除」標註為已退款的書不顯示（判定同 CMS 書單頁，見 services/refundedBooks）。
 // 排版與「繼續觀看」一致（2 欄 Book 網格）；點擊沿用 Book 一般變體邏輯，
 // 開啟與大廳相同的簡介彈窗（樣式來自 menu-foolproof、字樣依語系挑列）。
 function MyBooksScreen() {
@@ -48,15 +50,24 @@ function MyBooksScreen() {
   // 書店資料（storyListId → 價格／在架），與首頁一樣併進 storyData。story-list 本身沒有價格，
   // 少了 priceCoins 故事頁會把付費書當免費書，「未開放試閱」的內容就不上鎖。
   const [bookstoreById, setBookstoreById] = useState(new Map());
+  // CMS 書單「移除」標註為已退款的書籍 ID（書仍在 entitlements 內，只從書櫃隱藏）。
+  // null 代表無法判定（帳本或權威持有清單取不到）→ 不隱藏，與 CMS 查詢失敗時照常顯示一致。
+  const [refundedIds, setRefundedIds] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         // 權威持有清單（自動翻頁、bypassCache；線上失敗時退回本地快取並標記為「未知」）。
-        const [{ ids: owned, authoritative }, roleLevel, bookstoreList] = await Promise.all([
+        const [
+          { ids: owned, items: entitlementItems, authoritative },
+          roleLevel,
+          bookstoreList,
+          ledger,
+        ] = await Promise.all([
           resolveOwnedStoryIds(),
           getEffectiveRoleLevel(),
           getBookstoreList(),
+          getCoinLedgerOrNull(),
         ]);
         setOwnedIds(owned);
         setOwnedUnknown(!authoritative);
@@ -83,6 +94,16 @@ function MyBooksScreen() {
           }
         }
         setBookstoreById(new Map(priceSource.map((b) => [Number(b?.storyListId), b])));
+        // 已退款：全部流水 × 全部已購書籍保序對齊（缺一不可，只有本地快取時無法對齊）
+        setRefundedIds(
+          authoritative && Array.isArray(ledger)
+            ? resolveRefundedBookIds({
+                ledgerItems: ledger,
+                entitlements: entitlementItems,
+                bookCatalog: buildBookCatalog(priceSource),
+              })
+            : null
+        );
 
         // story-list 公開 API：含每本書完整 storyData（main_menu_* / open / chapter_type / lang），
         // 供簡介彈窗與排版，與大廳同源。取不到時同樣標記為「未知」——持有清單查得到、
@@ -134,6 +155,7 @@ function MyBooksScreen() {
   // 排序依後端 order（"001"、"002"…）；本頁不依語系過濾，同一 order 必然撞號
   //（001繁 / 001简 / 001En），故次要排序為 繁體 → 簡體 → 英文，讓同一本書的各語言版本相鄰。
   // 在架過濾：role<5 只顯示仍在架的書；role>=5 全部可見；書店清單取不到時不過濾。
+  // 已退款過濾：所有角色一律隱藏；判定不了時不過濾。
   const myBooks = useMemo(() => {
     const ownedSet = new Set((ownedIds || []).map(Number));
     const canSeeUnlisted = canViewUnlisted(shelf.roleLevel);
@@ -142,6 +164,7 @@ function MyBooksScreen() {
       .filter(
         (b) => canSeeUnlisted || !shelf.onShelfIds || shelf.onShelfIds.has(Number(b?.id))
       )
+      .filter((b) => !refundedIds || !refundedIds.has(Number(b?.id)))
       .map((b) => {
         const entry = bookstoreById.get(Number(b?.id));
         return entry
@@ -149,7 +172,7 @@ function MyBooksScreen() {
           : b;
       })
       .sort(compareBookByOrder);
-  }, [ownedIds, storyList, shelf, bookstoreById]);
+  }, [ownedIds, storyList, shelf, bookstoreById, refundedIds]);
 
   return (
     <Screen>
