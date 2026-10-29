@@ -252,6 +252,38 @@ const addLocalPurchasedStoryId = async (storyId) => {
   }
 };
 
+// 整份覆寫（權威清單回來後由 bookAccessService 寫回，含移除已收回的書）
+const setLocalPurchasedStoryIds = async (storyIds) => {
+  try {
+    await AsyncStorage.setItem(LOCAL_PURCHASED_STORY_IDS_KEY, JSON.stringify(storyIds));
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+// 上一次權威清單就已缺少的本機已購書（收回候選，連續兩次缺少才移除，見 bookAccessService）。
+// 與上方清單一樣不在 PRESERVED_KEY_PREFIXES 內，登出時一併清除。
+const LOCAL_PURCHASED_MISSING_IDS_KEY = 'localPurchasedMissingIds';
+
+const getLocalPurchasedMissingIds = async () => {
+  try {
+    const value = await AsyncStorage.getItem(LOCAL_PURCHASED_MISSING_IDS_KEY);
+    const parsed = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+};
+
+const setLocalPurchasedMissingIds = async (storyIds) => {
+  try {
+    await AsyncStorage.setItem(LOCAL_PURCHASED_MISSING_IDS_KEY, JSON.stringify(storyIds));
+  } catch (error) {
+    console.log(error);
+  }
+};
+
 export default {
   storeStory,
   getStorys,
@@ -261,4 +293,7 @@ export default {
   getNamespacedKey,
   getLocalPurchasedStoryIds,
   addLocalPurchasedStoryId,
+  setLocalPurchasedStoryIds,
+  getLocalPurchasedMissingIds,
+  setLocalPurchasedMissingIds,
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { StyleSheet, FlatList, View, Pressable } from 'react-native';
+import { StyleSheet, FlatList, View, Pressable, AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { useIsFocused } from '@react-navigation/native';
 import { isEmpty } from 'lodash';
@@ -44,6 +45,9 @@ function MyBooksScreen() {
   // 在架判定用：roleLevel（role>=5 可見下架書）＋ 目前在架書籍 ID 集合。
   // onShelfIds 為 null 代表書店清單取不到（狀態未知）→ 不過濾，避免網路失敗就把書櫃清空。
   const [shelf, setShelf] = useState({ roleLevel: null, onShelfIds: null });
+  // 書店資料（storyListId → 價格／在架），與首頁一樣併進 storyData。story-list 本身沒有價格，
+  // 少了 priceCoins 故事頁會把付費書當免費書，「未開放試閱」的內容就不上鎖。
+  const [bookstoreById, setBookstoreById] = useState(new Map());
 
   useEffect(() => {
     const fetchData = async () => {
@@ -67,6 +71,18 @@ function MyBooksScreen() {
               )
             : null,
         });
+        // 價格取不到時退回首頁存的書店快照（同 HomeScreen），仍盡量讓故事頁知道是付費書
+        let priceSource = Array.isArray(bookstoreList) ? bookstoreList : null;
+        if (!priceSource) {
+          try {
+            const raw = await AsyncStorage.getItem('bookstoreList');
+            const cached = raw ? JSON.parse(raw) : null;
+            priceSource = Array.isArray(cached) ? cached : [];
+          } catch (_e) {
+            priceSource = [];
+          }
+        }
+        setBookstoreById(new Map(priceSource.map((b) => [Number(b?.storyListId), b])));
 
         // story-list 公開 API：含每本書完整 storyData（main_menu_* / open / chapter_type / lang），
         // 供簡介彈窗與排版，與大廳同源。取不到時同樣標記為「未知」——持有清單查得到、
@@ -104,6 +120,15 @@ function MyBooksScreen() {
 
   const retry = useCallback(() => setReloadTick((n) => n + 1), []);
 
+  // 停在本頁時由背景回前景也重抓：期間後台可能已收回書籍，只靠切換畫面才重抓會一直顯示過期的書櫃
+  useEffect(() => {
+    if (!isFocus) return undefined;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') setReloadTick((n) => n + 1);
+    });
+    return () => sub.remove();
+  }, [isFocus]);
+
   // 持有 ∩ 書單。書櫃需呈現「所有購買過的書」（含各語言版本），不依語系過濾，
   // 方便用戶查找所有購買過的語言版本（各語言版本為各自獨立的 story，非重複資料）。
   // 排序依後端 order（"001"、"002"…）；本頁不依語系過濾，同一 order 必然撞號
@@ -117,8 +142,14 @@ function MyBooksScreen() {
       .filter(
         (b) => canSeeUnlisted || !shelf.onShelfIds || shelf.onShelfIds.has(Number(b?.id))
       )
+      .map((b) => {
+        const entry = bookstoreById.get(Number(b?.id));
+        return entry
+          ? { ...b, priceCoins: entry.priceCoins, currency: entry.currency, isActive: entry.isActive }
+          : b;
+      })
       .sort(compareBookByOrder);
-  }, [ownedIds, storyList, shelf]);
+  }, [ownedIds, storyList, shelf, bookstoreById]);
 
   return (
     <Screen>

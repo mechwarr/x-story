@@ -12,7 +12,32 @@ const uniqueIds = (ids) =>
     )
   );
 
+/**
+ * 權威清單回來後更新本機快取（持有清單取不到時的退路）：
+ *  - 移除已收回的書（被移除書單／撤銷授權）。快取若只增不減，收回的書會在下一次查不到時
+ *    退回快取而又變成可讀。連續兩次權威清單都缺少才移除，與 resolveBookOwnership「未持有須再
+ *    確認一次」同一原則：剛購買、後端短暫還沒寫入時只會記一次缺少，下一次查到就清掉。
+ *  - 補入伺服器清單上的書（別台裝置購買、後台贈書），離線時同樣認得。
+ * localBefore 是送出請求「之前」的快取：請求期間才寫入的（例如這時剛買的書）不參與比對。
+ */
+async function updateLocalPurchasedIds(localBefore, remoteIds) {
+  const remote = new Set(remoteIds);
+  const missingNow = localBefore.filter((id) => !remote.has(id));
+  const missingBefore = new Set(uniqueIds(await storage.getLocalPurchasedMissingIds()));
+  const revoked = new Set(missingNow.filter((id) => missingBefore.has(id)));
+  if (revoked.size) {
+    console.warn('[bookAccessService] 連續兩次不在權威清單內，自本機快取移除：', [...revoked]);
+  }
+  await storage.setLocalPurchasedMissingIds(missingNow.filter((id) => !revoked.has(id)));
+
+  const current = uniqueIds(await storage.getLocalPurchasedStoryIds());
+  await storage.setLocalPurchasedStoryIds(
+    uniqueIds([...current.filter((id) => !revoked.has(id)), ...remoteIds])
+  );
+}
+
 async function fetchAllEntitlementStoryIds() {
+  const localBefore = uniqueIds(await storage.getLocalPurchasedStoryIds());
   await invalidateEntitlementsCache();
 
   // 翻頁交給 getAllEntitlements（以後端 total 判斷是否還有下一頁，不受後端每頁上限影響）。
@@ -27,24 +52,18 @@ async function fetchAllEntitlementStoryIds() {
     items.filter((item) => item?.storyListId !== undefined).map((item) => item.storyListId)
   );
   console.log('[bookAccessService] 權威持有清單 →', { count: ids.length, total, pages });
+  await updateLocalPurchasedIds(localBefore, ids);
   return ids;
 }
 
+/** 以伺服器清單更新本機快取後回傳快取（取不到時原樣回傳快取） */
 export async function syncPurchasedStoryIds() {
-  const localIds = uniqueIds(await storage.getLocalPurchasedStoryIds());
   try {
-    const remoteIds = await fetchAllEntitlementStoryIds();
-    const mergedIds = uniqueIds([...localIds, ...remoteIds]);
-
-    for (const id of mergedIds) {
-      await storage.addLocalPurchasedStoryId(id);
-    }
-
-    return mergedIds;
+    await fetchAllEntitlementStoryIds();
   } catch (error) {
     console.warn('[bookAccessService] 同步已購買書籍失敗，改用本地快取:', error);
-    return localIds;
   }
+  return uniqueIds(await storage.getLocalPurchasedStoryIds());
 }
 
 /**
@@ -58,8 +77,7 @@ export function canAccessChapter({ freeOpen, isBookPurchased, canPreview = false
 
 /**
  * 以「伺服器 entitlements」為權威來源取得目前實際持有的 storyId 集合（供閱讀閘門用）。
- * 與 syncPurchasedStoryIds 不同：後者是 本地∪遠端 的聯集並回寫本地（樂觀快取、用於離線隱藏購買鈕），
- * 「只增不減」故無法反映「被移除書單／撤銷授權」。閘門判斷改用本函式：
+ * 本機快取只是取不到時的退路（含剛買、伺服器清單可能還沒反映的書），閘門判斷一律用本函式：
  *  - 線上取得成功 → 回傳伺服器目前的持有集合（可反映撤銷，需求 10）。
  *  - 線上失敗（離線／錯誤）→ 退回本地快取，避免誤擋合法持有者。
  */
@@ -94,7 +112,11 @@ export async function resolveBookOwnership(storyId) {
   let result = await resolveOwnedStoryIds();
   if (result.authoritative && !result.ids.includes(id)) {
     console.warn('[bookAccessService] 權威清單未含此書，再確認一次：', id);
-    result = await resolveOwnedStoryIds();
+    const confirm = await resolveOwnedStoryIds();
+    // 再確認取不到（狀態未知）時沿用第一次的權威結果：「查不到」不能推翻已確認的「未持有」，
+    // 否則會退回本機快取，讓已收回的書又能讀。
+    if (confirm.authoritative) result = confirm;
+    else console.warn('[bookAccessService] 再確認取不到，沿用權威結果（未持有）：', id);
   }
   return { ...result, owned: result.ids.includes(id) };
 }

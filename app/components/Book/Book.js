@@ -17,7 +17,7 @@ import { isTabletWidth, getUiScale } from '../../config/responsive';
 import { translate, coinCountLabel } from '../../i18n/i18n';
 import { toColor, toFontWeight } from '../../config/normalizeStyle';
 import { useGuardedNavigate } from '../../../hooks/useGuardedNavigate';
-import { purchaseStoryWithCoins, getEffectiveRoleLevel } from '../../config/userApiClient';
+import { purchaseStoryWithCoins, getEffectiveRoleLevel, getBookstoreList } from '../../config/userApiClient';
 import { canPreviewAll } from '../../config/roles';
 import { resolveBookOwnership } from '../../services/bookAccessService';
 import { resolveStartReadingParams } from '../../services/startReadingService';
@@ -202,8 +202,12 @@ function Book(props) {
     } catch (e) {
       snapshot = [];
     }
-    // 快照為空＝狀態未知（尚未載入首頁）→ 不誤擋，放行。
-    if (!Array.isArray(snapshot) || snapshot.length === 0) return true;
+    // 快照為空（例如重新登入後尚未進過首頁）→ 改即時查書店清單；仍取不到才視為狀態未知、放行。
+    // 不可一看到空快照就放行：那會連持有都不查，已收回的付費書可直接從存檔續看。
+    if (!Array.isArray(snapshot) || snapshot.length === 0) {
+      snapshot = (await getBookstoreList()) ?? [];
+      if (snapshot.length === 0) return true;
+    }
 
     const entry = snapshot.find((b) => Number(b?.storyListId) === Number(bookId));
     const onShelf = !!entry && entry.isActive !== false;

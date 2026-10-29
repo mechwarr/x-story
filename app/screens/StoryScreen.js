@@ -222,6 +222,10 @@ function StoryScreen({ route }) {
   const storyLockedRef = useRef(false);
   const [showPurchaseOverlay, setShowPurchaseOverlay] = useState(false);
   const [isBookPurchased, setIsBookPurchased] = useState(false);
+  // 伺服器確認「未持有」（權威清單查得到、且再確認仍不含此書）。與 isBookPurchased=false 不同：
+  // 後者也涵蓋「狀態未知、本機快取又沒有這本」（例如離線且書是在別台裝置買的）。
+  // 分章節書的未開放章節只在這個確定狀態下上鎖，狀態未知時照舊放行，不讓一次網路失敗擋住持有者。
+  const [notOwnedConfirmed, setNotOwnedConfirmed] = useState(false);
   const [purchaseChecked, setPurchaseChecked] = useState(false);
   // 初值取自 route params：自動接續下一章（replace 重掛）會帶入上一章的自動播放狀態，
   // 讓「章節→下一章」時自動播放維持不中斷（同章換場次留在同元件、狀態本就保留）。
@@ -821,6 +825,7 @@ function StoryScreen({ route }) {
       storyId: Number(storyId), owned, authoritative, canPreview, roleLevel, priceCoins: Number(priceCoins), ownedIds: ids,
     });
     setIsBookPurchased(owned);
+    setNotOwnedConfirmed(authoritative && !owned);
     setPurchaseChecked(true);
     // 主動跳購買提示僅在「權威確認被撤銷」時觸發，狀態未知不打擾閱讀。
     if (authoritative && wasOwnedRef.current && !owned && !canPreview && Number(priceCoins) > 0) {
@@ -875,13 +880,16 @@ function StoryScreen({ route }) {
     ]);
   }, [purchaseChecked, roleChecked, roleLevel, isBookPurchased, free_open, read_range_end]);
 
-  // 不分章節書「未開放試閱 × 未購買 × 非預覽者」：整本都是非試閱內容 →
+  // 「未開放試閱 × 未購買 × 非預覽者」：整段都是非試閱內容 →
   // 一進來就上鎖並跳出解鎖列（場次已在 fetchData 截成 0，畫面不會外洩內容）。
-  // 分章節書在章節選單（ChapterItem）就會被鎖頭擋下，不走這裡。
+  // 分章節書平常在章節選單（ChapterItem）就被鎖頭擋下，但「繼續觀看」、自動接下一章、
+  // 跨章選項都不經章節選單（例如閱讀中被收回後接到下一章），故伺服器確認未持有時這裡也要鎖；
+  // 狀態未知時不鎖（理由見 notOwnedConfirmed）。
   // 免費書（priceCoins <= 0）無從購買，鎖了會變死路 → 不鎖。
   useEffect(() => {
     if (!purchaseChecked || !roleChecked) return;
-    if (isChapterBook || isBookPurchased || canPreview) return;
+    if (isBookPurchased || canPreview) return;
+    if (isChapterBook && !notOwnedConfirmed) return;
     if (!free_open || free_open === '開放') return; // 旗標未解析出來時不誤鎖
     if (!(Number(priceCoins) > 0)) return;
     storyLockedRef.current = true; // 封鎖推進：關掉覆蓋層也不能再往下播
@@ -891,6 +899,7 @@ function StoryScreen({ route }) {
     roleChecked,
     isChapterBook,
     isBookPurchased,
+    notOwnedConfirmed,
     canPreview,
     free_open,
     priceCoins,
@@ -1326,15 +1335,20 @@ function StoryScreen({ route }) {
         //     購買後 isBookPurchased 變動觸發本 effect 重抓、把閱讀索引重設回開頭。
         // 未購買且非預覽者才受試閱閘門限制：
         //   free_open === '開放'      → 截到 read_range_end（試閱場次範圍尾）
-        //   free_open 明確為「不開放」→ 整本都是非試閱內容 → 0 場次，全部鎖住
-        //     （分章節書由 ChapterItem 在章節選單先擋，故僅套用於不分章節書；
+        //   free_open 明確為「不開放」→ 整段都是非試閱內容 → 0 場次，全部鎖住
+        //     （分章節書僅在伺服器確認未持有時套用，與下方解鎖列的條件一致，見 notOwnedConfirmed；
         //       free_open 尚未解析出來時視為未知、不誤鎖）
         const gated = !isBookPurchased && !canPreview;
         const previewClosed = !!free_open && free_open !== '開放';
         let screeningsList = rawScreenings;
         if (gated && free_open === '開放' && read_range_end) {
           screeningsList = rawScreenings.slice(0, +read_range_end);
-        } else if (gated && previewClosed && !isChapterBook && Number(priceCoins) > 0) {
+        } else if (
+          gated &&
+          previewClosed &&
+          (!isChapterBook || notOwnedConfirmed) &&
+          Number(priceCoins) > 0
+        ) {
           // 免費書（priceCoins <= 0）無從購買，鎖了會變死路 → 與下方解鎖列的條件一致，不鎖。
           screeningsList = [];
         }
