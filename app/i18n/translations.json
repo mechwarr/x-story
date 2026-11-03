@@ -404,6 +404,11 @@
         "zh-CN": "此故事尚未解锁或授权已失效，\n请重新解锁",
         "en": "This story isn’t unlocked,\nor your access has expired.\nPlease unlock it again."
     },
+    "bookOwnershipCheckFailed": {
+        "zh-TW": "無法確認此故事的解鎖狀態，\n請稍後再試",
+        "zh-CN": "无法确认此故事的解锁状态，\n请稍后再试",
+        "en": "We couldn't verify your access to this story.\nPlease try again later."
+    },
     "trialRangeNotSet": {
         "zh-TW": "尚未設定試閱範圍，\n試閱長度須大於 0",
         "zh-CN": "尚未设置试读范围，\n试读长度须大于 0",

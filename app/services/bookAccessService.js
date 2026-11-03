@@ -1,5 +1,12 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import storage from '../storage/storage';
-import { getAllEntitlements, invalidateEntitlementsCache } from '../config/userApiClient';
+import {
+  getAllEntitlements,
+  invalidateEntitlementsCache,
+  getBookstoreList,
+  getCoinLedgerOrNull,
+} from '../config/userApiClient';
+import { buildBookCatalog, resolveRefundedBookIds } from './refundedBooks';
 
 const normalizeStoryId = (value) => Number(value);
 
@@ -42,12 +49,12 @@ async function fetchAuthoritativeEntitlements() {
   await invalidateEntitlementsCache();
 
   // 翻頁交給 getAllEntitlements（以後端 total 判斷是否還有下一頁，不受後端每頁上限影響）。
-  const { items, failed, total, pages } = await getAllEntitlements();
+  const { items, failed, total, pages, errorMessage } = await getAllEntitlements();
   // 取不到（網路異常／逾時／非 2xx／格式不正確／清單不完整）：必須拋出，讓呼叫端的 catch 走
   // 「未知」分支（退回本地快取／fail-open）；否則「取不到」會被當成「一本都沒買」，
   // 付費書全部被判未持有而遭閘門誤擋。
   if (failed) {
-    throw new Error('entitlements 取得失敗（狀態未知）');
+    throw new Error(errorMessage || 'entitlements 取得失敗（狀態未知）');
   }
   const ids = uniqueIds(
     items.filter((item) => item?.storyListId !== undefined).map((item) => item.storyListId)
@@ -90,16 +97,62 @@ export async function getAuthoritativeOwnedStoryIds() {
  * 同 getAuthoritativeOwnedStoryIds，但額外回報「這份清單是否為權威結果」：
  *  - { ids, items, authoritative: true }  → 伺服器回覆成功，ids 即目前實際持有（可反映撤銷授權），
  *    items 為後端原始已購項目（含購買時間）。
- *  - { ids, items: null, authoritative: false } → 取不到（離線／逾時／錯誤），ids 只是本地樂觀快取，
- *    「不在 ids 內」不代表未持有。閱讀閘門遇此情形應 fail-open（不誤擋），
- *    與「在架清單取不到就不誤擋」的既有原則一致。
+ *  - { ids, items: null, authoritative: false, errorMessage } → 取不到（離線／逾時／錯誤），
+ *    ids 只是本地樂觀快取，「不在 ids 內」不代表未持有，errorMessage 為失敗內容。
+ *    閱讀閘門遇此情形應 fail-open（不誤擋），與「在架清單取不到就不誤擋」的既有原則一致；
+ *    例外：Book.canContinueOwned 的付費書改為擋下並提示 errorMessage。
  */
 export async function resolveOwnedStoryIds() {
   try {
     return { ...(await fetchAuthoritativeEntitlements()), authoritative: true };
   } catch (error) {
     console.warn('[bookAccessService] 取得權威持有清單失敗，退回本地快取（狀態未知）:', error);
-    return { ids: uniqueIds(await storage.getLocalPurchasedStoryIds()), items: null, authoritative: false };
+    return {
+      ids: uniqueIds(await storage.getLocalPurchasedStoryIds()),
+      items: null,
+      authoritative: false,
+      errorMessage: error?.message,
+    };
+  }
+}
+
+/**
+ * 已退款判定用的定價目錄（只當配對時的價格佐證）：先用首頁存的書店快照，沒有才即時查。
+ */
+async function loadBookCatalog() {
+  try {
+    const raw = await AsyncStorage.getItem('bookstoreList');
+    const cached = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(cached) && cached.length > 0) return buildBookCatalog(cached);
+  } catch (_e) {
+    // 快照壞掉就改即時查
+  }
+  return buildBookCatalog((await getBookstoreList()) ?? []);
+}
+
+/**
+ * 這本書是否被 CMS 書單「移除」標註為已退款（判定同 CMS 書單頁，見 services/refundedBooks）。
+ * CMS 移除不會收回 entitlements，只寫一筆 `[已退款] … ORDER:n` 流水，故持有清單仍含此書，
+ * 閱讀閘門須另外比對帳本才擋得住。
+ * 回傳 true／false；帳本或已購項目取不到時回 null（無法判定）。
+ */
+async function isRefundedBook(storyId, entitlementItems) {
+  if (!Array.isArray(entitlementItems)) return null;
+  const ledger = await getCoinLedgerOrNull();
+  if (!Array.isArray(ledger)) return null;
+  const refundedIds = resolveRefundedBookIds({
+    ledgerItems: ledger,
+    entitlements: entitlementItems,
+    bookCatalog: await loadBookCatalog(),
+  });
+  return refundedIds.has(storyId);
+}
+
+/** 自本機已購快取移除單本書：避免之後持有清單取不到時退回快取，又把已退款的書當成持有 */
+async function dropLocalPurchasedId(storyId) {
+  const current = uniqueIds(await storage.getLocalPurchasedStoryIds());
+  if (current.includes(storyId)) {
+    await storage.setLocalPurchasedStoryIds(current.filter((id) => id !== storyId));
   }
 }
 
@@ -107,7 +160,11 @@ export async function resolveOwnedStoryIds() {
  * 確認「單一本書」的持有狀態（閱讀閘門用）。權威結果為「未持有」時再查一次才採信：
  * 「未持有」會把付費用戶擋在門外（跳授權失效、閱讀中上鎖），代價遠高於多一次請求，
  * 故排除後端剛寫入／短暫不一致造成的單次誤判。
- * 回傳 { owned, ids, authoritative }，ids／authoritative 語意同 resolveOwnedStoryIds。
+ * 權威清單含此書時，再比對帳本是否已被 CMS 標註為已退款：已退款一律視為未持有
+ *（所有呼叫端——繼續觀看、再次回味、章節列表、故事頁——因此都會把付費內容鎖住）。
+ * 帳本取不到（無法判定退款）時照常視為持有，不誤擋。
+ * 回傳 { owned, refunded, ids, authoritative }，ids／authoritative 語意同 resolveOwnedStoryIds；
+ * 已退款時 ids 也不含此書，只看 ids 的呼叫端（ChapterScreen）同樣會上鎖。
  */
 export async function resolveBookOwnership(storyId) {
   const id = normalizeStoryId(storyId);
@@ -120,5 +177,19 @@ export async function resolveBookOwnership(storyId) {
     if (confirm.authoritative) result = confirm;
     else console.warn('[bookAccessService] 再確認取不到，沿用權威結果（未持有）：', id);
   }
-  return { ...result, owned: result.ids.includes(id) };
+
+  let refunded = false;
+  if (result.authoritative && result.ids.includes(id)) {
+    const refundState = await isRefundedBook(id, result.items);
+    if (refundState === true) {
+      refunded = true;
+      console.warn('[bookAccessService] 此書已被標註為已退款，視為未持有：', id);
+      await dropLocalPurchasedId(id);
+    } else if (refundState === null) {
+      console.warn('[bookAccessService] 帳本取不到，無法判定是否已退款，照常視為持有：', id);
+    }
+  }
+
+  const ids = refunded ? result.ids.filter((x) => x !== id) : result.ids;
+  return { ...result, ids, refunded, owned: ids.includes(id) };
 }

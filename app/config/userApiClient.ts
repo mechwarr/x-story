@@ -260,6 +260,8 @@ export interface GetEntitlementsResponse {
    * 使用者會被閱讀閘門誤擋（繼續觀看被導去章節選單、閱讀中被彈購買視窗）。
    */
   failed?: boolean;
+  /** failed 時的失敗內容（伺服器回應或逾時／網路錯誤訊息），供閘門提示使用者 */
+  errorMessage?: string;
 }
 
 interface GetEntitlementsOptions {
@@ -328,10 +330,10 @@ export async function getEntitlements(
       return data;
     }
     console.warn("[userApiClient] ✗ 獲取 entitlements 失敗，響應格式不正確:", res);
-    return { items: [], total: 0, page, limit, failed: true };
-  } catch (error) {
+    return { items: [], total: 0, page, limit, failed: true, errorMessage: JSON.stringify(res) };
+  } catch (error: any) {
     console.error("[userApiClient] 獲取 entitlements 時發生錯誤:", error);
-    return { items: [], total: 0, page, limit, failed: true };
+    return { items: [], total: 0, page, limit, failed: true, errorMessage: error?.message };
   }
 }
 
@@ -347,6 +349,8 @@ export interface GetAllEntitlementsResult {
    * 此時 items 只是部分結果，「不在 items 內」不代表未持有。
    */
   failed: boolean;
+  /** failed 時的失敗內容（清單不完整、未發生請求錯誤時為 undefined） */
+  errorMessage?: string;
   /** 後端回報的總筆數（未回報時為已取得筆數） */
   total: number;
   /** 實際請求的頁數（診斷用） */
@@ -370,7 +374,7 @@ export async function getAllEntitlements(): Promise<GetAllEntitlementsResult> {
   while (hasMore && pages < ENTITLEMENTS_MAX_PAGES) {
     pages += 1;
     const res = await getEntitlements(pages, ENTITLEMENTS_PAGE_SIZE, { bypassCache: true });
-    if (res.failed) return { items, failed: true, total, pages };
+    if (res.failed) return { items, failed: true, total, pages, errorMessage: res.errorMessage };
 
     const pageItems = Array.isArray(res.items) ? res.items : [];
     if (pageItems.length === 0) {

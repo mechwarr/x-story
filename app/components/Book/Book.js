@@ -12,7 +12,7 @@ import { showAlert } from '../CustomAlert';
 import routes from '../../navigations/routes';
 import AppText from '../AppText';
 import colors from '../../config/colors';
-import apiclient  from '../../config/apiClient';
+import apiclient, { bookDataBaseUrl } from '../../config/apiClient';
 import { isTabletWidth, getUiScale } from '../../config/responsive';
 import { translate, coinCountLabel } from '../../i18n/i18n';
 import { toColor, toFontWeight } from '../../config/normalizeStyle';
@@ -48,6 +48,9 @@ const COVER_SIZE = isTablet ? { width: 225, height: 330 } : { width: 150, height
 const NAME_MAX_LINES = 2; // 最多兩行：同時決定 numberOfLines 與保留高度
 const NAME_LINE_HEIGHT_RATIO = 1.4; // 行高／字級比例
 const NAME_FONT_SIZE_DEFAULT = 15; // CMS 未設定字級時的預設
+
+// 持有查詢失敗提示的字數上限：伺服器錯誤內容可能是整頁 HTML，彈窗沒有捲動，過長會把按鈕擠出畫面。
+const OWNERSHIP_ERROR_MAX_LENGTH = 300;
 
 function Book(props) {
   const {
@@ -148,8 +151,24 @@ function Book(props) {
     });
   };
 
-  // 存檔落點「現在」是否仍在免費試閱範圍內。一律以後端現況的章節設定判斷，不採信存檔裡的
-  // free_open / read_range_end——那是存檔當下寫的，後台之後可能把該章關閉。
+  // 取後端現況的試閱設定列：分章節書查該章（chapter 表），不分章節書查本書（nochapter 表）。
+  // nochapter 一律即時查：存檔帶的 nochapter 是存檔當下的快照，且本表僅有 All 端點可用。
+  const fetchCurrentTrialRow = async (savedChapterId) => {
+    const bookId = props.storyId ?? id;
+    if (hasChapter) {
+      const res = await axios.get(`${apiclient.currentBaseUrl()}api/v1/admin/chapter/${bookId}`);
+      return (Array.isArray(res?.data) ? res.data : []).find(
+        (c) => Number(c?.id) === Number(savedChapterId)
+      );
+    }
+    const res = await axios.get(bookDataBaseUrl + 'api/v1/admin/nochapter');
+    return (Array.isArray(res?.data) ? res.data : []).find(
+      (e) => Number(e?.storyid) === Number(bookId)
+    );
+  };
+
+  // 存檔落點「現在」是否仍在免費試閱範圍內。一律以後端現況的試閱設定判斷，不採信存檔裡的
+  // free_open / read_range_end——那是存檔當下寫的，後台之後可能把試閱關閉。
   // 為什麼非查不可：分章節書的付費保護全靠章節選單的鎖頭，故事頁的「整本上鎖」分支帶
   // !isChapterBook，對「已關閉試閱的章節」不會截斷也不會上鎖。若放行一筆指向已關閉章節的
   // 舊存檔，那一章就會整章免費讀完。
@@ -157,26 +176,24 @@ function Book(props) {
   const isSavedSpotStillFree = async (record) => {
     const savedChapterId = record?.chapterId;
     const savedScreen = Number(record?.cachedIndex?.screen);
-    if (savedChapterId == null || !Number.isFinite(savedScreen)) return false;
+    if (!Number.isFinite(savedScreen)) return false;
+    if (hasChapter && savedChapterId == null) return false;
     try {
-      const res = await axios.get(
-        `${apiclient.currentBaseUrl()}api/v1/admin/chapter/${props.storyId ?? id}`
-      );
-      const row = (Array.isArray(res?.data) ? res.data : []).find(
-        (c) => Number(c?.id) === Number(savedChapterId)
-      );
-      if (!row) return false; // 章節已不存在
-      if (row.free_open !== '開放') return false; // 該章現在不開放試閱
+      const row = await fetchCurrentTrialRow(savedChapterId);
+      if (!row) return false; // 章節／試閱設定已不存在
+      // nochapter 表的欄位名是 read_free（見 noChapterFreeOpen），兩個欄位名都收。
+      const freeOpen = row.read_free ?? row.free_open;
+      if (freeOpen !== '開放') return false; // 現在不開放試閱
       const rangeEnd = Number(row.read_range_end);
       if (!Number.isFinite(rangeEnd) || rangeEnd <= 0) return false; // 沒設定試閱長度＝沒有免費範圍
       // 場次索引為 0 起算：read_range_end = 4 代表可讀 screen 0~3。
       const stillFree = savedScreen < rangeEnd;
       console.log('[Book] 試閱範圍比對 →', {
-        chapterId: savedChapterId, savedScreen, free_open: row.free_open, read_range_end: row.read_range_end, stillFree,
+        chapterId: savedChapterId, savedScreen, free_open: freeOpen, read_range_end: row.read_range_end, stillFree,
       });
       return stillFree;
     } catch (e) {
-      console.warn('[Book] 章節現況取不到，續讀保守擋下:', e?.message ?? e);
+      console.warn('[Book] 試閱設定現況取不到，續讀保守擋下:', e?.message ?? e);
       return false;
     }
   };
@@ -184,6 +201,7 @@ function Book(props) {
   // 繼續觀看／再次回味的守門（需求 4、10）：
   //  4. 書籍下架／刪除 → 一律不能再看（堵住一般用戶用本地存檔繞過閘門續看的漏洞）。
   // 10. 付費書但已被移除書單（伺服器撤銷授權）→ 不能靠存檔續看「付費內容」；跳提示後回主頁。
+  //     CMS 書單標註「已退款」的書同樣視為未持有（resolveBookOwnership 比對帳本判定）。
   // role >= 5（小編／管理員）預覽者不受限，一律放行。
   // 回傳 true 表示可續看／回味；false 表示已擋下（本函式已負責提示與導向，呼叫端不要再導）。
   // savedRecord：這次要還原的存檔（繼續觀看＝props、首頁防呆右鍵＝storyCache 那筆、
@@ -221,26 +239,29 @@ function Book(props) {
     // resolveBookOwnership 在權威結果為「未持有」時會再確認一次，避免單次誤判就跳授權失效。
     const isPaid = Number(entry.priceCoins) > 0;
     if (isPaid) {
-      const { ids: ownedIds, authoritative, owned } = await resolveBookOwnership(bookId);
-      // 持有狀態「未知」（entitlements 取不到：離線／逾時／非 2xx）時不誤擋——與上方
-      // 「在架快照為空即放行」同一原則。少了這道判斷，一次網路失敗就會讓所有付費書
-      // 被當成未持有，「繼續觀看」永遠靜默導去章節選單、回不到最後的閱讀進度。
-      if (!owned && !authoritative) {
-        console.warn('[Book] 持有狀態未知（entitlements 取不到），放行續看：', bookId);
-        return true;
+      const { ids: ownedIds, authoritative, owned, errorMessage } = await resolveBookOwnership(bookId);
+      // 持有狀態「未知」（entitlements 取不到：離線／逾時／非 2xx）時不放行，連本機快取的持有
+      // 也不採信，並把失敗內容告知使用者。不導向、不動存檔：留在原頁，恢復連線後可再點一次。
+      if (!authoritative) {
+        console.warn('[Book] 持有狀態未知（entitlements 取不到），擋下續看：', bookId, errorMessage);
+        showAlert(
+          translate('cannotContinueReadingTitle'),
+          errorMessage?.slice(0, OWNERSHIP_ERROR_MAX_LENGTH) || translate('bookOwnershipCheckFailed')
+        );
+        return false;
       }
       if (!owned) {
         // 權威確認「確實未持有」。此時的判斷依據不是「有沒有買」，而是
         // 「要還原的那個位置，現在還在免費試閱範圍內嗎」——試閱讀者本來就讀得到那一段，
         // 沒有理由被擋下。超出範圍（或該章已關閉試閱）才跳提示回主頁。
-        if (hasChapter && (await isSavedSpotStillFree(savedRecord))) {
+        if (await isSavedSpotStillFree(savedRecord)) {
           console.log('[Book] 未持有但存檔落點仍在試閱範圍內 → 照常還原：', bookId);
           return true;
         }
         console.log('[Book] 付費書未持有且落點不在免費範圍 → 擋下並回主頁：', bookId, '有章節:', hasChapter, '已持有清單:', ownedIds);
         // 先明講原因，確認後一律回主頁（分章節／不分章節皆同）：
-        //  - 不可再進故事頁：不分章節書會被截到試閱範圍、落點夾回試閱最後一場，使用者看到的是
-        //    「被彈回試閱場、還能繼續讀」；若本次持有判斷與故事頁自己的判斷不一致，甚至整本可讀。
+        //  - 不可再進故事頁：落點已超出試閱範圍，不分章節書會被截到試閱範圍、夾回試閱最後一場，
+        //    使用者看到的是「被彈回試閱場、還能繼續讀」；若本次持有判斷與故事頁自己的判斷不一致，甚至整本可讀。
         //  - 存檔不動（不刪、不覆寫），重新解鎖後仍能從原進度接續。
         showAlert(translate('cannotContinueReadingTitle'), translate('bookNeedsUnlock'), [
           {

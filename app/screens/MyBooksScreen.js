@@ -50,7 +50,7 @@ function MyBooksScreen() {
   // 書店資料（storyListId → 價格／在架），與首頁一樣併進 storyData。story-list 本身沒有價格，
   // 少了 priceCoins 故事頁會把付費書當免費書，「未開放試閱」的內容就不上鎖。
   const [bookstoreById, setBookstoreById] = useState(new Map());
-  // CMS 書單「移除」標註為已退款的書籍 ID（書仍在 entitlements 內，只從書櫃隱藏）。
+  // CMS 書單「移除」標註為已退款的書籍 ID（書仍在 entitlements 內；書櫃隱藏，閱讀閘門另由 resolveBookOwnership 擋下）。
   // null 代表無法判定（帳本或權威持有清單取不到）→ 不隱藏，與 CMS 查詢失敗時照常顯示一致。
   const [refundedIds, setRefundedIds] = useState(null);
 
