@@ -9,7 +9,6 @@ import { showAlert } from "../components/CustomAlert";
 import {
   iapService,
   isUnconfirmedChargeError,
-  resolveStoreProductName,
   type ProductId,
 } from '../services/iapService';
 import { type CoinPack } from '../config/shopApiClient';
@@ -264,28 +263,15 @@ export function useIAP(): UseIAPReturn {
         console.log('[useIAP] 購買物件:', purchase);
         console.log('[useIAP] 驗證結果:', verificationResult);
 
-        // 從平台產品列表取得產品名稱（支援多國語系）
-        const purchasedProduct = products.find((p: any) =>
-          (p as any).productId === purchase.productId ||
-          p.id === purchase.productId ||
-          (p as any).productId === productId ||
-          p.id === productId
-        );
-
-        // 優先使用平台產品名稱（與商城卡片同一套取法），否則使用 productId
-        const productName =
-          (purchasedProduct ? resolveStoreProductName(purchasedProduct) : '') || purchase.productId || productId;
-
         // 從驗證結果取得金幣額度（此時必為後端核發值）
         const coinsAdded = verificationResult.coinsAdded ?? 0;
-        
-        console.log('[useIAP] 商品名稱（從平台取得）:', productName);
+
         console.log('[useIAP] 獲取金幣:', coinsAdded);
-        
-        // 顯示購買成功訊息（使用平台產品名稱以支援多國語系）
+
+        // 顯示購買成功訊息：不放商品名稱——商店名稱語系跟裝置／商店帳號，不跟 App 語系
         showAlert(
           translate('purchaseSuccessTitle'),
-          translate('iapPurchaseSuccessMessage', { product: productName, coins: coinsAdded }),
+          translate('iapPurchaseSuccessMessage', { coins: coinsAdded }),
           [{ text: translate('ok') }]
         );
 

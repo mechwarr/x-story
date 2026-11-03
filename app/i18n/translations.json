@@ -475,9 +475,9 @@
         "en": "Something went wrong.\nPlease try again later."
     },
     "iapPurchaseSuccessMessage": {
-        "zh-TW": "您已購買 {product}！\n獲得 {coins} 金幣！",
-        "zh-CN": "您已购买 {product}！\n获得 {coins} 金币！",
-        "en": "You've successfully purchased the {product}!\nReceived {coins} coins!"
+        "zh-TW": "已獲得 {coins} 金幣！",
+        "zh-CN": "已获得 {coins} 金币！",
+        "en": "You received {coins} coins!"
     },
     "restorePurchaseTitle": {
         "zh-TW": "恢復購買",
@@ -817,7 +817,7 @@
     "coinTypeBonus": {
         "zh-TW": "獎勵獲得",
         "zh-CN": "奖励获得",
-        "en": "Bonus"
+        "en": "BONUS"
     },
     "coinTypeSpent": {
         "zh-TW": "消費",
@@ -922,12 +922,12 @@
     "refundedCoinsValue": {
         "zh-TW": "{total} 金幣（含 BONUS {bonus}）",
         "zh-CN": "{total} 金币（含 BONUS {bonus}）",
-        "en": "{total} coins (incl. {bonus} bonus)"
+        "en": "{total} coins (incl. {bonus} BONUS)"
     },
     "coinRefundIncludesBonus": {
         "zh-TW": "含 BONUS {bonus} 金幣",
         "zh-CN": "含 BONUS {bonus} 金币",
-        "en": "Includes {bonus} bonus coins"
+        "en": "Includes {bonus} BONUS coins"
     },
     "shopTitle": {
         "zh-TW": "商城",
@@ -1065,9 +1065,9 @@
         "en": "Transaction Verification Failed"
     },
     "iapUnconfirmedChargeMessage": {
-        "zh-TW": "無法確認金幣入帳，\n若已扣款，\n請稍後查看餘額或聯絡客服",
-        "zh-CN": "无法确认金币到账，\n若已扣款，\n请稍后查看余额或联系客服",
-        "en": "Unable to confirm the coins were added.\nIf you were charged, please check your balance later or contact us."
+        "zh-TW": "無法確認金幣入帳，若已扣款，請稍後查看餘額或聯絡客服",
+        "zh-CN": "无法确认金币到账，若已扣款，请稍后查看余额或联系客服",
+        "en": "Unable to confirm the coins were added. If you were charged, please check your balance later or contact us."
     },
     "iapTransactionIdLine": {
         "zh-TW": "交易編號：{id}",

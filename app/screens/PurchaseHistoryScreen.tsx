@@ -7,7 +7,6 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import routes from '../navigations/routes';
 import { iapService } from '../services/iapService';
 import { fetchCurrentPlatformCatalog, buildBackendNameMap } from '../utils/iapCatalog';
-import { appStoreSkuToBackendProductId } from '../utils/iosIapSkuMapping';
 import type { IapReceipt } from '../config/shopApiClient';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
@@ -29,20 +28,6 @@ type Purchase = {
 // 格式化日期時間：後端 UTC 時間戳 → 裝置時區的 yyyy.MM.dd HH:mm（台北為 UTC+8）
 function formatDateTime(isoString: string): string {
   return formatServerDateTime(isoString);
-}
-
-/**
- * 依 productId 取得顯示名稱：優先用雙平台（App Store / Google Play）回傳的當地語系 title，
- * 平台尚未載入時退回後端金幣包名稱（同樣來自 API，非硬編碼），最後才退回 productId。
- * 另一平台的收據（例如 Android 上看到 iOS 的 item_03）先換回後端 ID 再查金幣包名稱。
- */
-function resolveProductName(productId: string, backendNames: Record<string, string>): string {
-  const platformName = iapService.getProductName(productId);
-  if (platformName && platformName !== productId) {
-    return platformName;
-  }
-  const id = String(productId ?? '').trim();
-  return backendNames[id] ?? backendNames[appStoreSkuToBackendProductId(id)] ?? productId;
 }
 
 type ReceiptStatus = 'success' | 'refunded' | 'pending' | 'failed';
@@ -76,10 +61,10 @@ function formatPriceWithCurrency(priceText: string, currencyCode: string): strin
   return `${priceText} (${CURRENCY_DISPLAY_CODES[currencyCode] ?? currencyCode})`;
 }
 
-// 將 IAP 收據轉換為 UI 顯示格式（優先平台當地語系名稱，退回後端名稱）
+// 將 IAP 收據轉換為 UI 顯示格式（名稱與金額取自同一筆商店商品，語系與幣別由商店決定）
 function convertReceiptToPurchase(receipt: IapReceipt, backendNames: Record<string, string>): Purchase {
-  const productName = resolveProductName(receipt.productId, backendNames);
-  // 交易金額：依 productId 從雙平台取得真實貨幣價格（含幣別符號）
+  const productName = iapService.getProductName(receipt.productId, backendNames);
+  // 交易金額：收據不含金額，依 productId 取商店目前的顯示價格（含幣別符號）
   const priceText = formatPriceWithCurrency(
     iapService.getProductDisplayPrice(receipt.productId),
     iapService.getProductCurrencyCode(receipt.productId),
@@ -111,7 +96,9 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
       setIsLoading(true);
       setLoadFailed(false);
 
-      // 先依後端金幣包載入平台產品列表，讓 getProductName／getProductDisplayPrice 有資料可查。
+      const receipts = await iapService.getIapReceipts();
+
+      // 載入平台產品列表，讓 getProductName／getProductDisplayPrice 有資料可查。
       // 商品清單來自 api/coin-packs，後台新增品項的收據也能正確顯示名稱與價格。
       let backendNames: Record<string, string> = {};
       try {
@@ -122,8 +109,8 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
       } catch (e) {
         // IAP／後端未就緒時仍可顯示收據，名稱會退回 productId
       }
-
-      const receipts = await iapService.getIapReceipts();
+      // 目錄外的收據商品（已停用的金幣包、另一平台的 SKU）再向商店補查；目錄失敗時也靠這步取得資料
+      await iapService.ensureProductsCached(receipts.map((r) => r.productId)).catch(() => {});
 
       // 由新到舊。解析失敗者（null）視為最舊，避免 NaN 讓排序結果不穩定
       receipts.sort((a, b) => (toEpochMillis(b.createdAt) ?? 0) - (toEpochMillis(a.createdAt) ?? 0));

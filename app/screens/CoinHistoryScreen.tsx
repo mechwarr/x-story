@@ -21,7 +21,6 @@ import { getCoinOrderBookMap, recordCoinOrderBooks } from '../storage/coinOrderB
 import { useCoins } from '../store/coinContext';
 import { iapService } from '../services/iapService';
 import { fetchCurrentPlatformCatalog, buildBackendNameMap } from '../utils/iapCatalog';
-import { appStoreSkuToBackendProductId } from '../utils/iosIapSkuMapping';
 import type { IapReceipt } from '../config/shopApiClient';
 import useResponsive from '../hook/useResponsive';
 import NoDataRetryView from '../components/NoDataRetryView';
@@ -234,19 +233,12 @@ function attachRefundedBookNames(
   return names;
 }
 
-/**
- * 依 productId 取得顯示名稱：優先用雙平台（App Store / Google Play）回傳的當地語系 title，
- * 平台尚未載入時退回後端金幣包名稱（同樣來自 API，非硬編碼），最後才退回 productId。
- * 另一平台的紀錄（例如 Android 上看到 iOS 的 item_03）先換回後端 ID 再查金幣包名稱，
- * 避免畫面直接印出 SKU 代碼。
- */
-function resolveProductName(productId: string, backendNames: Record<string, string>): string {
-  const platformName = iapService.getProductName(productId);
-  if (platformName && platformName !== productId) {
-    return platformName;
-  }
-  const id = String(productId ?? '').trim();
-  return backendNames[id] ?? backendNames[appStoreSkuToBackendProductId(id)] ?? productId;
+/** 帳本流水 source 內出現的商品 ID（去掉 BONUS 尾綴），供向商店補查名稱 */
+function ledgerProductIds(logs: CoinLedgerItem[]): string[] {
+  return logs
+    .map((log) => String(log.source ?? '').match(/PROD:\s*([^|\s]+)/i)?.[1] ?? '')
+    .map((id) => id.replace(/_?BONUS$/i, ''))
+    .filter(Boolean);
 }
 
 /** IAP 單號 → 原儲值商品與贈送金幣，供退款流水顯示「退的是哪個金幣包、含多少 BONUS」 */
@@ -315,11 +307,11 @@ function parseSourceDisplay(
     const prodValue = prodMatch[1].trim();
     if (prodValue.toUpperCase().includes('_BONUS')) {
       const baseId = prodValue.replace(/_BONUS$/i, '');
-      line1 = `${resolveProductName(baseId, backendNames)} BONUS`;
+      line1 = `${iapService.getProductName(baseId, backendNames)} BONUS`;
     } else if (prodValue.toUpperCase() === 'BONUS') {
       line1 = 'BONUS';
     } else {
-      line1 = resolveProductName(prodValue, backendNames);
+      line1 = iapService.getProductName(prodValue, backendNames);
     }
   }
 
@@ -378,7 +370,7 @@ function describeLedgerRow(
     const bonus = Number(info?.bonusCoins) || 0;
     const refundLabel = translate('coinTypeRefund');
     return {
-      title: productId ? `${resolveProductName(productId, backendNames)} - ${refundLabel}` : refundLabel,
+      title: productId ? `${iapService.getProductName(productId, backendNames)} - ${refundLabel}` : refundLabel,
       detail: bonus > 0 ? translate('coinRefundIncludesBonus', { bonus }) : '',
       note: `ORDER:${refundReceiptId}`,
     };
@@ -446,7 +438,7 @@ export default function CoinHistoryScreen({
     setLoadFailed(false);
     setNotice(null);
     try {
-      // 先依後端金幣包載入平台商品列表，讓 resolveProductName 能取得當地語系顯示名稱。
+      // 先依後端金幣包載入平台商品列表，讓 getProductName 能取得商店顯示名稱。
       // 商品清單來自 api/coin-packs，後台新增品項的帳務紀錄也能正確顯示名稱。
       try {
         const catalog = await fetchCurrentPlatformCatalog();
@@ -475,6 +467,11 @@ export default function CoinHistoryScreen({
       if (!logsRes) {
         throw new Error('金幣帳本取得失敗');
       }
+
+      // 紀錄用到但不在目錄內的商品（已停用的金幣包、另一平台的 SKU）再向商店補查，名稱才不會只剩代碼
+      await iapService
+        .ensureProductsCached([...receiptsRes.map((r) => r.productId), ...ledgerProductIds(logsRes)])
+        .catch(() => {});
 
       setReceipts(receiptsRes);
 

@@ -31,7 +31,7 @@ import {
   logStringList,
 } from '../utils/iapDebugLogger';
 import { appStoreSkuToBackendProductId } from '../utils/iosIapSkuMapping';
-import { storeSkuMatchesBackendProductId } from '../utils/iapCatalog';
+import { backendProductIdToStoreSku } from '../utils/iapCatalog';
 import { formatStorePrice } from '../utils/priceFormat';
 
 /**
@@ -558,8 +558,9 @@ class IAPService {
    * 3. App Store 驗證：ID 是否存在、是否準備銷售、Bundle ID / 付費協議等
    * 4. 回傳結果：有效商品在 products 陣列；無效 ID 會透過日誌 invalidProductIdentifiers 列出
    * @param productIds - 要查詢的商品 ID 列表（來自後端 api/coin-packs，App 不再有預設清單）
+   * @param options.merge - 併入既有快取而非取代（紀錄頁補查用，不可洗掉商城已載入的商品）
    */
-  async getProductList(productIds: string[]): Promise<Product[]> {
+  async getProductList(productIds: string[], options?: { merge?: boolean }): Promise<Product[]> {
     try {
       if (!this.isInitialized) {
         await this.initialize();
@@ -869,7 +870,9 @@ class IAPService {
       console.log('[iapService] ==========================================');
       
       // 更新緩存的商品列表
-      this.cachedProducts = filteredProducts;
+      this.cachedProducts = options?.merge
+        ? [...this.cachedProducts.filter((p) => !filteredProducts.some((f) => f.id === p.id)), ...filteredProducts]
+        : filteredProducts;
       
       return filteredProducts;
     } catch (error) {
@@ -1166,28 +1169,44 @@ class IAPService {
 
   /**
    * 從已載入的商店商品中找出對應項目。
-   * 傳入的可能是商店 SKU，也可能是後端 productId（收據／帳務紀錄用的是後端 ID），
-   * 因此比對時同時容許 iOS 的歷史對照（item_001 ↔ item_01）。
+   * 傳入的可能是商店 SKU，也可能是後端 productId，且可能來自另一平台的收據
+   * （Android 上看到 iOS 的 item_03），因此雙方都先換回後端 ID 再比對，不分執行平台。
    */
   private findCachedProduct(productId: string): Product | undefined {
-    const target = String(productId ?? '').trim();
+    const target = appStoreSkuToBackendProductId(productId);
     if (!target) return undefined;
-    return this.cachedProducts.find((p) => {
-      const pid = String((p as any).productId ?? p.id ?? '');
-      return pid === target || storeSkuMatchesBackendProductId(pid, target);
-    });
+    return this.cachedProducts.find(
+      (p) => appStoreSkuToBackendProductId((p as any).productId ?? p.id) === target
+    );
   }
 
   /**
-   * 根據產品 ID 取得產品名稱（從平台產品列表，支援多國語系）
-   * @param productId - 商店 SKU 或後端 productId
-   * @returns 產品名稱，如果找不到則返回產品 ID
+   * 補查紀錄用到、但不在目前快取內的商品（後台已停用的金幣包、另一平台的 SKU），併入快取。
+   * ID 全部來自收據／帳本，不用本地清單；商店查無者不處理，由呼叫端的 fallback 接手。
+   * @param productIds - 商店 SKU 或後端 productId
    */
-  getProductName(productId: string): string {
+  async ensureProductsCached(productIds: string[]): Promise<void> {
+    const missing = productIds
+      .filter((id) => !this.findCachedProduct(id))
+      .map((id) => backendProductIdToStoreSku(appStoreSkuToBackendProductId(id)))
+      .filter(Boolean);
+    if (missing.length === 0) return;
+    await this.getProductList([...new Set(missing)], { merge: true });
+  }
+
+  /**
+   * 根據產品 ID 取得產品名稱（從平台產品列表，語系由商店決定）
+   * @param productId - 商店 SKU 或後端 productId
+   * @param fallbackNames - 商店查無此商品時才用的後端金幣包名稱
+   * @returns 產品名稱，如果都找不到則返回產品 ID
+   */
+  getProductName(productId: string, fallbackNames: Record<string, string> = {}): string {
     // 僅回傳平台顯示名稱，不使用本地硬編碼名稱
     const product = this.findCachedProduct(productId);
-    if (!product) return productId;
-    return resolveStoreProductName(product) || productId;
+    const storeName = product ? resolveStoreProductName(product) : '';
+    if (storeName) return storeName;
+    const id = String(productId ?? '').trim();
+    return fallbackNames[id] ?? fallbackNames[appStoreSkuToBackendProductId(id)] ?? productId;
   }
 
   /**
