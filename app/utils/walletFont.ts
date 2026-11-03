@@ -4,17 +4,12 @@
 
 import { getCurrentLang } from '../i18n/i18n';
 
-/**
- * 英文詞較長（Refill / Coin History），字級反而要比中文小一級：
- * 個人資料頁的錢包列是「整組靠右、金幣餘額緊貼其左」，按鈕組越寬金幣就被推得越偏左。
- * 英文曾放大到 20 / 22，按鈕組寬度約為中文的 1.5 倍，金幣被擠離頭像／標題的中線。
- * 16 讓 Refill 塞進與中文「加值」（17）同尺寸的按鈕外框 → 兩語系排版一致。
- */
-const WALLET_FONT_SIZE_EN = 16;
-const WALLET_FONT_SIZE_CJK = 17;
+/** 三語同字級；Refill 與「加值」都放得進 WalletChargeButton 的最小外框 */
+const WALLET_FONT_SIZE = 17;
 
 /**
- * 「查看紀錄 / Coin History」連結字級：比「加值 / Refill」小一級（1008 審稿）。
+ * 「查看紀錄 / Coin History」連結字級：比「加值 / Refill」小（1008 審稿）。
+ * 英文詞較長，再小一級；
  * 連結太大時按鈕組變寬，會把金幣餘額擠向左邊。
  */
 const WALLET_RECORDS_FONT_SIZE_EN = 14;
@@ -25,11 +20,11 @@ const WALLET_RECORDS_FONT_SIZE_CJK = 15;
  * @param ms useResponsive() 的尺寸換算（平板統一放大）
  */
 export function walletActionFontSize(ms: (size: number) => number): number {
-  return ms(getCurrentLang() === 'en' ? WALLET_FONT_SIZE_EN : WALLET_FONT_SIZE_CJK);
+  return ms(WALLET_FONT_SIZE);
 }
 
 /**
- * 取得「查看紀錄 / Coin History」連結字級。各語系皆比加值鈕小一級。
+ * 取得「查看紀錄 / Coin History」連結字級。各語系皆比加值鈕小。
  * @param ms useResponsive() 的尺寸換算（平板統一放大）
  */
 export function walletRecordsFontSize(ms: (size: number) => number): number {

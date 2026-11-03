@@ -38,7 +38,8 @@ import DropdownArrow, {
 import { translate } from '../i18n/i18n';
 import { resolvePendingSocialName, clearPendingSocialName } from '../auth/pendingSocialName';
 import { setProfileIncompletePersisted, isProfileComplete } from '../auth/firstLoginRedirect';
-import { walletActionFontSize, walletRecordsFontSize } from '../utils/walletFont';
+import WalletChargeButton from '../components/WalletChargeButton';
+import { walletRecordsFontSize } from '../utils/walletFont';
 
 import DatePickerSheet from '../components/DatePickerSheet';
 import { parseValidBirthday } from '../utils/birthday';
@@ -54,9 +55,6 @@ import { Picker } from '@react-native-picker/picker';
 const FIELD_RADIUS = 25;
 const FIELD_HEIGHT = 50;
 const FIELD_PADDING_H = 20;
-/** 「加值 / Refill」鈕外框：三語固定同尺寸（英文不再另走較窄的內距） */
-const CHARGE_BTN_MIN_WIDTH = 76;
-const CHARGE_BTN_HEIGHT = 38;
 
 /**
  * 尚未設定生日時，日期滾輪的起始定位。
@@ -139,9 +137,7 @@ export default function ProfileScreen() {
   const submitFontSize = ms(16);
   // 頭像維持 1:1 圓形比例，寬度 RWD：手機為螢幕寬 30%、平板為 25%。
   const avatarSize = Math.round(windowWidth * (isTablet ? 0.25 : 0.3));
-  // 加值鈕字級：與 HistoryScreen 的「加值」共用同一組數值（見 utils/walletFont）
-  const walletFontSize = walletActionFontSize(ms);
-  // 「查看紀錄 / Coin History」：比加值鈕小一級
+  // 「查看紀錄 / Coin History」：比加值鈕小
   const recordsFontSize = walletRecordsFontSize(ms);
   // 「更新個人資訊 / Update Profile」與「完成並領取 50 金幣 / Complete to Get 50 Coins」：
   // 三語同字級，參照註冊／登入頁主要按鈕（XStoryLogin loginButtonText = 18）
@@ -364,7 +360,7 @@ export default function ProfileScreen() {
     }
   };
 
-  // 領取獎勵失敗彈窗：已領取過 → 專用標題／內文（個人資料已更新、您已領取過此活動獎勵），不當成錯誤；
+  // 領取獎勵失敗彈窗：已領取過 → 標題同為「領取獎勵失敗」，內文改為專用文案（您已領取過此活動獎勵）；
   // 其餘一律內建通用文案（後端訊息僅有繁中、無多語系，只留 console 供除錯，不直接顯示給使用者）。
   // 「已領取過」先比對後端錯誤字樣，對不上再以帳本確認——重複領取時後端不一定回可辨識的訊息。
   const showRewardClaimFailedAlert = async (rawMessage?: string | null) => {
@@ -372,7 +368,7 @@ export default function ProfileScreen() {
       isRewardAlreadyClaimedError(rawMessage) ||
       (await hasClaimedActivityReward(PROFILE_REWARD_ACTIVITY)) === true;
     if (alreadyClaimed) {
-      showAlert(translate('profileRewardAlreadyClaimedTitle'), translate('profileRewardAlreadyClaimedMessage'));
+      showAlert(translate('profileRewardClaimFailedTitle'), translate('profileRewardAlreadyClaimedMessage'));
       return;
     }
     showAlert(translate('profileRewardClaimFailedTitle'), translate('profileRewardClaimFailedMessage'));
@@ -488,19 +484,10 @@ export default function ProfileScreen() {
                   <Text style={[styles.balanceText, { fontSize: bodyFontSize }]} numberOfLines={1}>{coins}</Text>
                 </View>
                 <View style={[styles.walletRow, styles.walletRowRight]}>
-                  <Pressable style={[styles.chargeBtn, { minWidth: ms(CHARGE_BTN_MIN_WIDTH), height: ms(CHARGE_BTN_HEIGHT) }]} onPress={() => navigation.navigate(routes.PURCHASE as never)}>
-                    <Text
-                      style={[styles.chargeText, { fontSize: walletFontSize }]}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.9}
-                    >
-                      {translate('profileTopUp')}
-                    </Text>
-                  </Pressable>
+                  <WalletChargeButton onPress={() => navigation.navigate(routes.PURCHASE as never)} />
                   <Pressable style={styles.recordsBtn} onPress={() => navigation.navigate(routes.HISTORY as never)}>
                     {/* 刻意不加 adjustsFontSizeToFit：此文字一律以設定字級呈現，
-                        寬度不足時由左側 spacer／餘額方塊／加值鈕讓位（見 styles 註解） */}
+                        寬度不足時按鈕組先整組換行、再讓「查看紀錄」換到加值鈕下方（見 styles 註解） */}
                     <Text style={[styles.linkText, { fontSize: recordsFontSize }]} numberOfLines={1}>
                       {translate('profileViewRecords')}
                     </Text>
@@ -787,7 +774,9 @@ const styles = StyleSheet.create({
     // 一般機型上英文按鈕即以完整尺寸與字級呈現。
     flexGrow: 0,
     flexShrink: 1,
-    justifyContent: 'flex-start',
+    // 極窄螢幕／系統字級放大時連單獨一行都放不下：「查看紀錄」換到加值鈕下方，兩顆都不切字
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
     alignItems: 'flex-end', // 讓「查看紀錄」與「加值」的底部對齊
   },
   // 餘額方塊（你指定的樣式）
@@ -802,24 +791,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  // 三語共用同一組尺寸（minWidth／height 由 render 依 ms() 帶入）：
-  // 英文 Refill 與中文「加值」外框一致，金幣餘額也因此落在相同位置
-  chargeBtn: {
-    backgroundColor: '#ff3344',
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    // 整列的最後一道讓步：spacer → 餘額方塊 都收完仍塞不下時，才輪到「加值」收縮
-    // （它保留 adjustsFontSizeToFit，字會縮；「查看紀錄」則完全不縮）
-    flexShrink: 1,
-  },
   recordsBtn: {
     // 「查看紀錄 / Coin History」永遠以自然寬與設定字級呈現，不參與收縮
     flexShrink: 0,
   },
-  // Android 預設字型上下留白會讓中文字視覺偏下 → 關掉並垂直置中
-  chargeText: { color: '#fff', fontWeight: '700', includeFontPadding: false, textAlignVertical: 'center' },
   linkText: {
     color: '#f0ad57',
     fontWeight: '600',
@@ -913,8 +888,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     flexShrink: 1,
     paddingHorizontal: 4,
-    // Android 預設的字型上下留白會讓字視覺偏下，金幣相對就顯得偏高
-    includeFontPadding: false,
+    // 刻意保留 Android 預設字型留白（不設 includeFontPadding:false）：
+    // 拿掉後部分機型中文字底部會被文字框切掉，與 WalletChargeButton 同一原因
   },
   // 金幣圖示（按鈕內）
   coinIcon: {
@@ -939,9 +914,9 @@ const styles = StyleSheet.create({
   },
   // ---- 更新鈕 + 刪除帳號 ----
   // 原本用 marginTop:'auto' 把按鈕頂到畫面最底，性別欄與綠 Bar 之間會空一大塊。
-  // 改為跟著內容流排列；inputRow 的 15 再加 60 → 共 75，與登入頁「密碼欄 → 忘記密碼？→ 登入鍵」
-  // 的距離一致（XStoryLogin：密碼欄 marginBottom 10 ＋ 連結約 20 ＋ 連結 marginBottom 30 ＋ 登入鍵 marginTop 15）。
-  footer: { marginTop: 60 },
+  // 改為跟著內容流排列；inputRow 的 15 再加 30 → 共 45，與登入頁「忘記密碼？→ 登入鍵」
+  // 的間距一致（XStoryLogin：連結 marginBottom 30 ＋ 登入鍵 marginTop 15）。
+  footer: { marginTop: 30 },
 
   // ---- 刪除帳號 ----
   deleteAccountRow: {

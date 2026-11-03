@@ -605,8 +605,8 @@ export default function CoinHistoryScreen({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#2b2f33' },
 
-  header: { alignItems: 'center', paddingTop: 8, paddingBottom: 6 },
-  title: { color: '#e7eef6', fontWeight: '700', fontSize: 18, marginBottom: 6 },
+  header: { alignItems: 'center', paddingTop: 8, paddingBottom: 2 },
+  title: { color: '#e7eef6', fontWeight: '700', fontSize: 18, marginBottom: 2 },
 
   errorWrap: { paddingHorizontal: 16, paddingVertical: 8 },
   errorText: { color: '#e57373', fontSize: 14 },

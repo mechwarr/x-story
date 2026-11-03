@@ -16,6 +16,7 @@ import routes from '../navigations/routes';
 import { useCoins } from '../store/coinContext';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
+import WalletChargeButton from '../components/WalletChargeButton';
 import { translate } from '../i18n/i18n';
 import { walletActionFontSize } from '../utils/walletFont';
 
@@ -26,7 +27,7 @@ export default function HistoryScreen() {
   const navigation = useNavigation();
   const { isTablet, maxContentWidth, horizontalPadding, ms } = useResponsive();
   const { coins, refreshCoins } = useCoins();
-  // 與 ProfileScreen 的「加值」鈕字級一致（英文 Refill 不再沿用 RN 預設 14）
+  // 金幣餘額與「加值」鈕同字級
   const walletFontSize = walletActionFontSize(ms);
 
   // 金幣餘額列只在金幣紀錄分頁顯示，回到本頁（例如加值完）就刷新
@@ -47,19 +48,7 @@ export default function HistoryScreen() {
         <Text style={[styles.coinCount, { fontSize: walletFontSize }]} numberOfLines={1}>{coins}</Text>
       </View>
       <View style={[styles.chargeSide, styles.chargeSideRight]}>
-        <Pressable
-          style={styles.chargeBtn}
-          onPress={() => navigation.navigate(routes.PURCHASE as never)}
-        >
-          <Text
-            style={[styles.chargeText, { fontSize: walletFontSize }]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
-          >
-            {translate('profileTopUp')}
-          </Text>
-        </Pressable>
+        <WalletChargeButton onPress={() => navigation.navigate(routes.PURCHASE as never)} />
       </View>
     </View>
   );
@@ -155,7 +144,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingTop: 4,
+    paddingBottom: 8,
   },
   // flexBasis:0 讓左右兩欄不受內容（加值鈕）寬度影響、嚴格等寬，金幣才會真的置中
   chargeSide: { flex: 1, flexBasis: 0, minWidth: 0 },
@@ -163,14 +153,5 @@ const styles = StyleSheet.create({
   balanceBox: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   coinIcon: { width: 18, height: 18 },
   coinCount: { color: '#e7eef6', fontWeight: '700' },
-  chargeBtn: {
-    backgroundColor: '#ff3344',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    flexShrink: 1,
-  },
-  // 與個人資料頁加值鈕一致：關掉 Android 字型上下留白，中文字才會垂直置中
-  chargeText: { color: '#fff', fontWeight: '700', includeFontPadding: false, textAlignVertical: 'center' },
   content: { flex: 1, paddingTop: 6 },
 });
