@@ -393,7 +393,9 @@ function StoryScreen({ route }) {
     skipPersistRef.current = true; // 抑制離開保底存檔，避免把剛刪掉的進度又寫回
     storage.deleteStory({ storyId }, 'continueStory');
     storage.storeStory({ storyId, storyData, nochapter }, 'finishStory');
-    rawNavigation.navigate(routes.MAIN);
+    // React Navigation 7 的 navigate 預設一律推入新畫面：須帶 pop 才會退回既有 MAIN、
+    // 把 STORY（及途中的 CHAPTER）移出 stack，否則讀完的故事頁會留在首頁底下。
+    rawNavigation.navigate(routes.MAIN, undefined, { pop: true });
   }, [storyId, storyData, nochapter, rawNavigation]);
 
   const cacheData = useMemo(
@@ -749,6 +751,12 @@ function StoryScreen({ route }) {
           const previewTruncated =
             typeof queryInfo.screeningsTotal === 'number' &&
             screenings.length < queryInfo.screeningsTotal;
+
+          // 已持有但清單仍是購買前的試閱截斷版（購買後刻意不重抓場次，見 fetchData 註解）：
+          // 這是「試閱場次用完」，不是「本章播畢」。此時不可往下走，否則會在解鎖成功彈窗背後
+          // 誤接下一章，或誤判整本讀完而回首頁並刪掉閱讀紀錄。交給「開始閱讀」重掛取得完整場次。
+          if (previewTruncated && (isBookPurchased || canPreview)) return;
+
           // 「後面還有被鎖（需購買）的內容」＝本章被截斷，或下一章存在但不可讀。
           const hasLockedAhead =
             previewTruncated || (nextChapter != null && !nextAccessible);
@@ -995,7 +1003,9 @@ function StoryScreen({ route }) {
                         rawNavigation.replace(routes.STORY, params);
                       },
                     },
-                  ]
+                  ],
+                  // 開始閱讀是購買後唯一的重掛入口：點外部關閉會留在截斷版場次、無法繼續閱讀。
+                  { cancelable: false }
                 );
               } else {
                 showAlert(translate('purchaseFailedTitle'), translate('purchaseFailedRetry'));
