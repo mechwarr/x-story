@@ -531,8 +531,8 @@ android {
         applicationId 'com.rueiyang.story'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 217
-        versionName "1.2.29"
+        versionCode 218
+        versionName "1.2.30"
     }
     signingConfigs {
         debug {
