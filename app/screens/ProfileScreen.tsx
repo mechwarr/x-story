@@ -18,6 +18,7 @@ import { showAlert } from "../components/CustomAlert";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import routes from '../navigations/routes';
+import navigateHome from '../navigations/navigateHome';
 import { useCoins } from '../store/coinContext';
 import { useAuth } from '../auth/AuthContext';
 import {
@@ -148,14 +149,15 @@ export default function ProfileScreen() {
 
   /** 眼睛（回首頁）：首次登入時 ProfileScreen 是這個 Stack 的根（見 StoryNavigator），
    *  直接 navigate 會把首頁「疊」在個人資料頁之上，返回鍵又退回個人資料頁。
-   *  此情況改用 reset 讓首頁成為根；其他情況（從首頁 push 進來）維持原本的 navigate 退回。 */
+   *  此情況改用 reset 讓首頁成為根；其他情況退回堆疊中既有的首頁（navigateHome 帶 pop，
+   *  否則 React Navigation 7 會把新首頁疊上去，底下的故事頁等畫面仍掛載著）。 */
   const goHome = useCallback(() => {
     const state = (navigation as any).getState?.();
     if (state?.routes?.[0]?.name === routes.PROFILE) {
       (navigation as any).reset({ index: 0, routes: [{ name: routes.MAIN }] });
       return;
     }
-    navigation.navigate(routes.MAIN as never);
+    navigateHome(navigation);
   }, [navigation]);
 
   // ---- 載入用戶資料（換帳號後每次進入此畫面都重新拉取，避免顯示上一帳號名稱/生日/性別）----

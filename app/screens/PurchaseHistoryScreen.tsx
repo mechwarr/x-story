@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import routes from '../navigations/routes';
+import navigateHome from '../navigations/navigateHome';
 import { iapService } from '../services/iapService';
 import { fetchCurrentPlatformCatalog, buildBackendNameMap } from '../utils/iapCatalog';
 import type { IapReceipt } from '../config/shopApiClient';
@@ -141,7 +142,7 @@ export default function PurchaseHistoryScreen({ embedded = false }: { embedded?:
         <NoDataRetryView
           message={translate('purchaseHistoryLoadFailedMessage')}
           onRetry={loadReceipts}
-          onEyePress={() => navigation.navigate(routes.MAIN as never)}
+          onEyePress={() => navigateHome(navigation)}
           showTopBar={!embedded}
         />
       </Wrapper>

@@ -16,6 +16,7 @@ import { showAlert } from "../components/CustomAlert";
 import axios from 'axios';
 import colors from '../config/colors';
 import routes from '../navigations/routes';
+import navigateHome from '../navigations/navigateHome';
 import Narrator from '../components/narrator/Narrator';
 import StoryHeader from '../components/StoryHeader';
 import ScreeningSwitcher from '../components/ScreeningSwitcher';
@@ -483,8 +484,14 @@ function StoryScreen({ route }) {
     // 從側邊選單切到別的 Drawer 畫面（繼續觀看／我的書籍…）時，本畫面「不會卸載、也不會
     // beforeRemove、App 仍是 active」——三個保底時機一個都不會發生，只捲動沒翻頁、或剛跨場次
     // 就切走的進度會整段遺失。blur 是這條路唯一的訊號，故一併補存。
+    // 失焦時一併關掉自動播放、停掉影音：本畫面失焦後仍掛載著（Drawer 切頁、或上面再疊一頁），
+    // 自動播放的計時器若繼續跑，會在背景一路推進、每段覆寫存檔——回來時落點跑到沒看過的地方，
+    // 播到章末還會自行換章，播到全書結束更會刪掉繼續觀看紀錄。關閉（而非暫停）＝回來時按鈕狀態
+    // 與實際一致，要續播再按一次 Auto。跨章／跳轉的 replace 在送出前就讀好 isAutoPlayRef，不受影響。
     const unsubBlur = rawNavigation.addListener('blur', () => {
       persistProgressRef.current();
+      setIsAutoPlay(false);
+      mediaPlayer.release();
     });
     return () => {
       sub.remove();
@@ -881,7 +888,7 @@ function StoryScreen({ route }) {
           if (storyData?.chapter_type === '章節') {
             navigation.navigate(routes.CHAPTER, { name, author, storyId, storyData });
           } else {
-            navigation.navigate(routes.MAIN);
+            navigateHome(navigation);
           }
         },
       },

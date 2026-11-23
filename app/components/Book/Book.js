@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { showAlert } from '../CustomAlert';
 import routes from '../../navigations/routes';
+import navigateHome from '../../navigations/navigateHome';
 import AppText from '../AppText';
 import colors from '../../config/colors';
 import apiclient, { bookDataBaseUrl } from '../../config/apiClient';
@@ -266,7 +267,7 @@ function Book(props) {
         showAlert(translate('cannotContinueReadingTitle'), translate('bookNeedsUnlock'), [
           {
             text: translate('ok'),
-            onPress: () => navigation.navigate(routes.HOME, { screen: routes.MAIN }),
+            onPress: () => navigateHome(navigation),
           },
         ]);
         return false;

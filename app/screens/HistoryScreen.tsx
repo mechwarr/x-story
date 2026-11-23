@@ -13,6 +13,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import CoinHistoryScreen from './CoinHistoryScreen';
 import PurchaseHistoryScreen from './PurchaseHistoryScreen';
 import routes from '../navigations/routes';
+import navigateHome from '../navigations/navigateHome';
 import { useCoins } from '../store/coinContext';
 import useResponsive from '../hook/useResponsive';
 import ScreenTopBar from '../components/ScreenTopBar';
@@ -56,7 +57,7 @@ export default function HistoryScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScreenTopBar
-        onEyePress={() => navigation.navigate(routes.MAIN as never)}
+        onEyePress={() => navigateHome(navigation)}
         onProfilePress={() => navigation.navigate(routes.PROFILE as never)}
       />
 

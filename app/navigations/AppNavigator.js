@@ -15,6 +15,7 @@ import MyBooksScreen from "../screens/MyBooksScreen";
 import StoryContext from "../components/story/context";
 
 import routes from "./routes";
+import navigateHome from "./navigateHome";
 import colors from "../config/colors";
 import { translate } from "../i18n/i18n";
 import { decideInitialRoute } from "./startupRoute";
@@ -33,12 +34,13 @@ const Drawer = createDrawerNavigator();
 // 為什麼不是單純 navigate(routes.HOME)：
 //  1. HOME 這個 Drawer.Screen 掛的是 StoryNavigator（Stack），只切 Drawer 焦點時
 //     內層堆疊會保留原狀——使用者若停在 CHAPTER/STORY/PROFILE，點眼睛會回到那一頁而非首頁。
-//     故以巢狀目標指定內層的 MAIN：堆疊中已有 MAIN 就退回它，沒有（例如首次登入落在
-//     PROFILE）則推入，兩種情況都保證看到 HomeScreen。
+//     故以巢狀目標指定內層的 MAIN，並帶 pop（見 navigateHome）：堆疊中已有 MAIN 就退回它、
+//     移除上面的 STORY 等畫面；沒有（例如首次登入落在 PROFILE）則推入。不帶 pop 時
+//     React Navigation 7 會把新首頁疊在故事頁之上，故事頁留在底下繼續掛載。
 //  2. DrawerRouter 只在「切換到不同的 drawer 畫面」時自動關閉抽屜（比對 state.index）。
 //     人已經在 HOME 時 index 不變，抽屜不會關，畫面就停在開著的選單上。故顯式 closeDrawer。
 const goHome = (navigation) => {
-  navigation.navigate(routes.HOME, { screen: routes.MAIN });
+  navigateHome(navigation);
   navigation.closeDrawer();
 };
 

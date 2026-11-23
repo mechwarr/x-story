@@ -6,6 +6,7 @@ import {
 import { showAlert } from "../components/CustomAlert";
 import { useNavigation } from '@react-navigation/native';
 import routes from '../navigations/routes';
+import navigateHome from '../navigations/navigateHome';
 import PackCard, {
   PackItem,
   PRICE_BOX_WIDTH,
@@ -367,7 +368,7 @@ export default function ShopScreen() {
       <NoDataRetryView
         message={translate('shopLoadFailedMessage')}
         onRetry={refreshProducts}
-        onEyePress={() => navigation.navigate(routes.MAIN as never)}
+        onEyePress={() => navigateHome(navigation)}
       />
     );
   }
@@ -375,7 +376,7 @@ export default function ShopScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScreenTopBar
-        onEyePress={() => navigation.navigate(routes.MAIN as never)}
+        onEyePress={() => navigateHome(navigation)}
         onProfilePress={() => navigation.navigate(routes.PROFILE as never)}
       />
 
