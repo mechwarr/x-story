@@ -776,6 +776,13 @@ export async function getUserCoinBalance(): Promise<number | null> {
 }
 
 /**
+ * 購書流水附帶的書籍（後端以訂單關聯出書籍）。只有書名，沒有書籍 ID。
+ */
+export interface CoinLedgerStory {
+  main_menu_title?: string | null;
+}
+
+/**
  * 金幣帳本單筆紀錄（api/me/coins/ledger 回傳格式）
  */
 export interface CoinLedgerItem {
@@ -785,6 +792,10 @@ export interface CoinLedgerItem {
   type: string;
   source: string;
   createdAt: string;
+  /** 購書訂單編號（字串），只有 BOOK_PURCHASE 回傳，找不到訂單時為 null；舊版後端沒有此欄位 */
+  orderId?: string | null;
+  /** 購買的書籍，只有 BOOK_PURCHASE 回傳，缺少訂單或書籍時為 null；舊版後端沒有此欄位 */
+  story?: CoinLedgerStory | null;
 }
 
 /**
