@@ -434,7 +434,8 @@ const styles = StyleSheet.create({
   title: { color: '#e7eef6', fontWeight: '700', fontSize: 18 },
   balanceBox: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   coin: { width: 18, height: 18 },
-  balanceText: {color: "#f0ad57", fontWeight: '700' },
+  // 字級與首頁頂欄餘額（AppHeader coinText）一致
+  balanceText: { color: "#f0ad57", fontWeight: '700', fontSize: 16 },
 
   list: { paddingHorizontal: LIST_PADDING_HORIZONTAL, paddingBottom: 24, gap: 16 },
   loadingContainer: {

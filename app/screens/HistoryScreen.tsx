@@ -144,9 +144,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingTop: 4,
-    paddingBottom: 8,
+    paddingBottom: 4,
   },
   // flexBasis:0 讓左右兩欄不受內容（加值鈕）寬度影響、嚴格等寬，金幣才會真的置中
   chargeSide: { flex: 1, flexBasis: 0, minWidth: 0 },
